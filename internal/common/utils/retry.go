@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"go.uber.org/zap"
-
-	"api-server/common/global"
 )
 
 // Operation 定义需要重试的操作类型

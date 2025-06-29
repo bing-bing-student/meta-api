@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"meta-api/config"
-	"meta-api/internal/pkg/utils"
+	"meta-api/internal/common/utils"
 )
 
 // ConnectRedisClient 初始化Redis客户端

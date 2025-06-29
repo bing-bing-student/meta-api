@@ -1,4 +1,4 @@
-package middlewares
+package middleware
 
 import (
 	"net/http"
@@ -6,9 +6,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"meta-api/internal/pkg/errors"
-	"meta-api/internal/pkg/types"
-	"meta-api/internal/pkg/utils"
+	"meta-api/internal/common/errors"
+	"meta-api/internal/common/types"
+	"meta-api/internal/common/utils"
 )
 
 // JWT 定义中间件, 进行用户权限校验

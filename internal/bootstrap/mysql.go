@@ -17,7 +17,7 @@ import (
 	"meta-api/internal/app/model/article"
 	"meta-api/internal/app/model/link"
 	"meta-api/internal/app/model/tag"
-	"meta-api/internal/pkg/utils"
+	"meta-api/internal/common/utils"
 )
 
 type CompositeLogger struct {

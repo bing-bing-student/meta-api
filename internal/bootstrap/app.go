@@ -1,6 +1,8 @@
 package bootstrap
 
 import (
+	"context"
+
 	"github.com/redis/go-redis/v9"
 	"github.com/sony/sonyflake"
 	"go.uber.org/zap"
@@ -8,11 +10,6 @@ import (
 
 	"meta-api/config"
 )
-
-type SessionKeys struct {
-	Authorization []byte // session 授权密钥
-	Encryption    []byte // session 加密密钥
-}
 
 // Application 应用程序
 type Application struct {
@@ -34,4 +31,20 @@ func New() *Application {
 	app.Redis = initRedis(app.Config.RedisConfig, app.Logger)           // 初始化Redis
 
 	return app
+}
+
+// Start 启动所有服务组件
+func (app *Application) Start() {}
+
+// Stop 停止所有服务组件
+func (app *Application) Stop(ctx context.Context) {
+	// 关闭数据库连接
+	if sqlDB, err := app.MySQL.DB(); err == nil {
+		sqlDB.Close()
+	}
+
+	// 关闭Redis连接
+	if app.Redis != nil {
+		app.Redis.Close()
+	}
 }

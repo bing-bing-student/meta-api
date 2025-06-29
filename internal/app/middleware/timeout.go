@@ -1,4 +1,4 @@
-package middlewares
+package middleware
 
 import (
 	"context"
@@ -7,8 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"api-server/common/code"
-	"api-server/common/types"
+	"meta-api/internal/common/types"
 )
 
 // TimeoutMiddleware 超时中间件

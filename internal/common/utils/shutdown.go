@@ -9,9 +9,6 @@ import (
 	"time"
 
 	"go.uber.org/zap"
-
-	"api-server/common/global"
-	"api-server/service/article"
 )
 
 // GracefulShutdown 优雅停机
@@ -28,5 +25,5 @@ func GracefulShutdown(srv *http.Server) {
 		global.Logger.Info("Server gracefully shut down")
 	}
 	// 更新MySQL中的浏览量
-	article.UpdateViewNumToMySQLByScheduledTask()
+	//article.UpdateViewNumToMySQLByScheduledTask()
 }

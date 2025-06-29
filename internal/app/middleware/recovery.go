@@ -1,4 +1,4 @@
-package middlewares
+package middleware
 
 import (
 	"errors"
@@ -10,12 +10,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
-
-	"api-server/common/global"
 )
 
 // GinRecovery recover掉项目可能出现的panic
-func GinRecovery(stack bool) gin.HandlerFunc {
+func GinRecovery(logger *zap.Logger, stack bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if err := recover(); err != nil {
@@ -32,7 +30,7 @@ func GinRecovery(stack bool) gin.HandlerFunc {
 
 				httpRequest, _ := httputil.DumpRequest(c.Request, false)
 				if brokenPipe {
-					global.Logger.Error(c.Request.URL.Path,
+					logger.Error(c.Request.URL.Path,
 						zap.Any("code", err),
 						zap.String("request", string(httpRequest)),
 					)
@@ -42,13 +40,13 @@ func GinRecovery(stack bool) gin.HandlerFunc {
 				}
 
 				if stack {
-					global.Logger.Error("[Recovery from panic]",
+					logger.Error("[Recovery from panic]",
 						zap.Any("code", err),
 						zap.String("request", string(httpRequest)),
 						zap.String("stack", string(debug.Stack())),
 					)
 				} else {
-					global.Logger.Error("[Recovery from panic]",
+					logger.Error("[Recovery from panic]",
 						zap.Any("code", err),
 						zap.String("request", string(httpRequest)),
 					)

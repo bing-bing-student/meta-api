@@ -6,7 +6,7 @@ import (
 	"github.com/sony/sonyflake"
 	"go.uber.org/zap"
 
-	"meta-api/internal/pkg/constants"
+	"meta-api/internal/common/constants"
 )
 
 // initIDGenerator 初始化ID生成器

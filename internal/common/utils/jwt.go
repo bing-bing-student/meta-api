@@ -9,8 +9,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
-
-	"api-server/common/global"
 )
 
 type UserClaims struct {

@@ -12,7 +12,6 @@ func main() {
 	// 创建应用实例
 	application := app.New(bootstrapApp)
 
-	// 创建生命周期管理器并运行
-	lifecycle := app.NewLifecycleManager(application, application.GetLogger())
-	lifecycle.RunWithGracefulShutdown()
+	// 运行应用并处理优雅关闭
+	application.RunWithGracefulShutdown()
 }

@@ -14,6 +14,14 @@ type LogConfig struct {
 	Compress     bool   `mapstructure:"compress"`
 }
 
+// RetryConfig 定义重试配置文件结构体
+type RetryConfig struct {
+	MaxRetries   int           `mapstructure:"max_retries"`
+	InitialDelay time.Duration `mapstructure:"initial_delay"`
+	MaxDelay     time.Duration `mapstructure:"max_delay"`
+	JitterFactor float64       `mapstructure:"jitter_factor"`
+}
+
 // MySQLConfig 定义 mysql 配置文件结构体
 type MySQLConfig struct {
 	MaxOpenConn     int           `mapstructure:"max_open_conn"`
@@ -35,6 +43,7 @@ type AdminInfoConfig struct {
 // Config 定义项目配置文件结构体
 type Config struct {
 	LogConfig       *LogConfig       `mapstructure:"log"`
+	RetryConfig     *RetryConfig     `mapstructure:"retry"`
 	MySQLConfig     *MySQLConfig     `mapstructure:"mysql"`
 	RedisConfig     *RedisConfig     `mapstructure:"redis"`
 	AdminInfoConfig *AdminInfoConfig `mapstructure:"admin_info"`

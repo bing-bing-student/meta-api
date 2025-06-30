@@ -1,4 +1,4 @@
-package errors
+package codes
 
 const (
 	Success = 2000 // 成功

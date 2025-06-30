@@ -24,7 +24,7 @@ func NewServer(bootstrapApp *bootstrap.Application) *Server {
 
 	return &Server{
 		bootstrap: bootstrapApp,
-		http:      bootstrap.NewHTTPServer(os.Getenv("HTTP_PORT"), bootstrapApp.Config.Server.Host, r, bootstrapApp.Logger),
+		http:      bootstrap.NewHTTPServer(os.Getenv("HTTP_HOST"), os.Getenv("HTTP_PORT"), r, bootstrapApp.Logger),
 	}
 }
 

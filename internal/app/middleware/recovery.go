@@ -30,10 +30,7 @@ func GinRecovery(logger *zap.Logger, stack bool) gin.HandlerFunc {
 
 				httpRequest, _ := httputil.DumpRequest(c.Request, false)
 				if brokenPipe {
-					logger.Error(c.Request.URL.Path,
-						zap.Any("code", err),
-						zap.String("request", string(httpRequest)),
-					)
+					logger.Error(c.Request.URL.Path, zap.Any("code", err), zap.String("request", string(httpRequest)))
 					_ = c.Error(err.(error))
 					c.Abort()
 					return

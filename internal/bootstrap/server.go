@@ -17,9 +17,9 @@ type HTTPServer struct {
 }
 
 // NewHTTPServer 初始化HTTP服务
-func NewHTTPServer(port int, host string, handler *gin.Engine, logger *zap.Logger) *HTTPServer {
+func NewHTTPServer(host, port string, handler *gin.Engine, logger *zap.Logger) *HTTPServer {
 	srv := &http.Server{
-		Addr:         fmt.Sprintf("%s:%d", host, port),
+		Addr:         fmt.Sprintf("%s:%s", host, port),
 		Handler:      handler,
 		ReadTimeout:  3 * time.Second, // 读取请求超时时间
 		WriteTimeout: 3 * time.Second, // 写响应超时时间

@@ -37,20 +37,20 @@ type AdministerInfo struct {
 }
 
 // AddAdminSecretKey 添加管理员密钥
-func AddAdminSecretKey(adminID uint64, secretKey string) error {
-	if err := global.MySqlDB.Model(&Admin{}).Where("id = ?", adminID).
-		Updates(Admin{SecretKey: secretKey, BindStatus: 1}).Error; err != nil {
-		return err
-	}
-	return nil
-}
+//func AddAdminSecretKey(adminID uint64, secretKey string) error {
+//	if err := global.MySqlDB.Model(&Admin{}).Where("id = ?", adminID).
+//		Updates(Admin{SecretKey: secretKey, BindStatus: 1}).Error; err != nil {
+//		return err
+//	}
+//	return nil
+//}
 
 // GetAdminSecretKey 获取管理员密钥
-func GetAdminSecretKey(adminID uint64) (string, error) {
-	var secretKey string
-	if err := global.MySqlDB.Model(&Admin{}).Where("id = ? AND bind_status = ?", adminID, 1).
-		Pluck("secret_key", &secretKey).Error; err != nil {
-		return "", err
-	}
-	return secretKey, nil
-}
+//func GetAdminSecretKey(adminID uint64) (string, error) {
+//	var secretKey string
+//	if err := global.MySqlDB.Model(&Admin{}).Where("id = ? AND bind_status = ?", adminID, 1).
+//		Pluck("secret_key", &secretKey).Error; err != nil {
+//		return "", err
+//	}
+//	return secretKey, nil
+//}

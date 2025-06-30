@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"meta-api/internal/common/codes"
 	"meta-api/internal/common/types"
 )
 
@@ -28,7 +29,7 @@ func TimeoutMiddleware(timeout time.Duration) gin.HandlerFunc {
 		select {
 		case <-done:
 		case <-ctx.Done():
-			c.JSON(http.StatusOK, types.Response{Code: code.RequestTimeout, Message: "请求超时", Data: nil})
+			c.JSON(http.StatusOK, types.Response{Code: codes.RequestTimeout, Message: "请求超时", Data: nil})
 			c.Abort()
 		}
 	}

@@ -53,28 +53,28 @@ type TimeAndViewZSet struct {
 }
 
 // GetArticleDetailByID 通过文章ID获取文章信息
-func GetArticleDetailByID(id uint64) (detail *Detail, err error) {
-	detail = new(Detail)
-	if err = global.MySqlDB.
-		Table("article as a").
-		Select("a.id, a.title, a.describe, a.content, a.view_num, a.create_time, a.update_time, a.tag_id, b.name as tag_name").
-		Joins("JOIN tag as b ON a.tag_id=b.id").
-		Where("a.id = ?", id).
-		First(detail).Error; err != nil {
-		return nil, err
-	}
-	return detail, nil
-}
+//func GetArticleDetailByID(id uint64) (detail *Detail, err error) {
+//	detail = new(Detail)
+//	if err = global.MySqlDB.
+//		Table("article as a").
+//		Select("a.id, a.title, a.describe, a.content, a.view_num, a.create_time, a.update_time, a.tag_id, b.name as tag_name").
+//		Joins("JOIN tag as b ON a.tag_id=b.id").
+//		Where("a.id = ?", id).
+//		First(detail).Error; err != nil {
+//		return nil, err
+//	}
+//	return detail, nil
+//}
 
 // GetTagNameArticleZSetByTagName 通过标签名称获取文章信息的ZSet
-func GetTagNameArticleZSetByTagName(tagName string) (tagNameArticleZSet []TagNameArticleZSet, err error) {
-	if err = global.MySqlDB.Model(&Article{}).
-		Joins("JOIN tag ON tag.id = article.tag_id").
-		Where("tag.name = ?", tagName).
-		Select("article.id, article.create_time").
-		Find(&tagNameArticleZSet).Error; err != nil {
-		return nil, err
-	}
-
-	return tagNameArticleZSet, nil
-}
+//func GetTagNameArticleZSetByTagName(tagName string) (tagNameArticleZSet []TagNameArticleZSet, err error) {
+//	if err = global.MySqlDB.Model(&Article{}).
+//		Joins("JOIN tag ON tag.id = article.tag_id").
+//		Where("tag.name = ?", tagName).
+//		Select("article.id, article.create_time").
+//		Find(&tagNameArticleZSet).Error; err != nil {
+//		return nil, err
+//	}
+//
+//	return tagNameArticleZSet, nil
+//}

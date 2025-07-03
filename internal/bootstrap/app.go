@@ -1,8 +1,10 @@
 package bootstrap
 
 import (
-	"context"
+	"os"
+	"strings"
 
+	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 	"github.com/sony/sonyflake"
 	"go.uber.org/zap"
@@ -20,12 +22,45 @@ type Application struct {
 	Redis       *redis.Client        // Redis 客户端
 }
 
+// init 初始化环境变量
+func init() {
+	// 加载 .env 文件
+	if err := godotenv.Load(); err != nil {
+		return
+	}
+
+	// 加载 Docker Secrets
+	files, err := os.ReadDir("/run/secrets")
+	if err != nil {
+		return
+	}
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		secretPath := "/run/secrets/" + file.Name()
+		content, err := os.ReadFile(secretPath)
+		if err != nil {
+			continue
+		}
+
+		// 将文件名转为大写作为环境变量名
+		envName := strings.ToUpper(file.Name())
+		if err = os.Setenv(envName, strings.TrimSpace(string(content))); err != nil {
+			return
+		}
+	}
+}
+
 // New 创建应用程序
 func New() *Application {
 	app := &Application{}
 
-	app.Config = initConfig()                                           // 初始化配置
-	app.Logger = initLog(app.Config.LogConfig)                          // 初始化日志
+	app.Config = initConfig()                  // 初始化配置
+	app.Logger = initLog(app.Config.LogConfig) // 初始化日志
+
 	app.IDGenerator = initIDGenerator(app.Logger)                       // 初始化ID生成器
 	app.MySQL = initMySQL(app.Config.MySQLConfig, app.Config.LogConfig) // 初始化MySQL
 	app.Redis = initRedis(app.Config.RedisConfig, app.Logger)           // 初始化Redis
@@ -37,14 +72,18 @@ func New() *Application {
 func (app *Application) Start() {}
 
 // Stop 停止所有服务组件
-func (app *Application) Stop(ctx context.Context) {
-	// 关闭数据库连接
+func (app *Application) Stop() {
 	if sqlDB, err := app.MySQL.DB(); err == nil {
-		sqlDB.Close()
+		if err = sqlDB.Close(); err != nil {
+			app.Logger.Error("failed to close MySQL connection", zap.Error(err))
+		}
+	} else {
+		app.Logger.Error("failed to get MySQL DB instance", zap.Error(err))
 	}
 
-	// 关闭Redis连接
 	if app.Redis != nil {
-		app.Redis.Close()
+		if err := app.Redis.Close(); err != nil {
+			app.Logger.Error("failed to close Redis connection", zap.Error(err))
+		}
 	}
 }

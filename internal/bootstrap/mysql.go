@@ -83,17 +83,19 @@ func ConnectMySQLClient(ctx context.Context, config mysql.Config, logger logger.
 }
 
 // MySql 初始化数据库
-func initMySQL(cfg *config.MySQLConfig, logCfg *config.LogConfig) *gorm.DB {
+func initMySQL(cfg *config.MySQLConfig, logCfg *config.LogConfig) (db *gorm.DB) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
+	password := utils.NewSecureString(os.Getenv("MYSQL_PASSWORD"))
+	defer password.Clear()
+
 	username := os.Getenv("MYSQL_USERNAME") // 账号
-	password := os.Getenv("MYSQL_PASSWORD") // 密码
-	host := os.Getenv("MYSQL_HOST")         // 数据库地址，可以是IP或者域名
+	host := os.Getenv("MYSQL_HOST")         // 数据库地址
 	port := os.Getenv("MYSQL_PORT")         // 数据库端口
 	dbName := os.Getenv("MYSQL_DB_NAME")    // 数据库名
 	// dsn := "用户名:密码@tcp(地址:端口)/数据库名"
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local", username, password, host, port, dbName)
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local", username, password.Get(), host, port, dbName)
 
 	// 配置Gorm连接到MySQL
 	mysqlConfig := mysql.Config{
@@ -133,7 +135,6 @@ func initMySQL(cfg *config.MySQLConfig, logCfg *config.LogConfig) *gorm.DB {
 	}
 
 	// 连接MySQL
-	var db *gorm.DB
 	var err error
 	if err = utils.WithBackoff(ctx, func() error {
 		db, err = ConnectMySQLClient(ctx, mysqlConfig, compositeLogger, cfg)
@@ -142,9 +143,17 @@ func initMySQL(cfg *config.MySQLConfig, logCfg *config.LogConfig) *gorm.DB {
 		panic("MySQL connection failed: " + err.Error())
 	}
 
+	models := []interface{}{
+		&article.Article{},
+		&tag.Tag{},
+		&link.Link{},
+		&admin.Admin{},
+	}
+
 	// 自动生成对应的数据库表(表级别的字符排序默认使用utf8mb4_general_ci)
-	if err = db.Set("gorm:table_options", "ENGINE=InnoDB CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci").
-		AutoMigrate(&article.Article{}, &tag.Tag{}, &link.Link{}, &admin.Admin{}); err != nil {
+	if err = db.
+		Set("gorm:table_options", "ENGINE=InnoDB CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci").
+		AutoMigrate(models...); err != nil {
 		panic("failed to auto migrate tables: " + err.Error())
 	}
 

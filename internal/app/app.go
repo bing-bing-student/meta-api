@@ -7,8 +7,6 @@ import (
 	"syscall"
 	"time"
 
-	"go.uber.org/zap"
-
 	"meta-api/internal/app/server"
 	"meta-api/internal/app/task"
 	"meta-api/internal/bootstrap"
@@ -42,14 +40,14 @@ func (a *App) Run() {
 
 // Stop 停止应用
 func (a *App) Stop(ctx context.Context) {
-	// 执行数据持久化
-	task.PersistData(a.bootstrap)
-
 	// 停止HTTP服务器
 	a.server.Stop(ctx)
 
+	// 执行数据持久化
+	task.PersistData(a.bootstrap)
+
 	// 停止基础组件
-	a.bootstrap.Stop(ctx)
+	a.bootstrap.Stop()
 }
 
 // RunWithGracefulShutdown 运行应用并处理优雅关闭
@@ -78,9 +76,4 @@ func (a *App) RunWithGracefulShutdown() {
 	case <-ctx.Done():
 		logger.Error("Shutdown timeout exceeded, forcing exit")
 	}
-}
-
-// GetLogger 获取日志记录器
-func (a *App) GetLogger() *zap.Logger {
-	return a.bootstrap.Logger
 }

@@ -4,8 +4,6 @@ import (
 	"context"
 	"math/rand"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 // Operation 定义需要重试的操作类型
@@ -32,12 +30,12 @@ func WithBackoff(ctx context.Context, op Operation) error {
 		delay := calculateDelay(currentDelay, retryCount)
 
 		// 记录重试信息
-		global.Logger.Info("Retry attempt",
-			zap.Int("attempt", retryCount+1),
-			zap.Int("max_retries", global.MaxRetries),
-			zap.Duration("delay", delay),
-			zap.Error(err),
-		)
+		//global.Logger.Info("Retry attempt",
+		//	zap.Int("attempt", retryCount+1),
+		//	zap.Int("max_retries", global.MaxRetries),
+		//	zap.Duration("delay", delay),
+		//	zap.Error(err),
+		//)
 
 		// 等待或中断
 		select {

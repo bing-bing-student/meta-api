@@ -8,7 +8,6 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"go.uber.org/zap"
 )
 
 type UserClaims struct {
@@ -48,7 +47,7 @@ func GenerateToken(userClaims *UserClaims) (*TokenDetails, error) {
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessTokenClaims)
 	accessTokenString, err := accessToken.SignedString(mySigningKey)
 	if err != nil {
-		global.Logger.Error("failed to generate access token", zap.Error(err))
+		//global.Logger.Error("failed to generate access token", zap.Error(err))
 		return nil, err
 	}
 	tokenDetails.AccessToken = accessTokenString
@@ -71,7 +70,7 @@ func GenerateToken(userClaims *UserClaims) (*TokenDetails, error) {
 	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshTokenClaims)
 	refreshTokenString, err := refreshToken.SignedString(mySigningKey)
 	if err != nil {
-		global.Logger.Error("failed to generate refresh token", zap.Error(err))
+		//global.Logger.Error("failed to generate refresh token", zap.Error(err))
 		return nil, err
 	}
 	tokenDetails.RefreshToken = refreshTokenString

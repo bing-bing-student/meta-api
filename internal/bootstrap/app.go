@@ -13,15 +13,6 @@ import (
 	"meta-api/config"
 )
 
-// Application 应用程序
-type Application struct {
-	Config      *config.Config       // 配置
-	Logger      *zap.Logger          // 日志
-	IDGenerator *sonyflake.Sonyflake // 雪花ID生成器
-	MySQL       *gorm.DB             // MySQL 客户端
-	Redis       *redis.Client        // Redis 客户端
-}
-
 // init 初始化环境变量
 func init() {
 	// 加载 .env 文件
@@ -54,17 +45,57 @@ func init() {
 	}
 }
 
+// Application 应用程序
+type Application struct {
+	Config      *config.Config       // 配置
+	Logger      *zap.Logger          // 日志
+	IDGenerator *sonyflake.Sonyflake // 雪花ID生成器
+	MySQL       *gorm.DB             // MySQL 客户端
+	Redis       *redis.Client        // Redis 客户端
+}
+
 // New 创建应用程序
 func New() *Application {
-	app := &Application{}
+	return &Application{}
+}
 
-	app.Config = initConfig()                  // 初始化配置
-	app.Logger = initLog(app.Config.LogConfig) // 初始化日志
+// InitConfig 初始化配置
+func (app *Application) InitConfig() *Application {
+	app.Config = initConfig()
+	return app
+}
 
-	app.IDGenerator = initIDGenerator(app.Logger)                       // 初始化ID生成器
-	app.MySQL = initMySQL(app.Config.MySQLConfig, app.Config.LogConfig) // 初始化MySQL
-	app.Redis = initRedis(app.Config.RedisConfig, app.Logger)           // 初始化Redis
+// InitLogger 初始化日志
+func (app *Application) InitLogger() *Application {
+	app.Logger = initLog(app.Config.LogConfig)
+	return app
+}
 
+// InitIDGenerator 初始化雪花ID生成器
+func (app *Application) InitIDGenerator() *Application {
+	app.IDGenerator = initIDGenerator(app.Logger)
+	return app
+}
+
+// InitMySQL 创建MySQL客户端
+func (app *Application) InitMySQL() *Application {
+	mySQLConfig := &MySQLConfig{
+		MySQLConfig: app.Config.MySQLConfig,
+		LogConfig:   app.Config.LogConfig,
+		RetryConfig: app.Config.RetryConfig,
+	}
+
+	app.MySQL = initMySQL(mySQLConfig)
+	return app
+}
+
+// InitRedis 创建Redis客户端
+func (app *Application) InitRedis() *Application {
+	redisConfig := &RedisConfig{
+		RedisConfig: app.Config.RedisConfig,
+		RetryConfig: app.Config.RetryConfig,
+	}
+	app.Redis = initRedis(redisConfig)
 	return app
 }
 

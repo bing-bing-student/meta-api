@@ -14,7 +14,7 @@ import (
 func initConfig() *config.Config {
 	var err error
 	viper.SetConfigType("yaml")
-	viper.SetConfigFile("./c/c.yml")
+	viper.SetConfigFile("./config/config.yml")
 
 	// 读取配置信息
 	if err = viper.ReadInConfig(); err != nil {

@@ -1,4 +1,4 @@
-package task
+package cron_task
 
 import (
 	"time"

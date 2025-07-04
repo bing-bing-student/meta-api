@@ -82,8 +82,14 @@ func ConnectMySQLClient(ctx context.Context, config mysql.Config, logger logger.
 	return db, nil
 }
 
+type MySQLConfig struct {
+	MySQLConfig *config.MySQLConfig
+	LogConfig   *config.LogConfig
+	RetryConfig *config.RetryConfig
+}
+
 // MySql 初始化数据库
-func initMySQL(cfg *config.MySQLConfig, logCfg *config.LogConfig) (db *gorm.DB) {
+func initMySQL(cfg *MySQLConfig) (db *gorm.DB) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
@@ -106,7 +112,7 @@ func initMySQL(cfg *config.MySQLConfig, logCfg *config.LogConfig) (db *gorm.DB) 
 
 	// 创建全量SQL日志记录器
 	fullLogger := logger.New(
-		log.New(GetLogWriter(logCfg, logCfg.MySQLFullLog), "\r\n", log.LstdFlags),
+		log.New(GetLogWriter(cfg.LogConfig, cfg.LogConfig.MySQLFullLog), "\r\n", log.LstdFlags),
 		logger.Config{
 			SlowThreshold:             0,           // 记录所有SQL，无论快慢
 			LogLevel:                  logger.Info, // 记录所有级别
@@ -118,7 +124,7 @@ func initMySQL(cfg *config.MySQLConfig, logCfg *config.LogConfig) (db *gorm.DB) 
 
 	// 创建慢SQL日志记录器
 	slowLogger := logger.New(
-		log.New(GetLogWriter(logCfg, logCfg.MySQLSlowLog), "\r\n", log.LstdFlags),
+		log.New(GetLogWriter(cfg.LogConfig, cfg.LogConfig.MySQLSlowLog), "\r\n", log.LstdFlags),
 		logger.Config{
 			SlowThreshold:             10 * time.Millisecond, // 只记录超过10ms的SQL
 			LogLevel:                  logger.Warn,           // 只记录慢查询
@@ -136,8 +142,8 @@ func initMySQL(cfg *config.MySQLConfig, logCfg *config.LogConfig) (db *gorm.DB) 
 
 	// 连接MySQL
 	var err error
-	if err = utils.WithBackoff(ctx, func() error {
-		db, err = ConnectMySQLClient(ctx, mysqlConfig, compositeLogger, cfg)
+	if err = utils.WithBackoff(ctx, cfg.RetryConfig, func() error {
+		db, err = ConnectMySQLClient(ctx, mysqlConfig, compositeLogger, cfg.MySQLConfig)
 		return err
 	}); err != nil {
 		panic("MySQL connection failed: " + err.Error())

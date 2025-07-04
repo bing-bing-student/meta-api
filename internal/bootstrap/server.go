@@ -42,6 +42,8 @@ func (s *HTTPServer) Start() {
 }
 
 // Stop 停止HTTP服务
-func (s *HTTPServer) Stop(ctx context.Context) error {
-	return s.Shutdown(ctx)
+func (s *HTTPServer) Stop(ctx context.Context) {
+	if err := s.Server.Shutdown(ctx); err != nil {
+		s.logger.Error("HTTP server shutdown error", zap.Error(err))
+	}
 }

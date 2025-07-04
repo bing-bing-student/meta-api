@@ -7,37 +7,40 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"go.uber.org/zap"
 
 	"meta-api/config"
 	"meta-api/internal/common/utils"
 )
 
 // ConnectRedisClient 初始化Redis客户端
-func ConnectRedisClient(ctx context.Context, conf *config.RedisConfig, logger *zap.Logger) (*redis.Client, error) {
+func ConnectRedisClient(ctx context.Context, cfg *RedisConfig) (*redis.Client, error) {
 	client := redis.NewFailoverClient(&redis.FailoverOptions{
-		DB:            conf.DB,
+		DB:            cfg.RedisConfig.DB,
 		MasterName:    os.Getenv("REDIS_MASTER_NAME"),
 		SentinelAddrs: strings.Split(os.Getenv("REDIS_ADDRESS"), ","),
 	})
 
 	if err := client.Ping(ctx).Err(); err != nil {
-		logger.Error("Redis ping failed", zap.Error(err))
 		return nil, err
 	}
 
 	return client, nil
 }
 
+type RedisConfig struct {
+	RedisConfig *config.RedisConfig
+	RetryConfig *config.RetryConfig
+}
+
 // Redis 初始化Redis
-func initRedis(cfg *config.RedisConfig, logger *zap.Logger) *redis.Client {
+func initRedis(cfg *RedisConfig) *redis.Client {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
 	var client *redis.Client
 	var err error
-	if err = utils.WithBackoff(ctx, func() error {
-		client, err = ConnectRedisClient(ctx, cfg, logger)
+	if err = utils.WithBackoff(ctx, cfg.RetryConfig, func() error {
+		client, err = ConnectRedisClient(ctx, cfg)
 		return err
 	}); err != nil {
 		panic("Redis connection failed: " + err.Error())

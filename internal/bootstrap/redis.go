@@ -41,42 +41,10 @@ func initRedis(cfg *RedisConfig) *redis.Client {
 	var err error
 	if err = utils.WithBackoff(ctx, cfg.RetryConfig, func() error {
 		client, err = ConnectRedisClient(ctx, cfg)
-		return err
+		return nil
 	}); err != nil {
 		panic("Redis connection failed: " + err.Error())
 	}
 
-	// 缓存预热的代码放到main函数当中
-	//if err = client.Del(ctx, "article:time:ZSet").Err(); err != nil {
-	//	logger.Error("failed to delete article:time:ZSet", zap.Error(err))
-	//	return nil
-	//}
-	//if err = client.Del(ctx, "article:view:ZSet").Err(); err != nil {
-	//	logger.Error("failed to delete article:view:ZSet", zap.Error(err))
-	//	return nil
-	//}
-	//
-	//timeAndViewData := make([]article.TimeAndViewZSet, 0)
-	//if err = global.MySqlDB.Model(&article.Article{}).Select("id", "view_num", "create_time").Find(&timeAndViewData).Error; err != nil {
-	//	logger.Error("failed to get timeAndViewData", zap.Error(err))
-	//	return nil
-	//}
-	//
-	//for _, data := range timeAndViewData {
-	//	if err = client.ZAdd(ctx, "article:time:ZSet", redis.Z{
-	//		Score:  float64(data.CreateTime.UnixNano() / int64(time.Millisecond)),
-	//		Member: data.ID,
-	//	}).Err(); err != nil {
-	//		logger.Error("failed to add article:time:ZSet", zap.Error(err))
-	//		return nil
-	//	}
-	//	if err = client.ZAdd(ctx, "article:view:ZSet", redis.Z{
-	//		Score:  float64(data.ViewNum),
-	//		Member: data.ID,
-	//	}).Err(); err != nil {
-	//		logger.Error("failed to add article:view:ZSet", zap.Error(err))
-	//		return nil
-	//	}
-	//}
 	return client
 }

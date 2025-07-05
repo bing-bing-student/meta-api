@@ -70,13 +70,13 @@ func (a *Application) RunWithGracefulShutdown() {
 	// 启动应用
 	go a.Run(runCtx)
 
-	// 创建关闭上下文
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer shutdownCancel()
-
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
+
+	// 创建关闭上下文
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
 
 	// 执行关闭
 	done := make(chan struct{})

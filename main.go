@@ -11,6 +11,7 @@ func main() {
 	bootstrapApp.InitConfig()      // 初始化配置
 	bootstrapApp.InitLogger()      // 初始化日志
 	bootstrapApp.InitIDGenerator() // 初始化ID生成器
+	bootstrapApp.InitCron()        // 初始化定时任务
 	bootstrapApp.InitMySQL()       // 创建MySQL客户端
 	bootstrapApp.InitRedis()       // 创建Redis客户端
 

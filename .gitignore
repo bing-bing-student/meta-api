@@ -1,7 +1,7 @@
-.idea/*
+.idea
 .DS_Store
 
-./log/*
+log/*
 
 config/config.yml
 .env

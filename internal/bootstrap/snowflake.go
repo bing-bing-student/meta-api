@@ -17,8 +17,10 @@ func initIDGenerator(logger *zap.Logger) *sonyflake.Sonyflake {
 		return nil
 	}
 
-	if sf := sonyflake.NewSonyflake(sonyflake.Settings{StartTime: startTime}); sf != nil {
-		return sf
+	sf := sonyflake.NewSonyflake(sonyflake.Settings{StartTime: startTime})
+	if sf == nil {
+		logger.Error("sonyflake init error")
+		return nil
 	}
-	return nil
+	return sf
 }

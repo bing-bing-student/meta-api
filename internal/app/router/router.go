@@ -15,6 +15,7 @@ import (
 
 // SetUpRouter 启动路由
 func SetUpRouter(logger *zap.Logger) *gin.Engine {
+	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 
 	// 禁用代理

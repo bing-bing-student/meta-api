@@ -17,41 +17,9 @@ import (
 	"meta-api/internal/app/model/article"
 	"meta-api/internal/app/model/link"
 	"meta-api/internal/app/model/tag"
+	cusloggger "meta-api/internal/common/logger"
 	"meta-api/internal/common/utils"
 )
-
-type CompositeLogger struct {
-	fullLogger logger.Interface
-	slowLogger logger.Interface
-}
-
-func (c *CompositeLogger) LogMode(level logger.LogLevel) logger.Interface {
-	c.fullLogger.LogMode(level)
-	c.slowLogger.LogMode(level)
-	return c
-}
-
-func (c *CompositeLogger) Info(ctx context.Context, msg string, data ...interface{}) {
-	c.fullLogger.Info(ctx, msg, data...)
-}
-
-func (c *CompositeLogger) Warn(ctx context.Context, msg string, data ...interface{}) {
-	c.fullLogger.Warn(ctx, msg, data...)
-	c.slowLogger.Warn(ctx, msg, data...) // 慢日志也记录Warn
-}
-
-func (c *CompositeLogger) Error(ctx context.Context, msg string, data ...interface{}) {
-	c.fullLogger.Error(ctx, msg, data...)
-	c.slowLogger.Error(ctx, msg, data...)
-}
-
-func (c *CompositeLogger) Trace(ctx context.Context, begin time.Time, fc func() (string, int64), err error) {
-	// 全量日志记录所有SQL
-	c.fullLogger.Trace(ctx, begin, fc, err)
-
-	// 慢日志只记录超过阈值的SQL
-	c.slowLogger.Trace(ctx, begin, fc, err)
-}
 
 // ConnectMySQLClient 初始化MySQL客户端
 func ConnectMySQLClient(ctx context.Context, config mysql.Config, logger logger.Interface, cfg *config.MySQLConfig) (*gorm.DB, error) {
@@ -114,8 +82,8 @@ func initMySQL(cfg *MySQLConfig) (db *gorm.DB) {
 	fullLogger := logger.New(
 		log.New(GetLogWriter(cfg.LogConfig, cfg.LogConfig.MySQLFullLog), "\r\n", log.LstdFlags),
 		logger.Config{
-			SlowThreshold:             0,           // 记录所有SQL，无论快慢
-			LogLevel:                  logger.Info, // 记录所有级别
+			SlowThreshold:             0, // 记录所有SQL，无论快慢
+			LogLevel:                  logger.Info,
 			IgnoreRecordNotFoundError: true,
 			Colorful:                  false,
 			ParameterizedQueries:      true,
@@ -126,8 +94,8 @@ func initMySQL(cfg *MySQLConfig) (db *gorm.DB) {
 	slowLogger := logger.New(
 		log.New(GetLogWriter(cfg.LogConfig, cfg.LogConfig.MySQLSlowLog), "\r\n", log.LstdFlags),
 		logger.Config{
-			SlowThreshold:             10 * time.Millisecond, // 只记录超过10ms的SQL
-			LogLevel:                  logger.Warn,           // 只记录慢查询
+			SlowThreshold:             50 * time.Millisecond, // 只记录超过50ms的SQL
+			LogLevel:                  logger.Warn,
 			IgnoreRecordNotFoundError: true,
 			Colorful:                  false,
 			ParameterizedQueries:      true,
@@ -135,9 +103,9 @@ func initMySQL(cfg *MySQLConfig) (db *gorm.DB) {
 	)
 
 	// 组合日志记录器
-	compositeLogger := &CompositeLogger{
-		fullLogger: fullLogger,
-		slowLogger: slowLogger,
+	compositeLogger := &cusloggger.CompositeLogger{
+		FullLogger: fullLogger,
+		SlowLogger: slowLogger,
 	}
 
 	// 连接MySQL

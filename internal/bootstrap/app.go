@@ -53,7 +53,7 @@ type Bootstrap struct {
 	Logger          *zap.Logger          // 日志
 	IDGenerator     *sonyflake.Sonyflake // 雪花ID生成器
 	Cron            *cron.Cron           // 定时任务
-	CronEntryIDList []cron.EntryID       // 定时任务ID列表
+	CronEntryIDList *[]cron.EntryID      // 定时任务ID列表
 	MySQL           *gorm.DB             // MySQL 客户端
 	Redis           *redis.Client        // Redis 客户端
 }
@@ -132,14 +132,14 @@ func (b *Bootstrap) Start(ctx context.Context) {
 		return
 	}
 
-	b.CronEntryIDList = []cron.EntryID{entryID}
+	b.CronEntryIDList = &[]cron.EntryID{entryID}
 	b.Cron.Start()
 }
 
 // Stop 停止所有服务组件
 func (b *Bootstrap) Stop() {
 	// 关闭定时任务
-	for _, entryID := range b.CronEntryIDList {
+	for _, entryID := range *b.CronEntryIDList {
 		b.Cron.Remove(entryID)
 	}
 	b.Cron.Stop()

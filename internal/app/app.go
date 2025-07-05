@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"meta-api/internal/app/router"
-	"meta-api/internal/app/service/cron_task"
 	"meta-api/internal/bootstrap"
 )
 
@@ -36,7 +35,7 @@ func (a *App) Run() {
 	a.bootstrap.Start()
 
 	// 执行缓存预热
-	cron_task.WarmUp(a.bootstrap)
+	//cron_task.WarmUp(a.bootstrap)
 
 	// 启动HTTP服务器
 	a.http.Start()
@@ -48,7 +47,7 @@ func (a *App) Stop(ctx context.Context) {
 	a.http.Stop(ctx)
 
 	// 执行数据持久化
-	cron_task.PersistData(a.bootstrap)
+	//cron_task.PersistData(a.bootstrap)
 
 	// 停止基础组件
 	a.bootstrap.Stop()
@@ -66,14 +65,19 @@ func (a *App) RunWithGracefulShutdown() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// 执行优雅关闭
-	a.Stop(ctx)
+	// 创建通道接收关闭完成信号
+	done := make(chan struct{})
+	go func() {
+		a.Stop(ctx)
+		close(done)
+	}()
 
-	// 检查超时
+	// 同时监听关闭完成和超时
 	select {
+	case <-done:
 	case <-ctx.Done():
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			logger.Error("Shutdown timeout exceeded, forcing exit")

@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
@@ -23,6 +24,7 @@ func init() {
 	// 加载 Docker Secrets
 	files, err := os.ReadDir("/run/secrets")
 	if err != nil {
+		fmt.Println("failed to read /run/secrets directory", zap.Error(err))
 		return
 	}
 

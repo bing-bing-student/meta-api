@@ -1,4 +1,13 @@
-package admin
+package model
+
+type AdminModel struct {
+	*Model
+}
+
+// NewAdminModel 创建管理员模型
+func NewAdminModel(base *Model) *AdminModel {
+	return &AdminModel{Model: base}
+}
 
 type Admin struct {
 	ID            uint64 `gorm:"primary_key;NOT NULL"`
@@ -10,6 +19,12 @@ type Admin struct {
 	AboutMeInfo   string `gorm:"type:varchar(1000)"`
 	WebSiteInfo   string `gorm:"type:varchar(1000)"`
 	ContactMeInfo string `gorm:"type:varchar(500)"`
+}
+
+type AdministerInfo struct {
+	AboutMeInfo   string `json:"aboutMeInfo" gorm:"about_me_info"`
+	WebSiteInfo   string `json:"webSiteInfo" gorm:"web_site_info"`
+	ContactMeInfo string `json:"contactMeInfo" gorm:"contact_me_info"`
 }
 
 type AboutMeInfo struct {
@@ -30,27 +45,21 @@ type ContactMeInfo struct {
 	Email []string `json:"email"`
 }
 
-type AdministerInfo struct {
-	AboutMeInfo   string `json:"aboutMeInfo" gorm:"about_me_info"`
-	WebSiteInfo   string `json:"webSiteInfo" gorm:"web_site_info"`
-	ContactMeInfo string `json:"contactMeInfo" gorm:"contact_me_info"`
+// AddAdminSecretKey 添加管理员密钥
+func (a *AdminModel) AddAdminSecretKey(adminID uint64, secretKey string) error {
+	if err := a.mysql.Model(&Admin{}).Where("id = ?", adminID).
+		Updates(Admin{SecretKey: secretKey, BindStatus: 1}).Error; err != nil {
+		return err
+	}
+	return nil
 }
 
-// AddAdminSecretKey 添加管理员密钥
-//func AddAdminSecretKey(adminID uint64, secretKey string) error {
-//	if err := global.MySqlDB.Model(&Admin{}).Where("id = ?", adminID).
-//		Updates(Admin{SecretKey: secretKey, BindStatus: 1}).Error; err != nil {
-//		return err
-//	}
-//	return nil
-//}
-
 // GetAdminSecretKey 获取管理员密钥
-//func GetAdminSecretKey(adminID uint64) (string, error) {
-//	var secretKey string
-//	if err := global.MySqlDB.Model(&Admin{}).Where("id = ? AND bind_status = ?", adminID, 1).
-//		Pluck("secret_key", &secretKey).Error; err != nil {
-//		return "", err
-//	}
-//	return secretKey, nil
-//}
+func (a *AdminModel) GetAdminSecretKey(adminID uint64) (string, error) {
+	var secretKey string
+	if err := a.mysql.Model(&Admin{}).Where("id = ? AND bind_status = ?", adminID, 1).
+		Pluck("secret_key", &secretKey).Error; err != nil {
+		return "", err
+	}
+	return secretKey, nil
+}

@@ -44,7 +44,7 @@ func WithBackoff(ctx context.Context, cfg *config.RetryConfig, op Operation) err
 	}
 }
 
-// 计算带抖动的延迟时间
+// calculateDelay 计算带抖动的延迟时间
 func calculateDelay(cfg *config.RetryConfig, baseDelay time.Duration, retryCount int) time.Duration {
 	// 指数增长：2^retryCount * baseDelay
 	exponential := time.Duration(1<<retryCount) * baseDelay

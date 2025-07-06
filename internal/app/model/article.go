@@ -1,10 +1,17 @@
-package article
+package model
 
 import (
 	"time"
-
-	"meta-api/internal/app/model/tag"
 )
+
+type ArticleModel struct {
+	*Model
+}
+
+// NewArticleModel 创建文章模型
+func NewArticleModel(base *Model) *ArticleModel {
+	return &ArticleModel{Model: base}
+}
 
 type Article struct {
 	ID         uint64    `gorm:"primary_key;NOT NULL"`
@@ -15,7 +22,7 @@ type Article struct {
 	CreateTime time.Time `gorm:"NOT NULL"`
 	UpdateTime time.Time `gorm:"NOT NULL"`
 	TagID      uint64    `gorm:"NOT NULL"`
-	Tag        tag.Tag   `gorm:"foreignKey:TagID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	Tag        Tag       `gorm:"foreignKey:TagID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }
 
 type Detail struct {
@@ -53,28 +60,28 @@ type TimeAndViewZSet struct {
 }
 
 // GetArticleDetailByID 通过文章ID获取文章信息
-//func GetArticleDetailByID(id uint64) (detail *Detail, err error) {
-//	detail = new(Detail)
-//	if err = global.MySqlDB.
-//		Table("article as a").
-//		Select("a.id, a.title, a.describe, a.content, a.view_num, a.create_time, a.update_time, a.tag_id, b.name as tag_name").
-//		Joins("JOIN tag as b ON a.tag_id=b.id").
-//		Where("a.id = ?", id).
-//		First(detail).Error; err != nil {
-//		return nil, err
-//	}
-//	return detail, nil
-//}
+func (m *ArticleModel) GetArticleDetailByID(id uint64) (detail *Detail, err error) {
+	detail = new(Detail)
+	if err = m.mysql.
+		Table("article as a").
+		Select("a.id, a.title, a.describe, a.content, a.view_num, a.create_time, a.update_time, a.tag_id, b.name as tag_name").
+		Joins("JOIN tag as b ON a.tag_id=b.id").
+		Where("a.id = ?", id).
+		First(detail).Error; err != nil {
+		return nil, err
+	}
+	return detail, nil
+}
 
 // GetTagNameArticleZSetByTagName 通过标签名称获取文章信息的ZSet
-//func GetTagNameArticleZSetByTagName(tagName string) (tagNameArticleZSet []TagNameArticleZSet, err error) {
-//	if err = global.MySqlDB.Model(&Article{}).
-//		Joins("JOIN tag ON tag.id = article.tag_id").
-//		Where("tag.name = ?", tagName).
-//		Select("article.id, article.create_time").
-//		Find(&tagNameArticleZSet).Error; err != nil {
-//		return nil, err
-//	}
-//
-//	return tagNameArticleZSet, nil
-//}
+func (m *ArticleModel) GetTagNameArticleZSetByTagName(tagName string) (tagNameArticleZSet []TagNameArticleZSet, err error) {
+	if err = m.mysql.Model(&Article{}).
+		Joins("JOIN tag ON tag.id = article.tag_id").
+		Where("tag.name = ?", tagName).
+		Select("article.id, article.create_time").
+		Find(&tagNameArticleZSet).Error; err != nil {
+		return nil, err
+	}
+
+	return tagNameArticleZSet, nil
+}

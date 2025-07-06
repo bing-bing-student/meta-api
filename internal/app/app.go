@@ -11,24 +11,23 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	"meta-api/internal/app/model/article"
-	"meta-api/internal/app/router"
+	"meta-api/internal/app/model"
 	"meta-api/internal/bootstrap"
 )
 
 // Application 应用核心管理器
 type Application struct {
 	bootstrap *bootstrap.Bootstrap
-	http      *bootstrap.HTTPServer // 直接持有HTTP服务器
+	http      *bootstrap.HTTPServer
 }
 
 // NewApp 创建应用实例
-func NewApp(bootstrapApp *bootstrap.Bootstrap) *Application {
-	r := router.SetUpRouter(bootstrapApp.Logger)
-	httpServer := bootstrap.NewHTTPServer(os.Getenv("HTTP_HOST"), os.Getenv("HTTP_PORT"), r, bootstrapApp.Logger)
+func NewApp(bs *bootstrap.Bootstrap) *Application {
+	r := SetUpRouter(bs)
+	httpServer := bootstrap.NewHTTPServer(os.Getenv("HTTP_HOST"), os.Getenv("HTTP_PORT"), r, bs.Logger)
 
 	return &Application{
-		bootstrap: bootstrapApp,
+		bootstrap: bs,
 		http:      httpServer,
 	}
 }
@@ -113,8 +112,8 @@ func WarmUp(ctx context.Context, bs *bootstrap.Bootstrap) error {
 	}
 
 	// 获取所有文章数据
-	timeAndViewData := make([]article.TimeAndViewZSet, 0)
-	if err := mysqlClient.Model(&article.Article{}).Select("id", "view_num", "create_time").Find(&timeAndViewData).Error; err != nil {
+	timeAndViewData := make([]model.TimeAndViewZSet, 0)
+	if err := mysqlClient.Model(&model.Article{}).Select("id", "view_num", "create_time").Find(&timeAndViewData).Error; err != nil {
 		logger.Error("failed to get timeAndViewData", zap.Error(err))
 		return err
 	}
@@ -156,7 +155,7 @@ func PersistData(ctx context.Context, bs *bootstrap.Bootstrap) error {
 	for _, element := range list {
 		articleID := element.Member.(string)
 		viewNum := int(element.Score)
-		if err = mysqlClient.Model(&article.Article{}).Where("id = ?", articleID).Update("view_num", viewNum).Error; err != nil {
+		if err = mysqlClient.Model(&model.Article{}).Where("id = ?", articleID).Update("view_num", viewNum).Error; err != nil {
 			logger.Error("failed to update article view num", zap.Error(err))
 			return err
 		}

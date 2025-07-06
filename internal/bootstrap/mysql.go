@@ -135,8 +135,6 @@ func initMySQL(cfg *MySQLConfig) (db *gorm.DB) {
 	db.Exec("ALTER TABLE tag MODIFY COLUMN name VARCHAR(30) COLLATE utf8mb4_bin NOT NULL;")
 	db.Exec("ALTER TABLE link MODIFY COLUMN name VARCHAR(20) COLLATE utf8mb4_bin NOT NULL;")
 	db.Exec("ALTER TABLE article MODIFY COLUMN title VARCHAR(30) COLLATE utf8mb4_bin NOT NULL;")
-	db.Exec("ALTER TABLE admin MODIFY COLUMN username VARCHAR(20) COLLATE utf8mb4_bin NOT NULL;")
-	db.Exec("ALTER TABLE admin MODIFY COLUMN password VARCHAR(100) COLLATE utf8mb4_bin NOT NULL;")
 
 	return db
 }

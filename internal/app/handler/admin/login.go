@@ -7,15 +7,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
-	"gorm.io/gorm/logger"
 
+	"meta-api/internal/app/handler"
 	"meta-api/internal/common/codes"
 	"meta-api/internal/common/types"
 	"meta-api/internal/common/utils"
 )
 
 // RefreshTokenToLogin 刷新RefreshToken
-func RefreshTokenToLogin(c *gin.Context) {
+func (h *handler.Handler) RefreshTokenToLogin(c *gin.Context) {
 	refreshToken := strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer ")
 	if refreshToken == "" {
 		c.JSON(http.StatusOK, types.Response{Code: codes.Unauthorized, Message: "需要授权令牌", Data: nil})
@@ -25,7 +25,7 @@ func RefreshTokenToLogin(c *gin.Context) {
 	// 解析 refreshToken
 	userClaims, err := utils.ParseToken(refreshToken)
 	if err != nil {
-		logger.Error("parse refreshToken failed", zap.Error(err))
+		h.logger.Error("parse refreshToken failed", zap.Error(err))
 		codeInfo := 0
 		messageInfo := ""
 		if errors.Is(err, errors.New("TokenExpired")) {

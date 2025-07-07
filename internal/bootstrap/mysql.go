@@ -13,11 +13,8 @@ import (
 	"gorm.io/gorm/schema"
 
 	"meta-api/config"
-	"meta-api/internal/app/model/admin"
-	"meta-api/internal/app/model/article"
-	"meta-api/internal/app/model/link"
-	"meta-api/internal/app/model/tag"
-	cusloggger "meta-api/internal/common/logger"
+	"meta-api/internal/app/model"
+	"meta-api/internal/common/loggers"
 	"meta-api/internal/common/utils"
 )
 
@@ -103,7 +100,7 @@ func initMySQL(cfg *MySQLConfig) (db *gorm.DB) {
 	)
 
 	// 组合日志记录器
-	compositeLogger := &cusloggger.CompositeLogger{
+	compositeLogger := &loggers.CompositeLogger{
 		FullLogger: fullLogger,
 		SlowLogger: slowLogger,
 	}
@@ -117,16 +114,15 @@ func initMySQL(cfg *MySQLConfig) (db *gorm.DB) {
 		panic("MySQL connection failed: " + err.Error())
 	}
 
-	models := []interface{}{
-		&article.Article{},
-		&tag.Tag{},
-		&link.Link{},
-		&admin.Admin{},
+	models := []any{
+		&model.Article{},
+		&model.Tag{},
+		&model.Link{},
+		&model.Admin{},
 	}
 
 	// 自动生成对应的数据库表(表级别的字符排序默认使用utf8mb4_general_ci)
-	if err = db.
-		Set("gorm:table_options", "ENGINE=InnoDB CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci").
+	if err = db.Set("gorm:table_options", "ENGINE=InnoDB CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci").
 		AutoMigrate(models...); err != nil {
 		panic("failed to auto migrate tables: " + err.Error())
 	}

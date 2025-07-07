@@ -13,7 +13,7 @@ import (
 	"gorm.io/gorm"
 
 	"meta-api/config"
-	"meta-api/internal/app/model/article"
+	"meta-api/internal/app/model"
 	"meta-api/internal/common/constants"
 )
 
@@ -121,7 +121,7 @@ func (b *Bootstrap) Start(ctx context.Context) {
 		for _, element := range list {
 			articleID := element.Member.(string)
 			viewNum := int(element.Score)
-			if err = b.MySQL.Model(&article.Article{}).Where("id = ?", articleID).Update("view_num", viewNum).Error; err != nil {
+			if err = b.MySQL.Model(&model.Article{}).Where("id = ?", articleID).Update("view_num", viewNum).Error; err != nil {
 				b.Logger.Error("failed to update article view num", zap.Error(err))
 				return
 			}

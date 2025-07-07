@@ -13,7 +13,7 @@ import (
 	"meta-api/internal/app/handler/admin"
 	"meta-api/internal/app/handler/article"
 	"meta-api/internal/bootstrap"
-	"meta-api/internal/common/middleware"
+	"meta-api/internal/common/middlewares"
 )
 
 // SetUpRouter 启动路由
@@ -47,8 +47,8 @@ func SetUpRouter(bs *bootstrap.Bootstrap) *gin.Engine {
 	}
 
 	// 添加中间件
-	r.Use(middleware.TimeoutMiddleware(2*time.Second), cors.New(corsConfig), middleware.GinLogger(logger), middleware.GinRecovery(logger, true))
-	//r.Use(middleware.TimeoutMiddleware(2*time.Second), middleware.GinLogger(logger), middleware.GinRecovery(logger, true))
+	r.Use(middlewares.TimeoutMiddleware(2*time.Second), cors.New(corsConfig), middlewares.GinLogger(logger), middlewares.GinRecovery(logger, true))
+	//r.Use(middlewares.TimeoutMiddleware(2*time.Second), middlewares.GinLogger(loggers), middlewares.GinRecovery(loggers, true))
 
 	// 后台管理路由(不需要JWT验证)
 	adminGroup := r.Group("/admin")
@@ -63,7 +63,7 @@ func SetUpRouter(bs *bootstrap.Bootstrap) *gin.Engine {
 
 	// 后台管理路由(需要JWT验证)
 	authAdminGroup := adminGroup.Group("/auth")
-	//authAdminGroup.Use(middleware.JWT())
+	//authAdminGroup.Use(middlewares.JWT())
 	authAdminGroup.Use()
 	{
 		// 文章管理

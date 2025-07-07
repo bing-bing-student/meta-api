@@ -10,8 +10,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"meta-api/internal/app/handler"
 	"meta-api/internal/app/handler/admin"
 	"meta-api/internal/app/handler/article"
+	"meta-api/internal/app/model"
+	"meta-api/internal/app/service"
 	"meta-api/internal/bootstrap"
 	"meta-api/internal/common/middlewares"
 )
@@ -50,10 +53,14 @@ func SetUpRouter(bs *bootstrap.Bootstrap) *gin.Engine {
 	r.Use(middlewares.TimeoutMiddleware(2*time.Second), cors.New(corsConfig), middlewares.GinLogger(logger), middlewares.GinRecovery(logger, true))
 	//r.Use(middlewares.TimeoutMiddleware(2*time.Second), middlewares.GinLogger(loggers), middlewares.GinRecovery(loggers, true))
 
+	modelContainer := model.NewModel(bs.MySQL, bs.Redis)
+	serviceContainer := service.NewService(bs.Config, logger, bs.IDGenerator, modelContainer)
+	handlerContainer := handler.NewHandler(serviceContainer)
+
 	// 后台管理路由(不需要JWT验证)
 	adminGroup := r.Group("/admin")
 	{
-		adminGroup.POST("/refresh-token", admin.RefreshTokenToLogin) // 刷新RefreshToken
+		adminGroup.POST("/refresh-token", handlerContainer.RefreshTokenToLogin) // 刷新RefreshToken
 		//adminGroup.POST("/sms-code", container.AdminHandler().SendSMSCode)                  // 发送短信验证码
 		//adminGroup.POST("/sms-login", container.AdminHandler().SMSLogin)                    // 短信验证码登录
 		//adminGroup.POST("/account-login", container.AdminHandler().AccountLogin)            // 账号密码登录

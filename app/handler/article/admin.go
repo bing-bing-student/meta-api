@@ -29,3 +29,15 @@ func (a *articleHandler) AdminGetArticleList(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: response})
 }
+
+// AdminGetArticleDetail 获取文章详情
+func (a *articleHandler) AdminGetArticleDetail(c *gin.Context) {}
+
+// AdminAddArticle 添加文章
+func (a *articleHandler) AdminAddArticle(c *gin.Context) {}
+
+// AdminUpdateArticle 修改文章
+func (a *articleHandler) AdminUpdateArticle(c *gin.Context) {}
+
+// AdminDeleteArticle 删除文章
+func (a *articleHandler) AdminDeleteArticle(c *gin.Context) {}

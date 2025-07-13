@@ -9,6 +9,16 @@ import (
 
 type Handler interface {
 	AdminGetArticleList(c *gin.Context)
+	AdminGetArticleDetail(c *gin.Context)
+	AdminAddArticle(c *gin.Context)
+	AdminUpdateArticle(c *gin.Context)
+	AdminDeleteArticle(c *gin.Context)
+
+	UserGetArticleList(c *gin.Context)
+	UserSearchArticle(c *gin.Context)
+	UserGetHotArticle(c *gin.Context)
+	UserGetArticleDetail(c *gin.Context)
+	UserGetTimeline(c *gin.Context)
 }
 
 type articleHandler struct {

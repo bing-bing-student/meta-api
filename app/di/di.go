@@ -31,7 +31,7 @@ import (
 func BuildContainer(bs *bootstrap.Bootstrap) (*dig.Container, error) {
 	container := dig.New()
 
-	// 提供基础依赖
+	// 注册基础依赖
 	baseProviders := []interface{}{
 		func() *config.Config { return bs.Config },
 		func() *zap.Logger { return bs.Logger },

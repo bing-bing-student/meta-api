@@ -32,14 +32,14 @@ type AdminGetArticleDetailResponse struct {
 	Content  string `json:"content"`
 }
 
-type AddArticleRequest struct {
+type AdminAddArticleRequest struct {
 	Title    string `json:"title" binding:"required,max=30"`
 	Tag      string `json:"tag" binding:"required,max=20"`
 	Describe string `json:"describe" binding:"required,max=200"`
 	Content  string `json:"content" binding:"required"`
 }
 
-type UpdateArticleRequest struct {
+type AdminUpdateArticleRequest struct {
 	ID       string `json:"id" binding:"required,lte=19"`
 	Title    string `json:"title" binding:"required,max=30"`
 	Tag      string `json:"tag" binding:"required,max=20"`
@@ -47,7 +47,7 @@ type UpdateArticleRequest struct {
 	Content  string `json:"content" binding:"required"`
 }
 
-type DeleteArticleRequest struct {
+type AdminDeleteArticleRequest struct {
 	ID string `json:"id" binding:"required,lte=19"`
 }
 
@@ -71,13 +71,13 @@ type UserGetArticleListResponse struct {
 	Total int                      `json:"total"`
 }
 
-type SearchArticleRequest struct {
+type UserSearchArticleRequest struct {
 	Word     string `json:"word" form:"word" binding:"required,lte=20"`
 	Page     int    `form:"page" binding:"required,gte=1"`
 	PageSize int    `form:"pageSize" binding:"required,gte=1,lte=10"`
 }
 
-type SearchArticleResponse struct {
+type UserSearchArticleResponse struct {
 	Rows  []UserGetArticleListItem `json:"rows"`
 	Total int                      `json:"total"`
 }
@@ -88,7 +88,7 @@ type GetHotArticleItem struct {
 	ViewNum int    `json:"viewNum"`
 }
 
-type GetHotArticleResponse struct {
+type UserGetHotArticleResponse struct {
 	Rows  []GetHotArticleItem `json:"rows"`
 	Total int                 `json:"total"`
 }

@@ -28,6 +28,7 @@ import (
 	"meta-api/config"
 )
 
+// BuildContainer 依赖注入容器
 func BuildContainer(bs *bootstrap.Bootstrap) (*dig.Container, error) {
 	container := dig.New()
 

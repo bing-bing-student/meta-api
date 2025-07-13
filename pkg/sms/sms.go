@@ -12,20 +12,20 @@ import (
 )
 
 // SendMessage 发送短信验证码
-func SendMessage(phone string) (err error) {
+func SendMessage(phone string) (code string, err error) {
 	client, err := CreateClient()
 	if err != nil {
-		return err
+		return code, err
 	}
 
-	code, err := GenerateRandomDigits(6)
+	code, err = GenerateRandomDigits(6)
 	if err != nil {
-		return err
+		return code, err
 	}
 
 	identifyingCodeString, err := sonic.Marshal(SMS{Code: code})
 	if err != nil {
-		return err
+		return code, err
 	}
 	sendSmsRequest := &dysmsapi20170525.SendSmsRequest{
 		SignName:      tea.String("BingBingBlog"),
@@ -55,10 +55,10 @@ func SendMessage(phone string) (err error) {
 		var data interface{}
 		d := json.NewDecoder(strings.NewReader(tea.StringValue(e.Data)))
 		if err = d.Decode(&data); err != nil {
-			return err
+			return code, err
 		}
 		if _, err = util.AssertAsString(e.Message); err != nil {
-			return err
+			return code, err
 		}
 	}
 
@@ -66,5 +66,5 @@ func SendMessage(phone string) (err error) {
 	//if err = global.RedisSentinel.Set(global.Context, "code", code, time.Minute).Err(); err != nil {
 	//	return err
 	//}
-	return err
+	return code, err
 }

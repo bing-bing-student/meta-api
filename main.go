@@ -1,8 +1,8 @@
 package main
 
 import (
-	"meta-api/internal/app"
-	"meta-api/internal/bootstrap"
+	"meta-api/app"
+	"meta-api/bootstrap"
 )
 
 func main() {

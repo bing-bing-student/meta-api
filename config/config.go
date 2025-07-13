@@ -6,7 +6,8 @@ import "time"
 type LogConfig struct {
 	MySQLFullLog string `mapstructure:"mysql_full_log"`
 	MySQLSlowLog string `mapstructure:"mysql_slow_log"`
-	HTTPFullLog  string `mapstructure:"http_full_log"`
+	HTTPInfoLog  string `mapstructure:"http_info_log"`
+	HTTPWarnLog  string `mapstructure:"http_warn_log"`
 	HTTPErrLog   string `mapstructure:"http_err_log"`
 	MaxSize      int    `mapstructure:"max_size"`
 	MaxAge       int    `mapstructure:"max_age"`

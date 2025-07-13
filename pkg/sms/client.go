@@ -8,7 +8,7 @@ import (
 	"github.com/alibabacloud-go/tea/tea"
 )
 
-// CreateClient  创建客户端
+// CreateClient 创建客户端
 func CreateClient() (result *dysmsapi20170525.Client, err error) {
 	config := &client.Config{
 		AccessKeyId:     tea.String(os.Getenv("ALIYUN_ACCESS_KEY_ID")),

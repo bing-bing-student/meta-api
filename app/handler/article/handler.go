@@ -15,9 +15,9 @@ type Handler interface {
 	AdminDeleteArticle(c *gin.Context)
 
 	UserGetArticleList(c *gin.Context)
+	UserGetArticleDetail(c *gin.Context)
 	UserSearchArticle(c *gin.Context)
 	UserGetHotArticle(c *gin.Context)
-	UserGetArticleDetail(c *gin.Context)
 	UserGetTimeline(c *gin.Context)
 }
 

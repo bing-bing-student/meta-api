@@ -18,13 +18,6 @@ type TokenDetails struct {
 	RtExpires    int64
 }
 
-// AccountRegisterRequest 账号密码注册请求
-type AccountRegisterRequest struct {
-	Username string `form:"username" binding:"required"`
-	Password string `form:"password" binding:"required"`
-	Phone    string `form:"phone" binding:"required"`
-}
-
 // AccountLoginRequest 账号密码登录请求
 type AccountLoginRequest struct {
 	Username string `form:"username" binding:"required,max=16"`

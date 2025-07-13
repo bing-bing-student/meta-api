@@ -90,7 +90,7 @@ func SetUpRouter(bs *bootstrap.Bootstrap) *gin.Engine {
 	// 后台管理路由(不需要JWT验证)
 	adminGroup := r.Group("/admin")
 	{
-		adminGroup.POST("/refresh-token", adminHandler.RefreshTokenToLogin)     // 刷新RefreshToken
+		adminGroup.POST("/refresh-token", adminHandler.RefreshToken)            // 刷新RefreshToken
 		adminGroup.POST("/sms-code", adminHandler.SendSMSCode)                  // 发送短信验证码
 		adminGroup.POST("/sms-login", adminHandler.SMSCodeLogin)                // 短信验证码登录
 		adminGroup.POST("/account-login", adminHandler.AccountLogin)            // 账号密码登录
@@ -101,25 +101,24 @@ func SetUpRouter(bs *bootstrap.Bootstrap) *gin.Engine {
 	// 后台管理路由(需要JWT验证)
 	authAdminGroup := adminGroup.Group("/auth")
 	//authAdminGroup.Use(middlewares.JWT())
-	authAdminGroup.Use()
 	{
 		// 文章管理
 		authAdminGroup.GET("/article/list", articleHandler.AdminGetArticleList)
 		authAdminGroup.GET("/article/detail", articleHandler.AdminGetArticleDetail)
-		authAdminGroup.POST("/article/add", articleHandler.AddArticle)
-		authAdminGroup.PUT("/article/update", articleHandler.UpdateArticle)
-		authAdminGroup.DELETE("/article/delete", articleHandler.DeleteArticle)
+		authAdminGroup.POST("/article/add", articleHandler.AdminAddArticle)
+		authAdminGroup.PUT("/article/update", articleHandler.AdminUpdateArticle)
+		authAdminGroup.DELETE("/article/delete", articleHandler.AdminDeleteArticle)
 
 		// 标签管理
 		authAdminGroup.GET("/tag/list", tagHandler.AdminGetTagList)
 		authAdminGroup.GET("/tag/article-list", tagHandler.AdminGetArticleListByTag)
-		authAdminGroup.PUT("/tag/update", tagHandler.UpdateTag)
+		authAdminGroup.PUT("/tag/update", tagHandler.AdminUpdateTag)
 
 		// 友链管理
 		authAdminGroup.GET("/link/list", linkHandler.AdminGetLinkList)
-		authAdminGroup.POST("/link/add", linkHandler.AddLink)
-		authAdminGroup.PUT("/link/update", linkHandler.UpdateLink)
-		authAdminGroup.DELETE("/link/delete", linkHandler.DeleteLink)
+		authAdminGroup.POST("/link/add", linkHandler.AdminAddLink)
+		authAdminGroup.PUT("/link/update", linkHandler.AdminUpdateLink)
+		authAdminGroup.DELETE("/link/delete", linkHandler.AdminDeleteLink)
 
 		// 管理员相关
 		authAdminGroup.PUT("/about-me", adminHandler.AdminUpdateAboutMe)
@@ -131,10 +130,10 @@ func SetUpRouter(bs *bootstrap.Bootstrap) *gin.Engine {
 	{
 		// 文章相关
 		userGroup.GET("/article/list", articleHandler.UserGetArticleList)
-		userGroup.GET("/article/search", articleHandler.SearchArticle)
-		userGroup.GET("/article/hot", articleHandler.GetHotArticle)
+		userGroup.GET("/article/search", articleHandler.UserSearchArticle)
+		userGroup.GET("/article/hot", articleHandler.UserGetHotArticle)
 		userGroup.GET("/article/detail", articleHandler.UserGetArticleDetail)
-		userGroup.GET("/article/timeline", articleHandler.GetTimeline)
+		userGroup.GET("/article/timeline", articleHandler.UserGetTimeline)
 
 		// 标签相关
 		userGroup.GET("/tag/list", tagHandler.UserGetTagList)
@@ -146,5 +145,6 @@ func SetUpRouter(bs *bootstrap.Bootstrap) *gin.Engine {
 		// 管理员相关
 		userGroup.GET("/about-me", adminHandler.UserGetAboutMe)
 	}
+
 	return r
 }

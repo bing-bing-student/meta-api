@@ -9,6 +9,11 @@ import (
 
 type Handler interface {
 	RefreshTokenToLogin(c *gin.Context)
+	SendSMSCode(c *gin.Context)
+	SMSCodeLogin(c *gin.Context)
+	AccountLogin(c *gin.Context)
+	BindDynamicCode(c *gin.Context)
+	VerifyDynamicCode(c *gin.Context)
 }
 
 type adminHandler struct {

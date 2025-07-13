@@ -33,6 +33,6 @@ func GenerateTOTP(issuer, accountName string) (string, string, error) {
 }
 
 // VerifyTOTP 验证TOTP
-func VerifyTOTP(secret, token string) bool {
-	return totp.Validate(token, secret)
+func VerifyTOTP(code, secret string) bool {
+	return totp.Validate(code, secret)
 }

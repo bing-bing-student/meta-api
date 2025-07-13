@@ -62,9 +62,5 @@ func SendMessage(phone string) (code string, err error) {
 		}
 	}
 
-	// TODO: 待重构，将code存入redis当中
-	//if err = global.RedisSentinel.Set(global.Context, "code", code, time.Minute).Err(); err != nil {
-	//	return err
-	//}
 	return code, err
 }

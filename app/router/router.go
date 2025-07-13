@@ -92,7 +92,7 @@ func SetUpRouter(bs *bootstrap.Bootstrap) *gin.Engine {
 	{
 		adminGroup.POST("/refresh-token", adminHandler.RefreshTokenToLogin)     // 刷新RefreshToken
 		adminGroup.POST("/sms-code", adminHandler.SendSMSCode)                  // 发送短信验证码
-		adminGroup.POST("/sms-login", adminHandler.SMSLogin)                    // 短信验证码登录
+		adminGroup.POST("/sms-login", adminHandler.SMSCodeLogin)                // 短信验证码登录
 		adminGroup.POST("/account-login", adminHandler.AccountLogin)            // 账号密码登录
 		adminGroup.POST("/bind-dynamic-code", adminHandler.BindDynamicCode)     // 绑定TOTP动态码
 		adminGroup.POST("/verify-dynamic-code", adminHandler.VerifyDynamicCode) // 验证TOTP动态码

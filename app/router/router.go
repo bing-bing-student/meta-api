@@ -13,6 +13,8 @@ import (
 	"meta-api/app/di"
 	"meta-api/app/handler/admin"
 	"meta-api/app/handler/article"
+	"meta-api/app/handler/link"
+	"meta-api/app/handler/tag"
 	"meta-api/bootstrap"
 	"meta-api/common/middlewares"
 )
@@ -71,15 +73,29 @@ func SetUpRouter(bs *bootstrap.Bootstrap) *gin.Engine {
 		return nil
 	}
 
+	// 获取 tagHandler 实例
+	var tagHandler tag.Handler
+	if err = container.Invoke(func(h tag.Handler) { tagHandler = h }); err != nil {
+		logger.Error("failed to get tag handler", zap.Error(err))
+		return nil
+	}
+
+	// 获取 linkHandler 实例
+	var linkHandler link.Handler
+	if err = container.Invoke(func(h link.Handler) { linkHandler = h }); err != nil {
+		logger.Error("failed to get link handler", zap.Error(err))
+		return nil
+	}
+
 	// 后台管理路由(不需要JWT验证)
 	adminGroup := r.Group("/admin")
 	{
-		adminGroup.POST("/refresh-token", adminHandler.RefreshTokenToLogin) // 刷新RefreshToken
-		//adminGroup.POST("/sms-code", container.AdminHandler().SendSMSCode)                  // 发送短信验证码
-		//adminGroup.POST("/sms-login", container.AdminHandler().SMSLogin)                    // 短信验证码登录
-		//adminGroup.POST("/account-login", container.AdminHandler().AccountLogin)            // 账号密码登录
-		//adminGroup.POST("/bind-dynamic-code", container.AdminHandler().BindDynamicCode)     // 绑定TOTP动态码
-		//adminGroup.POST("/verify-dynamic-code", container.AdminHandler().VerifyDynamicCode) // 验证TOTP动态码
+		adminGroup.POST("/refresh-token", adminHandler.RefreshTokenToLogin)     // 刷新RefreshToken
+		adminGroup.POST("/sms-code", adminHandler.SendSMSCode)                  // 发送短信验证码
+		adminGroup.POST("/sms-login", adminHandler.SMSLogin)                    // 短信验证码登录
+		adminGroup.POST("/account-login", adminHandler.AccountLogin)            // 账号密码登录
+		adminGroup.POST("/bind-dynamic-code", adminHandler.BindDynamicCode)     // 绑定TOTP动态码
+		adminGroup.POST("/verify-dynamic-code", adminHandler.VerifyDynamicCode) // 验证TOTP动态码
 	}
 
 	// 后台管理路由(需要JWT验证)
@@ -89,41 +105,46 @@ func SetUpRouter(bs *bootstrap.Bootstrap) *gin.Engine {
 	{
 		// 文章管理
 		authAdminGroup.GET("/article/list", articleHandler.AdminGetArticleList)
-		//authAdminGroup.GET("/article/detail", container.ArticleHandler().AdminGetArticleDetail)
-		//authAdminGroup.POST("/article/add", container.ArticleHandler().AddArticle)
-		//authAdminGroup.PUT("/article/update", container.ArticleHandler().UpdateArticle)
-		//authAdminGroup.DELETE("/article/delete", container.ArticleHandler().DeleteArticle)
+		authAdminGroup.GET("/article/detail", articleHandler.AdminGetArticleDetail)
+		authAdminGroup.POST("/article/add", articleHandler.AddArticle)
+		authAdminGroup.PUT("/article/update", articleHandler.UpdateArticle)
+		authAdminGroup.DELETE("/article/delete", articleHandler.DeleteArticle)
 
 		// 标签管理
-		//authAdminGroup.GET("/tag/list", container.TagHandler().AdminGetTagList)
-		//authAdminGroup.GET("/tag/article-list", container.TagHandler().AdminGetArticleListByTag)
-		//authAdminGroup.PUT("/tag/update", container.TagHandler().UpdateTag)
+		authAdminGroup.GET("/tag/list", tagHandler.AdminGetTagList)
+		authAdminGroup.GET("/tag/article-list", tagHandler.AdminGetArticleListByTag)
+		authAdminGroup.PUT("/tag/update", tagHandler.UpdateTag)
 
 		// 友链管理
-		//authAdminGroup.GET("/link/list", container.LinkHandler().AdminGetLinkList)
-		//authAdminGroup.POST("/link/add", container.LinkHandler().AddLink)
-		//authAdminGroup.PUT("/link/update", container.LinkHandler().UpdateLink)
-		//authAdminGroup.DELETE("/link/delete", container.LinkHandler().DeleteLink)
+		authAdminGroup.GET("/link/list", linkHandler.AdminGetLinkList)
+		authAdminGroup.POST("/link/add", linkHandler.AddLink)
+		authAdminGroup.PUT("/link/update", linkHandler.UpdateLink)
+		authAdminGroup.DELETE("/link/delete", linkHandler.DeleteLink)
 
 		// 管理员相关
-		//authAdminGroup.PUT("/about-me", container.AdminHandler().UpdateAdminAboutMe)
+		authAdminGroup.PUT("/about-me", adminHandler.AdminUpdateAboutMe)
 	}
 
 	// 前台展示
 	userGroup := r.Group("/user")
 	userGroup.Use(sessions.Sessions("session_id", cookie.NewStore([]byte(os.Getenv("AUTHORIZATION_KEY")), []byte(os.Getenv("ENCRYPTION_KEY")))))
 	{
-		//userGroup.GET("/article/list", article.UserGetArticleList)
-		//userGroup.GET("/article/search", article.SearchArticle)
-		//userGroup.GET("/article/hot", article.GetHotArticle)
-		//userGroup.GET("/article/detail", article.UserGetArticleDetail)
-		//
-		//userGroup.GET("/tag/list", tag.UserGetTagList)
-		//userGroup.GET("/tag/article-list", tag.UserGetArticleListByTag)
-		//
-		//userGroup.GET("/timeline", article.GetTimeline)
-		//userGroup.GET("/link", link.UserGetLinkList)
-		//userGroup.GET("/about-me", admin.GetAboutMe)
+		// 文章相关
+		userGroup.GET("/article/list", articleHandler.UserGetArticleList)
+		userGroup.GET("/article/search", articleHandler.SearchArticle)
+		userGroup.GET("/article/hot", articleHandler.GetHotArticle)
+		userGroup.GET("/article/detail", articleHandler.UserGetArticleDetail)
+		userGroup.GET("/article/timeline", articleHandler.GetTimeline)
+
+		// 标签相关
+		userGroup.GET("/tag/list", tagHandler.UserGetTagList)
+		userGroup.GET("/tag/article-list", tagHandler.UserGetArticleListByTag)
+
+		// 友链相关
+		userGroup.GET("/link", linkHandler.UserGetLinkList)
+
+		// 管理员相关
+		userGroup.GET("/about-me", adminHandler.UserGetAboutMe)
 	}
 	return r
 }

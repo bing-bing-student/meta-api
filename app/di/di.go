@@ -11,10 +11,19 @@ import (
 
 	adminHandler "meta-api/app/handler/admin"
 	articleHandler "meta-api/app/handler/article"
+	linkHandler "meta-api/app/handler/link"
+	tagHandler "meta-api/app/handler/tag"
+
 	adminModel "meta-api/app/model/admin"
 	articleModel "meta-api/app/model/article"
+	linkModel "meta-api/app/model/link"
+	tagModel "meta-api/app/model/tag"
+
 	adminService "meta-api/app/service/admin"
 	articleService "meta-api/app/service/article"
+	linkService "meta-api/app/service/link"
+	tagService "meta-api/app/service/tag"
+
 	"meta-api/bootstrap"
 	"meta-api/config"
 )
@@ -40,8 +49,8 @@ func BuildContainer(bs *bootstrap.Bootstrap) (*dig.Container, error) {
 	handlerProviders := []interface{}{
 		adminHandler.NewHandler,
 		articleHandler.NewHandler,
-		//link.NewHandler,
-		//tag.NewHandler,
+		linkHandler.NewHandler,
+		tagHandler.NewHandler,
 	}
 	for _, provider := range handlerProviders {
 		if err := container.Provide(provider); err != nil {
@@ -53,8 +62,8 @@ func BuildContainer(bs *bootstrap.Bootstrap) (*dig.Container, error) {
 	modelProviders := []interface{}{
 		adminModel.NewModel,
 		articleModel.NewModel,
-		//link.NewModel,
-		//tag.NewModel,
+		linkModel.NewModel,
+		tagModel.NewModel,
 	}
 	for _, provider := range modelProviders {
 		if err := container.Provide(provider); err != nil {
@@ -66,8 +75,8 @@ func BuildContainer(bs *bootstrap.Bootstrap) (*dig.Container, error) {
 	serviceProviders := []interface{}{
 		adminService.NewService,
 		articleService.NewService,
-		//link.NewService,
-		//tag.NewService,
+		linkService.NewService,
+		tagService.NewService,
 	}
 	for _, provider := range serviceProviders {
 		if err := container.Provide(provider); err != nil {

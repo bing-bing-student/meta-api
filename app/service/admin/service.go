@@ -1,6 +1,8 @@
 package admin
 
 import (
+	"context"
+
 	"github.com/redis/go-redis/v9"
 	"github.com/sony/sonyflake"
 	"go.uber.org/zap"
@@ -12,7 +14,12 @@ import (
 
 // Service 管理员服务接口
 type Service interface {
-	GenerateTokenService(userClaims *types.UserClaims) (*types.TokenDetails, error)
+	GenerateToken(userClaims *types.UserClaims) (*types.TokenDetails, error)
+	SendSMSCode(ctx context.Context, request *types.SendSMSCodeRequest) error
+	SMSCodeLogin(ctx context.Context, request *types.SMSCodeLoginRequest) (*types.SMSCodeLoginResponse, error)
+	AccountLogin(ctx context.Context, request *types.AccountLoginRequest) (*types.AccountLoginResponse, error)
+	BindDynamicCode(ctx context.Context, request *types.BindDynamicCodeRequest) (*types.BindDynamicCodeResponse, error)
+	VerifyDynamicCode(ctx context.Context, request *types.VerifyDynamicCodeRequest) (*types.VerifyDynamicCodeResponse, error)
 }
 
 // adminService 管理员服务实现

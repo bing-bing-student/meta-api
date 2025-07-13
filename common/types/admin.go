@@ -31,25 +31,50 @@ type AccountLoginRequest struct {
 	Password string `form:"password" binding:"required,max=16"`
 }
 
+type AccountLoginResponse struct {
+	UserID    string `json:"userID"`
+	QRCodeURL string `json:"qrCodeURL,omitempty"`
+}
+
+// SendSMSCodeRequest 获取短信验证码请求
+type SendSMSCodeRequest struct {
+	Phone string `form:"phone" binding:"required"`
+}
+
+// SMSCodeLoginRequest 短信登录请求
+type SMSCodeLoginRequest struct {
+	Phone string `form:"phone" binding:"required,len=11"`
+	Code  string `form:"code" binding:"required,len=6"`
+}
+
+type SMSCodeLoginResponse struct {
+	UserID       string `json:"userID"`
+	AccessToken  string `json:"accessToken"`
+	RefreshToken string `json:"refreshToken"`
+}
+
+// BindDynamicCodeRequest 绑定动态码请求
 type BindDynamicCodeRequest struct {
 	UserID string `form:"userID" binding:"required,lte=19"`
 	Code   string `form:"code" binding:"required"`
 }
 
+type BindDynamicCodeResponse struct {
+	UserID       string `json:"userID"`
+	AccessToken  string `json:"accessToken"`
+	RefreshToken string `json:"refreshToken"`
+}
+
+// VerifyDynamicCodeRequest 验证动态码请求
 type VerifyDynamicCodeRequest struct {
 	UserID string `form:"userID" binding:"required,lte=19"`
 	Code   string `form:"code" binding:"required"`
 }
 
-// SMSCodeRequest 获取短信验证码请求
-type SMSCodeRequest struct {
-	Phone string `form:"phone" binding:"required"`
-}
-
-// SMSLoginRequest 短信登录请求
-type SMSLoginRequest struct {
-	Phone string `form:"phone" binding:"required,len=11"`
-	Code  string `form:"code" binding:"required,len=6"`
+type VerifyDynamicCodeResponse struct {
+	UserID       string `json:"userID"`
+	AccessToken  string `json:"accessToken"`
+	RefreshToken string `json:"refreshToken"`
 }
 
 // UpdateAboutMeRequest 修改关于我请求

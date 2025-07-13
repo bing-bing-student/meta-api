@@ -9,6 +9,8 @@ import (
 type Model interface {
 	AddAdminSecretKey(ctx context.Context, id uint64, secretKey string) error
 	GetAdminSecretKey(ctx context.Context, id uint64) (string, error)
+	PhoneNumberExist(ctx context.Context, phone string) (string, error)
+	CheckAccount(ctx context.Context, username string, password string) (*Admin, error)
 }
 
 type adminModel struct {

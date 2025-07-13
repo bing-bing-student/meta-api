@@ -2,6 +2,10 @@ package admin
 
 import (
 	"context"
+	"errors"
+	"strconv"
+
+	"meta-api/common/utils"
 )
 
 type Admin struct {
@@ -59,4 +63,29 @@ func (a *adminModel) GetAdminSecretKey(ctx context.Context, id uint64) (string, 
 		return "", err
 	}
 	return secretKey, nil
+}
+
+// PhoneNumberExist 判断手机号是否存在
+// 参数：手机号
+// 返回：存在就返回用户ID，不存在就返回空字符串
+func (a *adminModel) PhoneNumberExist(ctx context.Context, phone string) (string, error) {
+	model := &Admin{}
+	if err := a.mysql.WithContext(ctx).Model(&Admin{}).
+		Where("phone=?", phone).Find(model).Error; err != nil {
+		return "", errors.New("phone number does not exist")
+	}
+	return strconv.Itoa(int(model.ID)), nil
+}
+
+// CheckAccount 校验用户名和密码，成功返回用户信息，失败返回 nil 和错误
+func (a *adminModel) CheckAccount(ctx context.Context, username, password string) (*Admin, error) {
+	model := &Admin{}
+	if affectNum := a.mysql.WithContext(ctx).Model(&Admin{}).
+		Where("username = ?", username).Find(model).RowsAffected; affectNum == 0 {
+		return nil, errors.New("用户名或密码错误")
+	}
+	if !utils.BcryptCheck(password, model.Password) {
+		return nil, errors.New("用户名或密码错误")
+	}
+	return model, nil
 }

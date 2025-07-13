@@ -157,4 +157,20 @@ func (a *adminHandler) VerifyDynamicCode(c *gin.Context) {
 }
 
 // AdminUpdateAboutMe 修改关于我
-func (a *adminHandler) AdminUpdateAboutMe(c *gin.Context) {}
+func (a *adminHandler) AdminUpdateAboutMe(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	request := new(types.UpdateAboutMeRequest)
+	if err := c.ShouldBind(request); err != nil {
+		a.logger.Error("parameter binding error", zap.Error(err))
+		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
+		return
+	}
+
+	if err := a.service.AdminUpdateAboutMe(ctx, request); err != nil {
+		a.logger.Error("failed to update admin info", zap.Error(err))
+		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "更新失败", Data: nil})
+		return
+	}
+	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: nil})
+}

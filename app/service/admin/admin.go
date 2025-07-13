@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	"meta-api/app/model/admin"
 	"meta-api/common/types"
 	"meta-api/common/utils"
 	"meta-api/pkg/sms"
@@ -250,4 +251,97 @@ func (a *adminService) VerifyDynamicCode(ctx context.Context,
 	response.RefreshToken = doubleToken.RefreshToken
 
 	return response, nil
+}
+
+// AdminUpdateAboutMe 修改关于我
+func (a *adminService) AdminUpdateAboutMe(ctx context.Context, request *types.UpdateAboutMeRequest) error {
+	// 获取管理员信息
+	id, err := strconv.Atoi(request.UserID)
+	if err != nil {
+		a.logger.Error("failed to get admin info", zap.Error(err))
+		return fmt.Errorf("failed to get admin info")
+	}
+	adminInfo, err := a.model.GetAdminInfoByID(ctx, uint64(id))
+	if err != nil {
+		a.logger.Error("failed to get admin info", zap.Error(err))
+		return fmt.Errorf("failed to get admin info")
+	}
+
+	aboutMeInfo := admin.AboutMeInfo{}
+	if err = utils.JsonStringToStruct(adminInfo.AboutMeInfo, &aboutMeInfo); err != nil {
+		a.logger.Error("failed to unmarshal aboutMeInfo", zap.Error(err))
+		return err
+	}
+	if request.Name != "" {
+		aboutMeInfo.Name = request.Name
+	}
+	if request.Job != "" {
+		aboutMeInfo.Job = request.Job
+	}
+	if request.Address != "" {
+		aboutMeInfo.Address = request.Address
+	}
+	if request.WorkLife != "" {
+		aboutMeInfo.WorkLife = request.WorkLife
+	}
+
+	var webSiteInfo admin.WebSiteInfo
+	if err = utils.JsonStringToStruct(adminInfo.WebSiteInfo, &webSiteInfo); err != nil {
+		a.logger.Error("failed to unmarshal webSiteInfo", zap.Error(err))
+		return err
+	}
+	if request.Statement != "" {
+		webSiteInfo.Statement = request.Statement
+	}
+	if request.DomainInfo != "" {
+		webSiteInfo.DomainInfo = request.DomainInfo
+	}
+	if request.BlogContent != "" {
+		webSiteInfo.BlogContent = request.BlogContent
+	}
+	if request.WebsiteLocation != "" {
+		webSiteInfo.WebsiteLocation = request.WebsiteLocation
+	}
+
+	var contactMeInfo admin.ContactMeInfo
+	if err = utils.JsonStringToStruct(adminInfo.ContactMeInfo, &contactMeInfo); err != nil {
+		a.logger.Error("failed to unmarshal contactMeInfo", zap.Error(err))
+		return err
+	}
+	if len(request.Email) > 0 {
+		contactMeInfo.Email = request.Email
+	}
+
+	aboutMeInfoStr, err := utils.StructToJsonString(aboutMeInfo)
+	if err != nil {
+		a.logger.Error("jsonToString error for aboutMeInfo", zap.Error(err))
+		return err
+	}
+	webSiteInfoStr, err := utils.StructToJsonString(webSiteInfo)
+	if err != nil {
+		a.logger.Error("jsonToString error for webSiteInfo", zap.Error(err))
+		return err
+	}
+	contactMeInfoStr, err := utils.StructToJsonString(contactMeInfo)
+	if err != nil {
+		a.logger.Error("jsonToString error for contactMeInfo", zap.Error(err))
+		return err
+	}
+
+	// 更新数据库
+	updatedAdminModel := admin.Admin{
+		AboutMeInfo:   aboutMeInfoStr,
+		WebSiteInfo:   webSiteInfoStr,
+		ContactMeInfo: contactMeInfoStr,
+	}
+	if err = a.model.UpdateAdminInfoByID(ctx, uint64(id), &updatedAdminModel); err != nil {
+		a.logger.Error("failed to update admin info", zap.Error(err))
+	}
+
+	// 删除缓存
+	if err = a.redis.Del(ctx, "aboutMeInfo:Hash").Err(); err != nil {
+		a.logger.Error("failed to clear aboutMeInfo cache", zap.Error(err))
+		return err
+	}
+	return nil
 }

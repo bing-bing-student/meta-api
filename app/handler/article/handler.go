@@ -1,0 +1,24 @@
+package article
+
+import (
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
+
+	"meta-api/app/service/article"
+)
+
+type Handler interface {
+	AdminGetArticleList(c *gin.Context)
+}
+
+type articleHandler struct {
+	logger  *zap.Logger
+	service article.Service
+}
+
+func NewHandler(logger *zap.Logger, service article.Service) Handler {
+	return &articleHandler{
+		logger:  logger,
+		service: service,
+	}
+}

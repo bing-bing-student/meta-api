@@ -10,15 +10,13 @@ import (
 
 // CreateClient  创建客户端
 func CreateClient() (result *dysmsapi20170525.Client, err error) {
-	// 初始化配置
-	configInfo := &client.Config{
+	config := &client.Config{
 		AccessKeyId:     tea.String(os.Getenv("ALIYUN_ACCESS_KEY_ID")),
 		AccessKeySecret: tea.String(os.Getenv("ALIYUN_ACCESS_KEY_SECRET")),
+		Endpoint:        tea.String("dysmsapi.aliyuncs.com"),
 	}
-	configInfo.Endpoint = tea.String("dysmsapi.aliyuncs.com")
 
 	// 创建客户端
-	result = &dysmsapi20170525.Client{}
-	result, err = dysmsapi20170525.NewClient(configInfo)
+	result, err = dysmsapi20170525.NewClient(config)
 	return result, err
 }

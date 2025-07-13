@@ -72,7 +72,7 @@ type VerifyDynamicCodeResponse struct {
 
 // UpdateAboutMeRequest 修改关于我请求
 type UpdateAboutMeRequest struct {
-	ID              string   `json:"id" binding:"required,lte=19"`
+	UserID          string   `json:"userID" binding:"required,lte=19"`
 	Name            string   `json:"name"`
 	Job             string   `json:"job"`
 	WorkLife        string   `json:"workLife"`

@@ -11,6 +11,9 @@ type Model interface {
 	GetAdminSecretKey(ctx context.Context, id uint64) (string, error)
 	PhoneNumberExist(ctx context.Context, phone string) (string, error)
 	CheckAccount(ctx context.Context, username string, password string) (*Admin, error)
+	GetAdminInfoByID(ctx context.Context, id uint64) (*AdministerInfo, error)
+	GetAdminInfo(ctx context.Context) (*AdministerInfo, error)
+	UpdateAdminInfoByID(ctx context.Context, id uint64, info *Admin) error
 }
 
 type adminModel struct {

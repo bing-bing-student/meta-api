@@ -20,6 +20,9 @@ type Service interface {
 	AccountLogin(ctx context.Context, request *types.AccountLoginRequest) (*types.AccountLoginResponse, error)
 	BindDynamicCode(ctx context.Context, request *types.BindDynamicCodeRequest) (*types.BindDynamicCodeResponse, error)
 	VerifyDynamicCode(ctx context.Context, request *types.VerifyDynamicCodeRequest) (*types.VerifyDynamicCodeResponse, error)
+	AdminUpdateAboutMe(ctx context.Context, request *types.UpdateAboutMeRequest) error
+
+	UserGetAboutMe(ctx context.Context) (*types.GetAboutMeResponse, error)
 }
 
 // adminService 管理员服务实现

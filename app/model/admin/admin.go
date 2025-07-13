@@ -3,7 +3,10 @@ package admin
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
+
+	"gorm.io/gorm"
 
 	"meta-api/common/utils"
 )
@@ -47,10 +50,10 @@ type ContactMeInfo struct {
 // AddAdminSecretKey 添加管理员密钥
 func (a *adminModel) AddAdminSecretKey(ctx context.Context, id uint64, secretKey string) error {
 	if err := a.mysql.WithContext(ctx).Model(&Admin{}).
-		Where("id = ?", id).
-		Updates(Admin{SecretKey: secretKey, BindStatus: 1}).Error; err != nil {
+		Where("id = ?", id).Updates(Admin{SecretKey: secretKey, BindStatus: 1}).Error; err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -58,22 +61,21 @@ func (a *adminModel) AddAdminSecretKey(ctx context.Context, id uint64, secretKey
 func (a *adminModel) GetAdminSecretKey(ctx context.Context, id uint64) (string, error) {
 	var secretKey string
 	if err := a.mysql.WithContext(ctx).Model(&Admin{}).
-		Where("id = ? AND bind_status = ?", id, 1).
-		Pluck("secret_key", &secretKey).Error; err != nil {
+		Where("id = ? AND bind_status = ?", id, 1).Pluck("secret_key", &secretKey).Error; err != nil {
 		return "", err
 	}
+
 	return secretKey, nil
 }
 
-// PhoneNumberExist 判断手机号是否存在
-// 参数：手机号
-// 返回：存在就返回用户ID，不存在就返回空字符串
+// PhoneNumberExist 判断手机号是否存在，存在则返回用户ID，不存在则返回空字符串
 func (a *adminModel) PhoneNumberExist(ctx context.Context, phone string) (string, error) {
 	model := &Admin{}
 	if err := a.mysql.WithContext(ctx).Model(&Admin{}).
 		Where("phone=?", phone).Find(model).Error; err != nil {
 		return "", errors.New("phone number does not exist")
 	}
+
 	return strconv.Itoa(int(model.ID)), nil
 }
 
@@ -87,5 +89,38 @@ func (a *adminModel) CheckAccount(ctx context.Context, username, password string
 	if !utils.BcryptCheck(password, model.Password) {
 		return nil, errors.New("用户名或密码错误")
 	}
+
 	return model, nil
+}
+
+// GetAdminInfoByID 查询管理员信息
+func (a *adminModel) GetAdminInfoByID(ctx context.Context, id uint64) (*AdministerInfo, error) {
+	adminInfo := &AdministerInfo{}
+	if err := a.mysql.WithContext(ctx).Model(&Admin{}).
+		Where("id = ?", id).First(adminInfo).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("the administrator does not exist")
+		}
+		return nil, err
+	}
+
+	return adminInfo, nil
+}
+
+// GetAdminInfo 获取管理员信息
+func (a *adminModel) GetAdminInfo(ctx context.Context) (*AdministerInfo, error) {
+	adminInfo := &AdministerInfo{}
+	if err := a.mysql.WithContext(ctx).Model(&Admin{}).First(adminInfo).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("the administrator does not exist")
+		}
+		return nil, err
+	}
+
+	return adminInfo, nil
+}
+
+// UpdateAdminInfoByID 根据ID更新管理员信息
+func (a *adminModel) UpdateAdminInfoByID(ctx context.Context, id uint64, updated *Admin) error {
+	return a.mysql.Model(&Admin{}).WithContext(ctx).Model(&Admin{}).Where("id = ?", id).Updates(updated).Error
 }

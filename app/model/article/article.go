@@ -1,6 +1,8 @@
 package article
 
 import (
+	"context"
+	"fmt"
 	"time"
 
 	"meta-api/app/model/tag"
@@ -41,7 +43,7 @@ type TagWithArticleCount struct {
 	Count int    `gorm:"column:count"`
 }
 
-type TagNameArticleZSet struct {
+type ListByTagName struct {
 	ID         uint64    `gorm:"column:id" json:"ID"`
 	CreateTime time.Time `gorm:"column:create_time" json:"createTime"`
 }
@@ -52,10 +54,19 @@ type TimeAndViewZSet struct {
 	CreateTime time.Time `gorm:"column:create_time" json:"createTime"`
 }
 
-// GetArticleDetailByID 通过文章ID获取文章信息
-func (a *articleModel) GetArticleDetailByID(id uint64) (detail *Detail, err error) {
-	detail = new(Detail)
-	if err = a.mysql.
+// CreateArticle 创建文章
+func (a *articleModel) CreateArticle(ctx context.Context, newArticle *Article) error {
+	if err := a.mysql.WithContext(ctx).Model(&Article{}).Create(newArticle).Error; err != nil {
+		return fmt.Errorf("failed to create article: %w", err)
+	}
+
+	return nil
+}
+
+// GetArticleDetailByID 通过文章ID获取文章详情
+func (a *articleModel) GetArticleDetailByID(ctx context.Context, id uint64) (*Detail, error) {
+	detail := &Detail{}
+	if err := a.mysql.WithContext(ctx).Model(&Article{}).
 		Table("article as a").
 		Select("a.id, a.title, a.describe, a.content, a.view_num, a.create_time, a.update_time, a.tag_id, b.name as tag_name").
 		Joins("JOIN tag as b ON a.tag_id=b.id").
@@ -63,18 +74,20 @@ func (a *articleModel) GetArticleDetailByID(id uint64) (detail *Detail, err erro
 		First(detail).Error; err != nil {
 		return nil, err
 	}
+
 	return detail, nil
 }
 
-// GetTagNameArticleZSetByTagName 通过标签名称获取文章信息的ZSet
-func (a *articleModel) GetTagNameArticleZSetByTagName(tagName string) (tagNameArticleZSet []TagNameArticleZSet, err error) {
-	if err = a.mysql.Model(&Article{}).
+// GetArticleListByTagName 通过标签名称获取文章信息
+func (a *articleModel) GetArticleListByTagName(ctx context.Context, tagName string) ([]ListByTagName, error) {
+	list := make([]ListByTagName, 0)
+	if err := a.mysql.WithContext(ctx).Model(&Article{}).
 		Joins("JOIN tag ON tag.id = article.tag_id").
 		Where("tag.name = ?", tagName).
 		Select("article.id, article.create_time").
-		Find(&tagNameArticleZSet).Error; err != nil {
+		Find(&list).Error; err != nil {
 		return nil, err
 	}
 
-	return tagNameArticleZSet, nil
+	return list, nil
 }

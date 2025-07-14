@@ -1,12 +1,15 @@
 package article
 
 import (
+	"context"
+
 	"gorm.io/gorm"
 )
 
 type Model interface {
-	GetArticleDetailByID(id uint64) (*Detail, error)
-	GetTagNameArticleZSetByTagName(tagName string) ([]TagNameArticleZSet, error)
+	CreateArticle(ctx context.Context, newArticle *Article) error
+	GetArticleDetailByID(ctx context.Context, id uint64) (*Detail, error)
+	GetArticleListByTagName(ctx context.Context, tagName string) ([]ListByTagName, error)
 }
 
 type articleModel struct {

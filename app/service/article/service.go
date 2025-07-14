@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 
 	"meta-api/app/model/article"
+	"meta-api/app/model/tag"
 	"meta-api/common/types"
 	"meta-api/config"
 )
@@ -29,20 +30,25 @@ type Service interface {
 
 // articleService 文章服务
 type articleService struct {
-	config      *config.Config
-	logger      *zap.Logger
-	idGenerator *sonyflake.Sonyflake
-	redis       *redis.Client
-	model       article.Model
+	config       *config.Config
+	logger       *zap.Logger
+	idGenerator  *sonyflake.Sonyflake
+	redis        *redis.Client
+	articleModel article.Model
+	tagModel     tag.Model
 }
 
 // NewService 创建服务实例
-func NewService(config *config.Config, logger *zap.Logger, idGenerator *sonyflake.Sonyflake, redis *redis.Client, model article.Model) Service {
+func NewService(config *config.Config, logger *zap.Logger,
+	idGenerator *sonyflake.Sonyflake, redis *redis.Client,
+	articleModel article.Model, tagModel tag.Model) Service {
+
 	return &articleService{
-		config:      config,
-		logger:      logger,
-		idGenerator: idGenerator,
-		redis:       redis,
-		model:       model,
+		config:       config,
+		logger:       logger,
+		idGenerator:  idGenerator,
+		redis:        redis,
+		articleModel: articleModel,
+		tagModel:     tagModel,
 	}
 }

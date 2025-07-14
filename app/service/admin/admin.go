@@ -191,12 +191,12 @@ func (a *adminService) BindDynamicCode(ctx context.Context,
 		a.logger.Error("failed to delete secret key from Redis", zap.Error(err))
 		return response, errors.New("failed to delete secret key from Redis")
 	}
-	id, err := strconv.Atoi(userID)
+	id, err := strconv.ParseUint(userID, 10, 64)
 	if err != nil {
 		a.logger.Error("failed to convert userID to int", zap.Error(err))
 		return response, errors.New("failed to convert userID to int")
 	}
-	if err = a.model.AddAdminSecretKey(ctx, uint64(id), secretKey); err != nil {
+	if err = a.model.AddAdminSecretKey(ctx, id, secretKey); err != nil {
 		a.logger.Error("failed to add secret key to database", zap.Error(err))
 		return response, errors.New("failed to add secret key to database")
 	}
@@ -223,12 +223,12 @@ func (a *adminService) VerifyDynamicCode(ctx context.Context,
 	// 从mysql当中获取secretKey并进行验证
 	response := &types.VerifyDynamicCodeResponse{}
 	userID := request.UserID
-	id, err := strconv.Atoi(userID)
+	id, err := strconv.ParseUint(userID, 10, 64)
 	if err != nil {
 		a.logger.Error("failed to convert userID to int", zap.Error(err))
 		return response, errors.New("failed to convert userID to int")
 	}
-	secretKey, err := a.model.GetAdminSecretKey(ctx, uint64(id))
+	secretKey, err := a.model.GetAdminSecretKey(ctx, id)
 	if err != nil {
 		a.logger.Error("failed to get secret key from database", zap.Error(err))
 		return response, errors.New("failed to get secret key from database")
@@ -256,12 +256,12 @@ func (a *adminService) VerifyDynamicCode(ctx context.Context,
 // AdminUpdateAboutMe 修改关于我
 func (a *adminService) AdminUpdateAboutMe(ctx context.Context, request *types.UpdateAboutMeRequest) error {
 	// 获取管理员信息
-	id, err := strconv.Atoi(request.UserID)
+	id, err := strconv.ParseUint(request.UserID, 10, 64)
 	if err != nil {
 		a.logger.Error("failed to get admin info", zap.Error(err))
 		return fmt.Errorf("failed to get admin info")
 	}
-	adminInfo, err := a.model.GetAdminInfoByID(ctx, uint64(id))
+	adminInfo, err := a.model.GetAdminInfoByID(ctx, id)
 	if err != nil {
 		a.logger.Error("failed to get admin info", zap.Error(err))
 		return fmt.Errorf("failed to get admin info")
@@ -329,12 +329,12 @@ func (a *adminService) AdminUpdateAboutMe(ctx context.Context, request *types.Up
 	}
 
 	// 更新数据库
-	updatedAdminModel := admin.Admin{
+	updatedAdminInfo := admin.Admin{
 		AboutMeInfo:   aboutMeInfoStr,
 		WebSiteInfo:   webSiteInfoStr,
 		ContactMeInfo: contactMeInfoStr,
 	}
-	if err = a.model.UpdateAdminInfoByID(ctx, uint64(id), &updatedAdminModel); err != nil {
+	if err = a.model.UpdateAdminInfoByID(ctx, id, &updatedAdminInfo); err != nil {
 		a.logger.Error("failed to update admin info", zap.Error(err))
 	}
 

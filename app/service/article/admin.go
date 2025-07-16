@@ -9,7 +9,6 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
-	"gorm.io/gorm"
 
 	"meta-api/app/model/article"
 	"meta-api/app/model/tag"
@@ -151,8 +150,7 @@ func (a *articleService) AdminGetArticleDetail(ctx context.Context,
 }
 
 // AdminAddArticle 添加文章
-func (a *articleService) AdminAddArticle(ctx context.Context,
-	request *types.AdminAddArticleRequest) error {
+func (a *articleService) AdminAddArticle(ctx context.Context, request *types.AdminAddArticleRequest) error {
 
 	// 获取tag
 	tagInfo, err := a.tagModel.FindTagByName(ctx, request.Tag)
@@ -252,110 +250,86 @@ func (a *articleService) AdminAddArticle(ctx context.Context,
 }
 
 // AdminUpdateArticle 更新文章
-func (a *articleService) AdminUpdateArticle(ctx context.Context,
-	request *types.AdminUpdateArticleRequest) error {
+func (a *articleService) AdminUpdateArticle(ctx context.Context, request *types.AdminUpdateArticleRequest) error {
 
-	tagModel := new(tag.Tag)
-	articleModel := new(article.Article)
-
-	// 插入或更新 Tag
-	if err = tx.Where("name = ?", req.Tag).First(tagModel).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		a.logger.Error("failed to query tag", zap.Error(err))
-		tx.Rollback()
-		return 0, err
+	// 处理Tag
+	tagInfo, err := a.tagModel.FindTagByName(ctx, request.Tag)
+	if err != nil {
+		a.logger.Error("failed to find tag", zap.Error(err))
+		return fmt.Errorf("failed to find tag, error: %w", err)
 	}
-
-	// 如果没有找到对应的 tag，则插入新的 tag
-	if tagModel.ID == 0 {
-		if tagID, err = global.IDGenerator.NextID(); err != nil {
-			tx.Rollback()
-			a.logger.Error("generate id error", zap.Error(err))
-			return 0, err
+	if tagInfo == nil || tagInfo.ID == 0 {
+		tagID, err := a.idGenerator.NextID()
+		if err != nil {
+			a.logger.Error("generate tag id error", zap.Error(err))
+			return fmt.Errorf("generate tag id error: %w", err)
 		}
-		newTag := tag.Tag{
+		tagInfo = &tag.Tag{
 			ID:   tagID,
-			Name: req.Tag,
+			Name: request.Tag,
 		}
-		if err = tx.Create(&newTag).Error; err != nil {
-			tx.Rollback()
+		if err = a.tagModel.CreateTag(ctx, tagInfo); err != nil {
 			a.logger.Error("failed to create tag", zap.Error(err))
-			return 0, err
+			return fmt.Errorf("failed to create tag: %w", err)
 		}
-		tagModel = &newTag
-	} else {
-		tagID = tagModel.ID
 	}
 
-	// 更新 Article
-	viewNum, err := a.redis.ZScore(ctx, "article:view:ZSet", req.ID).Result()
+	// 需要获取当前文章的浏览量，避免浏览量丢失
+	viewNum, err := a.redis.ZScore(ctx, "article:view:ZSet", request.ID).Result()
 	if err != nil {
 		a.logger.Error("failed to query article:view:ZSet", zap.Error(err))
-		tx.Rollback()
-		return 0, err
+		return fmt.Errorf("failed to query article:view:ZSet: %w", err)
 	}
-	loc, _ := time.LoadLocation("Asia/Shanghai")
-	articleModel = &article.Article{
-		Title:      req.Title,
-		Describe:   req.Describe,
-		Content:    req.Content,
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		a.logger.Error("failed to load location", zap.Error(err))
+		return fmt.Errorf("failed to load location: %w", err)
+	}
+
+	// 更新文章
+	articleInfo := &article.Article{
+		Title:      request.Title,
+		Describe:   request.Describe,
+		Content:    request.Content,
 		ViewNum:    uint64(viewNum),
 		UpdateTime: time.Now().In(loc),
-		TagID:      tagID,
+		TagID:      tagInfo.ID,
 	}
-
-	if err = tx.Model(&article.Article{}).Where("id = ?", req.ID).Updates(articleModel).Error; err != nil {
-		tx.Rollback()
+	if err = a.articleModel.UpdateArticle(ctx, articleInfo); err != nil {
 		a.logger.Error("failed to update article", zap.Error(err))
-		return 0, err
+		return fmt.Errorf("failed to update article: %w", err)
 	}
 
-	// 提交事务
-	if err = tx.Commit().Error; err != nil {
-		tx.Rollback()
-		a.logger.Error("failed to commit transaction", zap.Error(err))
-		return 0, err
-	}
-
-	if err = a.redis.Del(ctx, "article:"+articleID+":Hash").Err(); err != nil {
+	// 处理缓存数据
+	if err = a.redis.Del(ctx, "article:"+request.ID+":Hash").Err(); err != nil {
 		a.logger.Error("failed to delete hash", zap.Error(err))
-		return err
+		return fmt.Errorf("failed to delete hash: %w", err)
 	}
 	if err = a.redis.Del(ctx, "tag:articleNum:ZSet").Err(); err != nil {
 		a.logger.Error("failed to delete tag:articleNum:ZSet", zap.Error(err))
-		return err
+		return fmt.Errorf("failed to delete tag:articleNum:ZSet: %w", err)
 	}
-	tagIDArticleKey := strconv.FormatUint(tagID, 10) + ":article" + ":ZSet"
-	if err = a.redis.Del(ctx, tagIDArticleKey).Err(); err != nil {
-		a.logger.Error("failed to delete tagIDArticleKey", zap.Error(err))
-		return err
+	key := strconv.Itoa(int(tagInfo.ID)) + ":article" + ":ZSet"
+	if err = a.redis.Del(ctx, key).Err(); err != nil {
+		a.logger.Error("failed to delete tagID:article:ZSet", zap.Error(err))
+		return fmt.Errorf("failed to delete tagID:article:ZSet: %w", err)
 	}
 
 	return nil
 }
 
 // AdminDeleteArticle 删除文章
-func (a *articleService) AdminDeleteArticle(ctx context.Context,
-	request *types.AdminDeleteArticleRequest) error {
-
-	articleModel := new(article.DelArticle)
-	if err = global.MySqlDB.Table("article").
-		Select("article.id, article.tag_id, tag.name as tag_name").
-		Joins("LEFT JOIN tag ON article.tag_id = tag.id").
-		Where("article.id = ?", articleID).
-		First(&articleModel).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			a.logger.Error("article not found", zap.Error(err))
-			return "", err
-		}
-		a.logger.Error("failed to query article with tag", zap.Error(err))
-		return "", err
+func (a *articleService) AdminDeleteArticle(ctx context.Context, request *types.AdminDeleteArticleRequest) error {
+	articleID := request.ID
+	id, err := strconv.ParseUint(request.ID, 10, 64)
+	if err != nil {
+		a.logger.Error("parse uint64 error", zap.Error(err))
+		return err
 	}
-	if articleModel.ID != 0 && articleModel.TagName != "" {
-		if err = global.MySqlDB.Delete(&article.Article{}, articleID).Error; err != nil {
-			a.logger.Error("failed to delete article", zap.Error(err))
-			return "", err
-		}
-		return articleModel.TagName, nil
+	tagName, err := a.articleModel.DelArticleAndReturnTagName(ctx, id)
+	if err != nil {
+		a.logger.Error("failed to delete article", zap.Error(err))
+		return fmt.Errorf("failed to delete article: %w", err)
 	}
 
 	// 删除文章的hash

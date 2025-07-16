@@ -63,6 +63,16 @@ func (a *articleModel) CreateArticle(ctx context.Context, newArticle *Article) e
 	return nil
 }
 
+// UpdateArticle 更新文章
+func (a *articleModel) UpdateArticle(ctx context.Context, articleInfo *Article) error {
+	if err := a.mysql.WithContext(ctx).Model(&Article{}).
+		Where("id = ?", articleInfo.ID).Updates(articleInfo).Error; err != nil {
+		return fmt.Errorf("failed to update article: %w", err)
+	}
+
+	return nil
+}
+
 // GetArticleDetailByID 通过文章ID获取文章详情
 func (a *articleModel) GetArticleDetailByID(ctx context.Context, id uint64) (*Detail, error) {
 	detail := &Detail{}
@@ -82,12 +92,33 @@ func (a *articleModel) GetArticleDetailByID(ctx context.Context, id uint64) (*De
 func (a *articleModel) GetArticleListByTagName(ctx context.Context, tagName string) ([]ListByTagName, error) {
 	list := make([]ListByTagName, 0)
 	if err := a.mysql.WithContext(ctx).Model(&Article{}).
+		Select("article.id, article.create_time").
 		Joins("JOIN tag ON tag.id = article.tag_id").
 		Where("tag.name = ?", tagName).
-		Select("article.id, article.create_time").
 		Find(&list).Error; err != nil {
 		return nil, err
 	}
 
 	return list, nil
+}
+
+// DelArticleAndReturnTagName 删除文章并返回标签名
+func (a *articleModel) DelArticleAndReturnTagName(ctx context.Context, id uint64) (string, error) {
+	articleInfo := &DelArticle{}
+	if err := a.mysql.WithContext(ctx).Model(&Article{}).Table("article as a").
+		Select("a.id, a.tag_id, t.name as tag_name").
+		Joins("LEFT JOIN tag as t ON a.tag_id = t.id").
+		Where("a.id = ?", id).
+		First(articleInfo).Error; err != nil {
+		return "", err
+	}
+
+	if articleInfo.ID != 0 && articleInfo.TagName != "" {
+		if err := a.mysql.WithContext(ctx).Model(&Article{}).Delete(&Article{}, id).Error; err != nil {
+			return "", err
+		}
+		return articleInfo.TagName, nil
+	}
+
+	return "", fmt.Errorf("article not exist")
 }

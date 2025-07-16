@@ -72,12 +72,13 @@ func (a *articleHandler) UserGetArticleDetail(c *gin.Context) {
 			}
 		} else {
 			a.logger.Error("failed to get client id", zap.Error(fmt.Errorf("invalid client id")))
-			c.JSON(http.StatusOK, types.Response{Code: codes.Forbidden, Message: "请使用浏览器访问该接口", Data: nil})
+			c.JSON(http.StatusOK, types.Response{Code: codes.Forbidden, Message: "访问环境异常", Data: nil})
 			return
 		}
 	} else {
 		userID = sessionID.(string)
 	}
+	request.UserID = userID
 
 	response, err := a.service.UserGetArticleDetail(ctx, request)
 	if err != nil {

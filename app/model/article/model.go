@@ -12,6 +12,8 @@ type Model interface {
 	GetArticleDetailByID(ctx context.Context, id uint64) (*Detail, error)
 	GetArticleListByTagName(ctx context.Context, tagName string) ([]ListByTagName, error)
 	DelArticleAndReturnTagName(ctx context.Context, id uint64) (string, error)
+	SearchArticle(ctx context.Context, word string, limit, offset int) ([]SearchArticle, int64, error)
+	GetArticleListByIDList(ctx context.Context, idList []uint64) ([]*Article, error)
 }
 
 type articleModel struct {

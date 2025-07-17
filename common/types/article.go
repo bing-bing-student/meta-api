@@ -56,7 +56,7 @@ type UserGetArticleListRequest struct {
 	PageSize int `form:"pageSize" binding:"required,gte=1,lte=10"`
 }
 
-type UserGetArticleListItem struct {
+type UserGetArticleItem struct {
 	ID         string `json:"id"`
 	Title      string `json:"title"`
 	TagName    string `json:"tagName"`
@@ -67,8 +67,8 @@ type UserGetArticleListItem struct {
 }
 
 type UserGetArticleListResponse struct {
-	Rows  []UserGetArticleListItem `json:"rows"`
-	Total int                      `json:"total"`
+	Rows  []UserGetArticleItem `json:"rows"`
+	Total int                  `json:"total"`
 }
 
 type UserSearchArticleRequest struct {
@@ -78,8 +78,8 @@ type UserSearchArticleRequest struct {
 }
 
 type UserSearchArticleResponse struct {
-	Rows  []UserGetArticleListItem `json:"rows"`
-	Total int                      `json:"total"`
+	Rows  []UserGetArticleItem `json:"rows"`
+	Total int                  `json:"total"`
 }
 
 type GetHotArticleItem struct {

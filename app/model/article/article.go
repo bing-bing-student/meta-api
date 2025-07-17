@@ -32,6 +32,13 @@ type Detail struct {
 	TagName    string    `gorm:"column:tag_name" json:"tagName"`
 }
 
+type SearchArticle struct {
+	ID       uint64 `gorm:"column:id" json:"id"`
+	Title    string `gorm:"column:title" json:"title"`
+	Describe string `gorm:"column:describe" json:"describe"`
+	ViewNum  uint64 `gorm:"column:view_num" json:"viewNum"`
+}
+
 type DelArticle struct {
 	ID      uint64 `gorm:"column:id" json:"id"`
 	TagID   uint64 `gorm:"column:tag_id" json:"tagID"`
@@ -121,4 +128,27 @@ func (a *articleModel) DelArticleAndReturnTagName(ctx context.Context, id uint64
 	}
 
 	return "", fmt.Errorf("article not exist")
+}
+
+// SearchArticle 搜索文章
+func (a *articleModel) SearchArticle(ctx context.Context, word string, limit, offset int) ([]SearchArticle, int64, error) {
+	total := int64(0)
+	list := make([]SearchArticle, 0)
+	if err := a.mysql.WithContext(ctx).Model(&Article{}).
+		Select("id, title, describe, view_num").
+		Where("MATCH(title, content) AGAINST(? IN BOOLEAN MODE)", word+"*").
+		Count(&total).
+		Limit(limit).Offset(offset).
+		Find(&list).Error; err != nil {
+		return nil, 0, fmt.Errorf("failed to query articles: %w", err)
+	}
+
+	return list, total, nil
+}
+
+// GetArticleListByIDList 通过id列表获取文章列表
+func (a *articleModel) GetArticleListByIDList(ctx context.Context, ids []uint64) ([]*Article, error) {
+	var articles []*Article
+	err := a.mysql.WithContext(ctx).Model(&Article{}).Where("id IN ?", ids).Find(&articles).Error
+	return articles, err
 }

@@ -42,6 +42,6 @@ type UserGetArticleListByTagRequest struct {
 }
 
 type UserGetArticleListByTagResponse struct {
-	Rows  []UserGetArticleListItem `json:"rows"`
-	Total int                      `json:"total"`
+	Rows  []UserGetArticleItem `json:"rows"`
+	Total int                  `json:"total"`
 }

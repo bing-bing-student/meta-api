@@ -18,7 +18,6 @@ import (
 func (a *articleService) UserGetArticleList(ctx context.Context,
 	request *types.UserGetArticleListRequest) (*types.UserGetArticleListResponse, error) {
 
-	response := &types.UserGetArticleListResponse{}
 	start := (request.Page - 1) * request.PageSize
 	stop := start + request.PageSize - 1
 
@@ -94,6 +93,7 @@ func (a *articleService) UserGetArticleList(ctx context.Context,
 		}
 		articleList = append(articleList, articleItem)
 	}
+	response := &types.UserGetArticleListResponse{}
 	response.Rows = articleList
 	response.Total = int(a.redis.ZCard(ctx, "article:time:ZSet").Val())
 
@@ -188,7 +188,6 @@ func (a *articleService) UserGetArticleDetail(ctx context.Context,
 func (a *articleService) UserSearchArticle(ctx context.Context,
 	request *types.UserSearchArticleRequest) (*types.UserSearchArticleResponse, error) {
 
-	response := &types.UserSearchArticleResponse{}
 	limit := request.PageSize
 	offset := (request.Page - 1) * request.PageSize
 	word := strings.TrimSpace(request.Word)
@@ -207,6 +206,7 @@ func (a *articleService) UserSearchArticle(ctx context.Context,
 			ViewNum:  int(item.ViewNum),
 		})
 	}
+	response := &types.UserSearchArticleResponse{}
 	response.Rows = rows
 	response.Total = int(total)
 
@@ -215,7 +215,6 @@ func (a *articleService) UserSearchArticle(ctx context.Context,
 
 // UserGetHotArticle 获取热门文章
 func (a *articleService) UserGetHotArticle(ctx context.Context) (*types.UserGetHotArticleResponse, error) {
-	response := &types.UserGetHotArticleResponse{}
 	articleIDZSet, err := a.redis.ZRevRangeWithScores(ctx, "article:view:ZSet", 0, 2).Result()
 	if err != nil {
 		a.logger.Error("failed to get article:view:ZSet", zap.Error(err))
@@ -276,6 +275,7 @@ func (a *articleService) UserGetHotArticle(ctx context.Context) (*types.UserGetH
 		}
 		articleList = append(articleList, articleItem)
 	}
+	response := &types.UserGetHotArticleResponse{}
 	response.Rows = articleList
 	response.Total = len(articleList)
 
@@ -364,14 +364,14 @@ func (a *articleService) UserGetTimeline(ctx context.Context) (*types.GetTimelin
 	//response.Total = len(articleIDZSet)
 
 	// ==============================================实现方式2：使用Pipeline==============================================
-	// 1. 从Redis获取有序集合
+	// 从Redis获取有序集合
 	articleIDs, err := a.redis.ZRevRange(ctx, "article:time:ZSet", 0, -1).Result()
 	if err != nil {
 		a.logger.Error("failed to get article:time:ZSet", zap.Error(err))
 		return nil, fmt.Errorf("failed to get article:time:ZSet: %w", err)
 	}
 
-	// 2. 批量处理文章数据
+	// 批量处理文章数据
 	groupedArticles := make(map[string][]types.GetTimelineListItem)
 	missingIDs := make([]string, 0)
 	cachedArticles := make(map[string]types.GetTimelineListItem)
@@ -399,7 +399,7 @@ func (a *articleService) UserGetTimeline(ctx context.Context) (*types.GetTimelin
 	}
 	cachedResults, _ := pipeline.Exec(ctx)
 
-	// 3. 处理缓存数据
+	// 处理缓存数据
 	resultIndex := 0
 	for i, id := range articleIDs {
 		if exists[i].(*redis.IntCmd).Val() == 1 {
@@ -417,7 +417,7 @@ func (a *articleService) UserGetTimeline(ctx context.Context) (*types.GetTimelin
 		}
 	}
 
-	// 4. 批量处理缺失数据
+	// 批量处理缺失数据
 	if len(missingIDs) > 0 {
 		ids := make([]uint64, len(missingIDs))
 		for i, idStr := range missingIDs {
@@ -455,7 +455,7 @@ func (a *articleService) UserGetTimeline(ctx context.Context) (*types.GetTimelin
 		}
 	}
 
-	// 5. 按年份分组
+	// 按年份分组
 	for _, id := range articleIDs {
 		if item, ok := cachedArticles[id]; ok {
 			year := item.CreateTime[:4]
@@ -463,7 +463,7 @@ func (a *articleService) UserGetTimeline(ctx context.Context) (*types.GetTimelin
 		}
 	}
 
-	// 6. 构建响应
+	// 构建响应
 	response := &types.GetTimelineResponse{Total: len(articleIDs)}
 	years := make([]string, 0, len(groupedArticles))
 	for year := range groupedArticles {

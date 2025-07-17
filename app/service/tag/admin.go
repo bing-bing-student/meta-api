@@ -1,6 +1,8 @@
 package tag
 
 import (
+	"context"
+
 	"github.com/redis/go-redis/v9"
 	"github.com/sony/sonyflake"
 	"go.uber.org/zap"
@@ -11,6 +13,7 @@ import (
 
 // Service 标签服务接口
 type Service interface {
+	AdminGetTagList(ctx context.Context) ([]string, error)
 }
 
 // tagService 标签服务

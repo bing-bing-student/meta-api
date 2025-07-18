@@ -1,5 +1,8 @@
 package types
 
+type AdminGetTagListResponse struct {
+}
+
 type AdminGetArticleListByTagRequest struct {
 	TagName  string `form:"tagName" binding:"required,lte=20"`
 	Page     int    `form:"page" binding:"required,gte=1"`
@@ -19,7 +22,7 @@ type AdminGetArticleListByTagResponse struct {
 	Total int                            `json:"total"`
 }
 
-type UpdateTagRequest struct {
+type AdminUpdateTagRequest struct {
 	ArticleIDList []string `json:"articleIDList" binding:"required,articleID"`
 	NewTagName    string   `json:"newTagName" binding:"required,lte=20"`
 	OldTagName    string   `json:"oldTagName" binding:"required,lte=20"`

@@ -46,7 +46,7 @@ func (t *tagHandler) AdminGetArticleListByTag(c *gin.Context) {
 
 // AdminUpdateTag 更新标签
 func (t *tagHandler) AdminUpdateTag(c *gin.Context) {
-	req := new(types.UpdateTagRequest)
+	req := new(types.AdminUpdateTagRequest)
 	if err := c.ShouldBind(req); err != nil {
 		t.logger.Error("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})

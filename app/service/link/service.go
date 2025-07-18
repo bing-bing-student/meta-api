@@ -1,16 +1,25 @@
 package link
 
 import (
+	"context"
+
 	"github.com/redis/go-redis/v9"
 	"github.com/sony/sonyflake"
 	"go.uber.org/zap"
 
 	"meta-api/app/model/link"
+	"meta-api/common/types"
 	"meta-api/config"
 )
 
 // Service 友链服务接口
 type Service interface {
+	AdminGetLinkList(ctx context.Context) (*types.AdminGetLinkListResponse, error)
+	AdminAddLink(ctx context.Context, request *types.AdminAddLinkRequest) error
+	AdminUpdateLink(ctx context.Context, request *types.AdminUpdateLinkRequest) error
+	AdminDeleteLink(ctx context.Context, request *types.AdminDeleteLinkRequest) error
+
+	UserGetLinkList(ctx context.Context) (*types.UserGetLinkListResponse, error)
 }
 
 // linkService 友链服务

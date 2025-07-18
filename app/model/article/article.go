@@ -45,11 +45,6 @@ type DelArticle struct {
 	TagName string `gorm:"column:tag_name" json:"tagName"`
 }
 
-type TagWithArticleCount struct {
-	Name  string `gorm:"column:name"`
-	Count int    `gorm:"column:count"`
-}
-
 type ListByTagName struct {
 	ID         uint64    `gorm:"column:id" json:"ID"`
 	CreateTime time.Time `gorm:"column:create_time" json:"createTime"`

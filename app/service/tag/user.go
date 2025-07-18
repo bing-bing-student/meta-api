@@ -14,7 +14,7 @@ import (
 )
 
 // UserGetTagList 获取标签列表
-func (t *tagService) UserGetTagList(ctx context.Context) (types.UserGetTagListResponse, error) {
+func (t *tagService) UserGetTagList(ctx context.Context) (*types.UserGetTagListResponse, error) {
 	exist, err := global.RedisSentinel.Exists(global.Context, "tag:articleNum:ZSet").Result()
 	if err != nil {
 		global.Logger.Error("failed to get tag:articleNum:ZSet", zap.Error(err))
@@ -75,7 +75,7 @@ func (t *tagService) UserGetTagList(ctx context.Context) (types.UserGetTagListRe
 
 // UserGetArticleListByTag 获取标签下的文章列表
 func (t *tagService) UserGetArticleListByTag(ctx context.Context,
-	request *types.UserGetArticleListByTagRequest) (types.UserGetArticleListByTagResponse, error) {
+	request *types.UserGetArticleListByTagRequest) (*types.UserGetArticleListByTagResponse, error) {
 
 	// 计算偏移量
 	start := (req.Page - 1) * req.PageSize

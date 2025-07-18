@@ -182,8 +182,8 @@ func (a *articleService) AdminAddArticle(ctx context.Context, request *types.Adm
 	}
 	loc, err := time.LoadLocation("Asia/Shanghai")
 	if err != nil {
-		a.logger.Error("load location error", zap.Error(err))
-		return fmt.Errorf("load location error: %w", err)
+		a.logger.Error("failed to load location", zap.Error(err))
+		return fmt.Errorf("failed to load location, error: %w", err)
 	}
 	articleInfo := &article.Article{
 		ID:         articleID,

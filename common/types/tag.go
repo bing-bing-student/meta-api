@@ -1,6 +1,13 @@
 package types
 
+type TagNameWithArticleNumItem struct {
+	Name       string `json:"name"`
+	ArticleNum int    `json:"articleNum"`
+}
+
 type AdminGetTagListResponse struct {
+	Rows  []TagNameWithArticleNumItem `json:"rows"`
+	Total int                         `json:"total"`
 }
 
 type AdminGetArticleListByTagRequest struct {
@@ -28,14 +35,9 @@ type AdminUpdateTagRequest struct {
 	OldTagName    string   `json:"oldTagName" binding:"required,lte=20"`
 }
 
-type UserGetTagListItem struct {
-	Name       string `json:"name"`
-	ArticleNum int    `json:"articleNum"`
-}
-
 type UserGetTagListResponse struct {
-	Rows  []UserGetTagListItem `json:"rows"`
-	Total int                  `json:"total"`
+	Rows  []TagNameWithArticleNumItem `json:"rows"`
+	Total int                         `json:"total"`
 }
 
 type UserGetArticleListByTagRequest struct {

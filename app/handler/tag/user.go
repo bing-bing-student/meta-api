@@ -25,16 +25,17 @@ func (t *tagHandler) UserGetTagList(c *gin.Context) {
 
 // UserGetArticleListByTag 获取标签下的文章列表
 func (t *tagHandler) UserGetArticleListByTag(c *gin.Context) {
-	req := new(types.UserGetArticleListByTagRequest)
-	if err := c.ShouldBind(req); err != nil {
+	ctx := c.Request.Context()
+
+	request := &types.UserGetArticleListByTagRequest{}
+	if err := c.ShouldBind(request); err != nil {
 		t.logger.Error("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}
 
-	resp := new(types.UserGetArticleListByTagResponse)
-	resp.Rows = make([]types.UserGetArticleListItem, 0)
-	if err := t.service.UserGetArticleListByTag(req, resp); err != nil {
+	response, err := t.service.UserGetArticleListByTag(ctx, request)
+	if err != nil {
 		t.logger.Error("failed to get article list by tag", zap.Error(err))
 		if err.Error() == "not found tagName" {
 			c.JSON(http.StatusOK, types.Response{Code: codes.NotFound, Message: "文章标签不存在", Data: nil})
@@ -43,6 +44,5 @@ func (t *tagHandler) UserGetArticleListByTag(c *gin.Context) {
 		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "获取文章列表失败", Data: nil})
 		return
 	}
-
-	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: resp})
+	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: response})
 }

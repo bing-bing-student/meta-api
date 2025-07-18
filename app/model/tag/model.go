@@ -9,6 +9,7 @@ import (
 type Model interface {
 	CreateTag(ctx context.Context, newTag *Tag) error
 	FindTagByName(ctx context.Context, tagName string) (*Tag, error)
+	GetArticleCountWithTagName(ctx context.Context) ([]ArticleCountWithTag, error)
 }
 
 type tagModel struct {

@@ -3,6 +3,7 @@ package tag
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -12,101 +13,100 @@ import (
 
 	"meta-api/app/model/article"
 	"meta-api/app/model/tag"
+	"meta-api/common/constants"
 	"meta-api/common/types"
 )
 
 // AdminGetTagList 获取标签列表
-func (t *tagService) AdminGetTagList(ctx context.Context) (types.AdminGetTagListResponse, error) {
-	exist, err := global.RedisSentinel.Exists(global.Context, "tag:articleNum:ZSet").Result()
-	if err != nil {
-		global.Logger.Error("failed to get tag:articleNum:ZSet", zap.Error(err))
-		return nil, err
-	}
-	if exist == 1 {
-		tagZSet, err := global.RedisSentinel.ZRevRangeWithScores(global.Context, "tag:articleNum:ZSet", 0, -1).Result()
+func (t *tagService) AdminGetTagList(ctx context.Context) (*types.AdminGetTagListResponse, error) {
+	response := &types.AdminGetTagListResponse{}
+	key := "tag:articleNum:ZSet"
+
+	if exist := t.redis.Exists(ctx, key).Val(); exist == 0 {
+		articleCountWithTagNameList, err := t.model.GetArticleCountWithTagName(ctx)
 		if err != nil {
-			global.Logger.Error("failed to get tag:articleNum:ZSet", zap.Error(err))
-			return nil, err
+			t.logger.Error("failed to get ArticleCountWithTag", zap.Error(err))
+			return nil, fmt.Errorf("failed to get ArticleCountWithTag, err: %w", err)
 		}
-
-		for _, label := range tagZSet {
-			resp = append(resp, label.Member.(string))
-		}
-		return resp, nil
-	}
-	if exist == 0 {
-		tagList := make([]article.TagWithArticleCount, 0)
-		if err = global.MySqlDB.
-			Table("tag").
-			Select("tag.name, COUNT(article.id) AS count").
-			Joins("JOIN article ON article.tag_id = tag.id").
-			Group("tag.id").
-			Having("COUNT(article.id) > 0").
-			Order("count DESC").
-			Find(&tagList).
-			Error; err != nil {
-			global.Logger.Error("failed to get tags with article", zap.Error(err))
-			return nil, err
-		}
-
-		if len(tagList) > 0 {
-			zAddArgs := make([]redis.Z, len(tagList))
-			for i, data := range tagList {
+		if len(articleCountWithTagNameList) > 0 {
+			zAddArgs := make([]redis.Z, len(articleCountWithTagNameList))
+			for i, data := range articleCountWithTagNameList {
 				zAddArgs[i] = redis.Z{
 					Score:  float64(data.Count),
 					Member: data.Name,
 				}
-				resp = append(resp, data.Name)
+				response.Rows = append(response.Rows, types.TagNameWithArticleNumItem{
+					Name:       data.Name,
+					ArticleNum: data.Count,
+				})
 			}
 
 			// 批量写入Redis
-			if err = global.RedisSentinel.ZAdd(global.Context, "tag:articleNum:ZSet", zAddArgs...).Err(); err != nil {
-				global.Logger.Error("failed to write tag:articleNum:ZSet", zap.Error(err))
-				return nil, err
+			if err = t.redis.ZAdd(ctx, key, zAddArgs...).Err(); err != nil {
+				t.logger.Error("failed to write tag:articleNum:ZSet", zap.Error(err))
+				return nil, fmt.Errorf("failed to write tag:articleNum:ZSet, err: %w", err)
 			}
 		}
+	} else {
+		// 获取Redis当中的标签数据(无分页)
+		tagZSet, err := t.redis.ZRevRangeWithScores(ctx, key, 0, -1).Result()
+		if err != nil {
+			t.logger.Error("failed to get tag:articleNum:ZSet", zap.Error(err))
+			return nil, fmt.Errorf("failed to get tag:articleNum:ZSet, err: %w", err)
+		}
+
+		for _, label := range tagZSet {
+			response.Rows = append(response.Rows, types.TagNameWithArticleNumItem{
+				Name:       label.Member.(string),
+				ArticleNum: int(label.Score),
+			})
+		}
+		return response, nil
 	}
-	return resp, nil
+	response.Total = int(t.redis.ZCard(ctx, key).Val())
+
+	return response, nil
 }
 
 // AdminGetArticleListByTag 通过标签获取文章列表
 func (t *tagService) AdminGetArticleListByTag(ctx context.Context,
-	request *types.AdminGetArticleListByTagRequest) (types.AdminGetArticleListByTagResponse, error) {
+	request *types.AdminGetArticleListByTagRequest) (*types.AdminGetArticleListByTagResponse, error) {
 
-	// 计算偏移量
-	start := (req.Page - 1) * req.PageSize
-	stop := start + req.PageSize - 1
+	response := &types.AdminGetArticleListByTagResponse{}
+	start := (request.Page - 1) * request.PageSize
+	stop := start + request.PageSize - 1
+	key := request.TagName + ":article:ZSet"
 
-	key := req.TagName + ":article:ZSet"
 	// 获取文章ID列表(包含分页条件)
-	articleIDList, err := global.RedisSentinel.ZRevRange(global.Context, key, int64(start), int64(stop)).Result()
+	articleIDList, err := t.redis.ZRevRange(ctx, key, int64(start), int64(stop)).Result()
 	if err != nil {
-		global.Logger.Error("failed to get article:ZSet", zap.Error(err))
-		return err
+		t.logger.Error("failed to get article:ZSet", zap.Error(err))
+		return nil, err
 	}
 	// 如果Redis中没有这个有序集合
 	if len(articleIDList) == 0 {
-		tagIDArticleZSet, err := article.GetTagNameArticleZSetByTagName(req.TagName)
+		tagIDArticleZSet, err := t.model.GetTagNameArticleZSetByTagName(req.TagName)
 		if err != nil {
 			global.Logger.Error("failed to get tagIDArticleZSet", zap.Error(err))
 			return err
 		}
 		for _, label := range tagIDArticleZSet {
-			if err = global.RedisSentinel.ZAdd(global.Context, key, redis.Z{
+			if err = t.redis.ZAdd(ctx, key, redis.Z{
 				Score:  float64(label.CreateTime.UnixNano() / int64(time.Millisecond)),
 				Member: label.ID,
 			}).Err(); err != nil {
-				global.Logger.Error("failed to write article:ZSet", zap.Error(err))
-				return err
+				t.logger.Error("failed to write article:ZSet", zap.Error(err))
+				return nil, err
 			}
 		}
 		// 再次获取数据(包含分页条件)
-		articleIDList, err = global.RedisSentinel.ZRevRange(global.Context, key, int64(start), int64(stop)).Result()
+		articleIDList, err = t.redis.ZRevRange(ctx, key, int64(start), int64(stop)).Result()
 		if err != nil {
-			global.Logger.Error("failed to get article:ZSet", zap.Error(err))
-			return err
+			t.logger.Error("failed to get article:ZSet", zap.Error(err))
+			return nil, err
 		}
 	}
+
 	// 获取Redis当中的文章Hash数据
 	fields := []string{"title", "viewNum", "createTime", "updateTime"}
 	for _, articleID := range articleIDList {
@@ -132,8 +132,8 @@ func (t *tagService) AdminGetArticleListByTag(ctx context.Context,
 			articleItem.ID = articleID
 			articleItem.Title = articleModel.Title
 			articleItem.ViewNum = int(articleModel.ViewNum)
-			articleItem.CreateTime = articleModel.CreateTime.Format(global.TimeLayoutToMinute)
-			articleItem.UpdateTime = articleModel.UpdateTime.Format(global.TimeLayoutToMinute)
+			articleItem.CreateTime = articleModel.CreateTime.Format(constants.TimeLayoutToMinute)
+			articleItem.UpdateTime = articleModel.UpdateTime.Format(constants.TimeLayoutToMinute)
 
 			mapData := map[string]interface{}{
 				"id":         articleModel.ID,
@@ -169,18 +169,7 @@ func (t *tagService) AdminGetArticleListByTag(ctx context.Context,
 }
 
 // AdminUpdateTag 更新标签
-func (t *tagService) AdminUpdateTag(ctx context.Context, request types.AdminUpdateTagRequest) error {
-	// MySQL更新数据
-	tx := global.MySqlDB.Begin()
-	if tx.Error != nil {
-		global.Logger.Error("failed to start transaction", zap.Error(tx.Error))
-		return tx.Error
-	}
-	defer func() {
-		if err != nil {
-			tx.Rollback()
-		}
-	}()
+func (t *tagService) AdminUpdateTag(ctx context.Context, request *types.AdminUpdateTagRequest) error {
 
 	// 查找数据库中是否已存在相同名称的标签
 	tagModel := new(tag.Tag)

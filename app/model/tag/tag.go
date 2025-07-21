@@ -3,6 +3,7 @@ package tag
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 type Tag struct {
@@ -14,6 +15,12 @@ type Tag struct {
 type ArticleCountWithTag struct {
 	Name  string `gorm:"column:name"`
 	Count int    `gorm:"column:count"`
+}
+
+// ArticleListByTagName 标签下的文章列表
+type ArticleListByTagName struct {
+	ID         uint64    `gorm:"column:id" json:"ID"`
+	CreateTime time.Time `gorm:"column:create_time" json:"createTime"`
 }
 
 // CreateTag 创建标签
@@ -49,4 +56,17 @@ func (t *tagModel) GetArticleCountWithTagName(ctx context.Context) ([]ArticleCou
 		return nil, err
 	}
 	return tagList, nil
+}
+
+// GetArticleListByTagName 通过标签名获取文章列表
+func (t *tagModel) GetArticleListByTagName(ctx context.Context, tagName string) ([]ArticleListByTagName, error) {
+	articleList := make([]ArticleListByTagName, 0)
+	if err := t.mysql.WithContext(ctx).Model(&Tag{}).Table("tag as t").
+		Select("a.id, a.create_time").
+		Joins("JOIN article as a ON a.tag_id = t.id").
+		Where("t.name = ?", tagName).
+		Find(&articleList).Error; err != nil {
+		return nil, err
+	}
+	return articleList, nil
 }

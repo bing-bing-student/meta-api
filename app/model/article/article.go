@@ -75,6 +75,16 @@ func (a *articleModel) UpdateArticle(ctx context.Context, articleInfo *Article) 
 	return nil
 }
 
+// UpdateArticleViewNum 更新文章浏览量
+func (a *articleModel) UpdateArticleViewNum(ctx context.Context, id string, viewNum float64) error {
+	if err := a.mysql.WithContext(ctx).Model(&Article{}).
+		Where("id = ?", id).Update("view_num", viewNum).Error; err != nil {
+		return fmt.Errorf("failed to update article: %w", err)
+	}
+
+	return nil
+}
+
 // GetArticleDetailByID 通过文章ID获取文章详情
 func (a *articleModel) GetArticleDetailByID(ctx context.Context, id uint64) (*Detail, error) {
 	detail := &Detail{}
@@ -137,7 +147,6 @@ func (a *articleModel) SearchArticle(ctx context.Context, word string, limit, of
 		Find(&list).Error; err != nil {
 		return nil, 0, fmt.Errorf("failed to query articles: %w", err)
 	}
-
 	return list, total, nil
 }
 
@@ -146,4 +155,13 @@ func (a *articleModel) GetArticleListByIDList(ctx context.Context, ids []uint64)
 	var articles []*Article
 	err := a.mysql.WithContext(ctx).Model(&Article{}).Where("id IN ?", ids).Find(&articles).Error
 	return articles, err
+}
+
+// UpdateArticleTagID 更新文章的tagID
+func (a *articleModel) UpdateArticleTagID(ctx context.Context, articleIDList []string, tagID uint64) error {
+	if err := a.mysql.WithContext(ctx).Model(&Article{}).
+		Where("id IN ?", articleIDList).Update("tag_id", tagID).Error; err != nil {
+		return err
+	}
+	return nil
 }

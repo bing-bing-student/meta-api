@@ -100,7 +100,7 @@ func SetUpRouter(bs *bootstrap.Bootstrap) *gin.Engine {
 
 	// 后台管理路由(需要JWT验证)
 	authAdminGroup := adminGroup.Group("/auth")
-	//authAdminGroup.Use(middlewares.JWT())
+	authAdminGroup.Use(middlewares.JWT())
 	{
 		// 文章管理
 		authAdminGroup.GET("/article/list", articleHandler.AdminGetArticleList)

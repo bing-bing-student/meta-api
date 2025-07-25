@@ -87,5 +87,5 @@ func (a *adminService) UserGetAboutMe(ctx context.Context) (*types.GetAboutMeRes
 			return response, err
 		}
 	}
-	return nil, nil
+	return response, nil
 }

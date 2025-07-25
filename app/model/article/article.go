@@ -140,8 +140,8 @@ func (a *articleModel) SearchArticle(ctx context.Context, word string, limit, of
 	total := int64(0)
 	list := make([]SearchArticle, 0)
 	if err := a.mysql.WithContext(ctx).Model(&Article{}).
-		Select("id, title, describe, view_num").
-		Where("MATCH(title, content) AGAINST(? IN BOOLEAN MODE)", word+"*").
+		Select("`id`, `title`, `describe`, `view_num`").
+		Where("MATCH(content) AGAINST(? IN BOOLEAN MODE)", word+"*").
 		Count(&total).
 		Limit(limit).Offset(offset).
 		Find(&list).Error; err != nil {

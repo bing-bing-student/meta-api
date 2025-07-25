@@ -1,7 +1,6 @@
 package bootstrap
 
 import (
-	"log"
 	"os"
 	"strings"
 
@@ -103,10 +102,9 @@ func GetLogWriter(config *config.LogConfig, path string) zapcore.WriteSyncer {
 		Compress:   config.Compress,   // 从配置读取
 	}
 
-	// 创建文件时设置严格权限 (0600)
+	// 创建文件时设置权限 (0600)
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
-		log.Printf("failed to open log file: %v", err)
 		return zapcore.AddSync(os.Stderr)
 	}
 	defer func(file *os.File) {

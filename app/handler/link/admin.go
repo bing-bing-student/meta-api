@@ -16,7 +16,6 @@ func (l *linkHandler) AdminGetLinkList(c *gin.Context) {
 
 	response, err := l.service.AdminGetLinkList(ctx)
 	if err != nil {
-		l.logger.Error("failed to get link list", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "获取友链列表失败", Data: nil})
 		return
 	}
@@ -35,7 +34,6 @@ func (l *linkHandler) AdminAddLink(c *gin.Context) {
 	}
 
 	if err := l.service.AdminAddLink(ctx, request); err != nil {
-		l.logger.Error("failed to add link", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "添加友链失败", Data: nil})
 		return
 	}
@@ -54,7 +52,6 @@ func (l *linkHandler) AdminUpdateLink(c *gin.Context) {
 	}
 
 	if err := l.service.AdminUpdateLink(ctx, request); err != nil {
-		l.logger.Error("failed to update link", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "更新友链失败", Data: nil})
 		return
 	}
@@ -73,7 +70,6 @@ func (l *linkHandler) AdminDeleteLink(c *gin.Context) {
 	}
 
 	if err := l.service.AdminDeleteLink(ctx, request); err != nil {
-		l.logger.Error("failed to delete link", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "删除友链失败", Data: nil})
 		return
 	}

@@ -23,7 +23,6 @@ func (a *articleHandler) AdminGetArticleList(c *gin.Context) {
 
 	response, err := a.service.AdminGetArticleList(ctx, request)
 	if err != nil {
-		a.logger.Error("failed to get article list", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "获取文章列表失败", Data: nil})
 		return
 	}
@@ -43,7 +42,6 @@ func (a *articleHandler) AdminGetArticleDetail(c *gin.Context) {
 
 	response, err := a.service.AdminGetArticleDetail(ctx, request)
 	if err != nil {
-		a.logger.Error("failed to get article detail", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "获取文章详情失败", Data: nil})
 		return
 	}
@@ -67,7 +65,6 @@ func (a *articleHandler) AdminAddArticle(c *gin.Context) {
 	}
 
 	if err := a.service.AdminAddArticle(ctx, request); err != nil {
-		a.logger.Error("failed to add article to mysql", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "添加文章失败", Data: nil})
 		return
 	}
@@ -86,7 +83,6 @@ func (a *articleHandler) AdminUpdateArticle(c *gin.Context) {
 	}
 
 	if err := a.service.AdminUpdateArticle(ctx, request); err != nil {
-		a.logger.Error("failed to update article in mysql", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "更新文章失败", Data: nil})
 		return
 	}
@@ -105,7 +101,6 @@ func (a *articleHandler) AdminDeleteArticle(c *gin.Context) {
 	}
 
 	if err := a.service.AdminDeleteArticle(ctx, request); err != nil {
-		a.logger.Error("failed to delete article in mysql", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "删除文章失败", Data: nil})
 		return
 	}

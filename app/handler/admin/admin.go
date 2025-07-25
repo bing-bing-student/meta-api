@@ -58,21 +58,20 @@ func (a *adminHandler) RefreshToken(c *gin.Context) {
 
 // SendSMSCode 发送短信验证码
 func (a *adminHandler) SendSMSCode(c *gin.Context) {
-	ctx := c.Request.Context()
+	//ctx := c.Request.Context()
 
-	request := new(types.SendSMSCodeRequest)
-	if err := c.ShouldBind(request); err != nil {
-		a.logger.Error("parameter binding error", zap.Error(err))
-		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
-		return
-	}
-	if err := a.service.SendSMSCode(ctx, request); err != nil {
-		a.logger.Error("send sms code error", zap.Error(err))
-		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: err.Error(), Data: nil})
-		return
-	}
+	//request := new(types.SendSMSCodeRequest)
+	//if err := c.ShouldBind(request); err != nil {
+	//	a.logger.Error("parameter binding error", zap.Error(err))
+	//	c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
+	//	return
+	//}
+	//if err := a.service.SendSMSCode(ctx, request); err != nil {
+	//	c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: err.Error(), Data: nil})
+	//	return
+	//}
 
-	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: nil})
+	c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "短信发送服务错误", Data: nil})
 }
 
 // SMSCodeLogin 短信验证码登录
@@ -87,7 +86,6 @@ func (a *adminHandler) SMSCodeLogin(c *gin.Context) {
 
 	response, err := a.service.SMSCodeLogin(ctx, request)
 	if err != nil {
-		a.logger.Error("failed to login by sms code", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.AuthFailed, Message: err.Error(), Data: nil})
 		return
 	}
@@ -108,7 +106,6 @@ func (a *adminHandler) AccountLogin(c *gin.Context) {
 
 	response, err := a.service.AccountLogin(ctx, request)
 	if err != nil {
-		a.logger.Error("failed to login by account", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.AuthFailed, Message: err.Error(), Data: nil})
 		return
 	}
@@ -129,7 +126,6 @@ func (a *adminHandler) BindDynamicCode(c *gin.Context) {
 
 	response, err := a.service.BindDynamicCode(ctx, request)
 	if err != nil {
-		a.logger.Error("failed to bind dynamic code", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.AuthFailed, Message: err.Error(), Data: nil})
 	}
 
@@ -148,7 +144,6 @@ func (a *adminHandler) VerifyDynamicCode(c *gin.Context) {
 
 	response, err := a.service.VerifyDynamicCode(ctx, request)
 	if err != nil {
-		a.logger.Error("failed to verify dynamic code", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.AuthFailed, Message: "非法的请求参数", Data: nil})
 		return
 	}
@@ -168,7 +163,6 @@ func (a *adminHandler) AdminUpdateAboutMe(c *gin.Context) {
 	}
 
 	if err := a.service.AdminUpdateAboutMe(ctx, request); err != nil {
-		a.logger.Error("failed to update admin info", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "更新失败", Data: nil})
 		return
 	}

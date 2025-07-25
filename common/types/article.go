@@ -59,10 +59,10 @@ type UserGetArticleListRequest struct {
 type UserGetArticleItem struct {
 	ID         string `json:"id"`
 	Title      string `json:"title"`
-	TagName    string `json:"tagName"`
-	Describe   string `json:"describe"`
+	TagName    string `json:"tagName,omitempty"`
+	Describe   string `json:"describe,omitempty"`
 	CreateTime string `json:"createTime"`
-	UpdateTime string `json:"updateTime"`
+	UpdateTime string `json:"updateTime,omitempty"`
 	ViewNum    int    `json:"viewNum"`
 }
 
@@ -72,7 +72,7 @@ type UserGetArticleListResponse struct {
 }
 
 type UserSearchArticleRequest struct {
-	Word     string `json:"word" form:"word" binding:"required,lte=20"`
+	Word     string `json:"word" form:"word" binding:"required,lte=30"`
 	Page     int    `form:"page" binding:"required,gte=1"`
 	PageSize int    `form:"pageSize" binding:"required,gte=1,lte=10"`
 }

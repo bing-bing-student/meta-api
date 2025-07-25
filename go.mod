@@ -33,6 +33,7 @@ require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.5 // indirect
 	github.com/alibabacloud-go/debug v1.0.1 // indirect
+	github.com/alibabacloud-go/dysmsapi-20180501/v2 v2.0.6 // indirect
 	github.com/alibabacloud-go/endpoint-util v1.1.1 // indirect
 	github.com/alibabacloud-go/openapi-util v0.1.1 // indirect
 	github.com/aliyun/credentials-go v1.4.6 // indirect

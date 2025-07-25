@@ -38,7 +38,6 @@ func (a *articleHandler) UserGetArticleList(c *gin.Context) {
 
 	response, err := a.service.UserGetArticleList(ctx, request)
 	if err != nil {
-		a.logger.Error("failed to get article list", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "获取文章列表失败", Data: nil})
 		return
 	}
@@ -82,7 +81,6 @@ func (a *articleHandler) UserGetArticleDetail(c *gin.Context) {
 
 	response, err := a.service.UserGetArticleDetail(ctx, request)
 	if err != nil {
-		a.logger.Error("failed to get article detail", zap.Error(err))
 		if err.Error() == "failed to get article detail by id" {
 			c.JSON(http.StatusOK, types.Response{Code: codes.NotFound, Message: "文章不存在", Data: nil})
 			return
@@ -96,7 +94,8 @@ func (a *articleHandler) UserGetArticleDetail(c *gin.Context) {
 // UserSearchArticle 搜索文章
 func (a *articleHandler) UserSearchArticle(c *gin.Context) {
 	ctx := c.Request.Context()
-	request := new(types.UserSearchArticleRequest)
+
+	request := &types.UserSearchArticleRequest{}
 	if err := c.ShouldBind(request); err != nil {
 		a.logger.Error("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
@@ -105,7 +104,6 @@ func (a *articleHandler) UserSearchArticle(c *gin.Context) {
 
 	response, err := a.service.UserSearchArticle(ctx, request)
 	if err != nil {
-		a.logger.Error("failed to search article", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "搜索文章失败", Data: nil})
 		return
 	}
@@ -117,7 +115,6 @@ func (a *articleHandler) UserGetHotArticle(c *gin.Context) {
 	ctx := c.Request.Context()
 	response, err := a.service.UserGetHotArticle(ctx)
 	if err != nil {
-		a.logger.Error("failed to get hot article", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "获取热门文章失败", Data: nil})
 		return
 	}
@@ -129,7 +126,6 @@ func (a *articleHandler) UserGetTimeline(c *gin.Context) {
 	ctx := c.Request.Context()
 	response, err := a.service.UserGetTimeline(ctx)
 	if err != nil {
-		a.logger.Error("failed to get timeline", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "获取归档文章列表失败", Data: nil})
 		return
 	}

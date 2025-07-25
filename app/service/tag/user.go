@@ -57,7 +57,6 @@ func (t *tagService) UserGetTagList(ctx context.Context) (*types.UserGetTagListR
 				ArticleNum: int(label.Score),
 			})
 		}
-		return response, nil
 	}
 	response.Total = int(t.redis.ZCard(ctx, key).Val())
 
@@ -152,8 +151,8 @@ func (t *tagService) UserGetArticleListByTag(ctx context.Context,
 			t.logger.Error("failed to get article:ZSet", zap.Error(err))
 			return nil, err
 		}
-		viewNumStr := data[1].(string)
-		articleItem.ViewNum, err = strconv.Atoi(viewNumStr)
+		viewNumStr := data[2].(string)
+		viewNum, err := strconv.Atoi(viewNumStr)
 		if err != nil {
 			t.logger.Error("parse string to int error", zap.Error(err))
 			return nil, fmt.Errorf("parse string to int error, err: %w", err)
@@ -163,6 +162,7 @@ func (t *tagService) UserGetArticleListByTag(ctx context.Context,
 			Title:      data[0].(string),
 			Describe:   data[1].(string),
 			CreateTime: data[3].(string)[:10],
+			ViewNum:    viewNum,
 		}
 		response.Rows = append(response.Rows, articleItem)
 	}

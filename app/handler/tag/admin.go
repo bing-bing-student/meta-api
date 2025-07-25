@@ -16,7 +16,6 @@ func (t *tagHandler) AdminGetTagList(c *gin.Context) {
 
 	response, err := t.service.AdminGetTagList(ctx)
 	if err != nil {
-		t.logger.Error("failed to get tag list from redis", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "获取标签列表失败", Data: nil})
 		return
 	}
@@ -36,7 +35,6 @@ func (t *tagHandler) AdminGetArticleListByTag(c *gin.Context) {
 
 	response, err := t.service.AdminGetArticleListByTag(ctx, request)
 	if err != nil {
-		t.logger.Error("failed to get article list by tag from redis", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "获取文章列表失败", Data: nil})
 		return
 	}
@@ -59,7 +57,6 @@ func (t *tagHandler) AdminUpdateTag(c *gin.Context) {
 	}
 
 	if err := t.service.AdminUpdateTag(ctx, request); err != nil {
-		t.logger.Error("failed to update tag", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "更新失败", Data: nil})
 		return
 	}

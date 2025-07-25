@@ -13,7 +13,7 @@ type AdminGetTagListResponse struct {
 type AdminGetArticleListByTagRequest struct {
 	TagName  string `form:"tagName" binding:"required,lte=20"`
 	Page     int    `form:"page" binding:"required,gte=1"`
-	PageSize int    `form:"pageSize" binding:"required,gte=1,lte=9"`
+	PageSize int    `form:"pageSize" binding:"required,gte=1,lte=10"`
 }
 
 type AdminGetArticleListByTagItem struct {
@@ -43,7 +43,7 @@ type UserGetTagListResponse struct {
 type UserGetArticleListByTagRequest struct {
 	TagName  string `form:"tagName" binding:"required,lte=20"`
 	Page     int    `form:"page" binding:"required,gte=1"`
-	PageSize int    `form:"pageSize" binding:"required,gte=1,lte=9"`
+	PageSize int    `form:"pageSize" binding:"required,gte=1,lte=10"`
 }
 
 type UserGetArticleListByTagResponse struct {

@@ -1,7 +1,6 @@
 package router
 
 import (
-	"os"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -17,11 +16,12 @@ import (
 	"meta-api/app/handler/tag"
 	"meta-api/bootstrap"
 	"meta-api/common/middlewares"
+	"meta-api/common/utils"
 )
 
 // SetUpRouter 启动路由
 func SetUpRouter(bs *bootstrap.Bootstrap) *gin.Engine {
-	//gin.SetMode(gin.ReleaseMode)
+	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	logger := bs.Logger
 
@@ -50,8 +50,8 @@ func SetUpRouter(bs *bootstrap.Bootstrap) *gin.Engine {
 	}
 
 	// 添加中间件
-	r.Use(middlewares.TimeoutMiddleware(2*time.Second), cors.New(corsConfig), middlewares.GinLogger(logger), middlewares.GinRecovery(logger, true))
-	//r.Use(middlewares.TimeoutMiddleware(2*time.Second), middlewares.GinLogger(loggers), middlewares.GinRecovery(loggers, true))
+	r.Use(middlewares.TimeoutMiddleware(3*time.Second), cors.New(corsConfig), middlewares.GinLogger(logger), middlewares.GinRecovery(logger, true))
+	//r.Use(middlewares.TimeoutMiddleware(3*time.Second), middlewares.GinLogger(logger), middlewares.GinRecovery(logger, true))
 
 	container, err := di.BuildContainer(bs)
 	if err != nil {
@@ -92,7 +92,6 @@ func SetUpRouter(bs *bootstrap.Bootstrap) *gin.Engine {
 	{
 		adminGroup.POST("/refresh-token", adminHandler.RefreshToken)            // 刷新RefreshToken
 		adminGroup.POST("/sms-code", adminHandler.SendSMSCode)                  // 发送短信验证码
-		adminGroup.POST("/sms-login", adminHandler.SMSCodeLogin)                // 短信验证码登录
 		adminGroup.POST("/account-login", adminHandler.AccountLogin)            // 账号密码登录
 		adminGroup.POST("/bind-dynamic-code", adminHandler.BindDynamicCode)     // 绑定TOTP动态码
 		adminGroup.POST("/verify-dynamic-code", adminHandler.VerifyDynamicCode) // 验证TOTP动态码
@@ -125,8 +124,10 @@ func SetUpRouter(bs *bootstrap.Bootstrap) *gin.Engine {
 	}
 
 	// 前台展示
+	authorizationKey, _ := utils.GenerateRandomBytes(32)
+	encryptionKey, _ := utils.GenerateRandomBytes(16)
 	userGroup := r.Group("/user")
-	userGroup.Use(sessions.Sessions("session_id", cookie.NewStore([]byte(os.Getenv("AUTHORIZATION_KEY")), []byte(os.Getenv("ENCRYPTION_KEY")))))
+	userGroup.Use(sessions.Sessions("session_id", cookie.NewStore(authorizationKey, encryptionKey)))
 	{
 		// 文章相关
 		userGroup.GET("/article/list", articleHandler.UserGetArticleList)

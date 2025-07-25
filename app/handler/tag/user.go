@@ -16,7 +16,6 @@ func (t *tagHandler) UserGetTagList(c *gin.Context) {
 
 	response, err := t.service.UserGetTagList(ctx)
 	if err != nil {
-		t.logger.Error("failed to get tag list from redis", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "获取标签列表失败", Data: nil})
 		return
 	}
@@ -36,7 +35,6 @@ func (t *tagHandler) UserGetArticleListByTag(c *gin.Context) {
 
 	response, err := t.service.UserGetArticleListByTag(ctx, request)
 	if err != nil {
-		t.logger.Error("failed to get article list by tag", zap.Error(err))
 		if err.Error() == "not found tagName" {
 			c.JSON(http.StatusOK, types.Response{Code: codes.NotFound, Message: "文章标签不存在", Data: nil})
 			return

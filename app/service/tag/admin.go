@@ -57,7 +57,6 @@ func (t *tagService) AdminGetTagList(ctx context.Context) (*types.AdminGetTagLis
 				ArticleNum: int(label.Score),
 			})
 		}
-		return response, nil
 	}
 	response.Total = int(t.redis.ZCard(ctx, key).Val())
 

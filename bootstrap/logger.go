@@ -103,13 +103,13 @@ func GetLogWriter(config *config.LogConfig, path string) zapcore.WriteSyncer {
 	}
 
 	// 创建文件时设置权限 (0600)
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
-	if err != nil {
-		return zapcore.AddSync(os.Stderr)
-	}
-	defer func(file *os.File) {
-		_ = file.Close()
-	}(file)
+	//file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+	//if err != nil {
+	//	return zapcore.AddSync(os.Stderr)
+	//}
+	//defer func(file *os.File) {
+	//	_ = file.Close()
+	//}(file)
 
 	return zapcore.AddSync(lumberJackLogger)
 }

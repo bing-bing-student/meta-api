@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
+	"regexp"
 )
 
 // 私钥字符串
@@ -39,29 +40,41 @@ sjLQDIWFJ9FeoVNMOWr8M1QD
 -----END PRIVATE KEY-----`
 
 // CheckClientID 校验clientID的utils函数
-func CheckClientID(clientID string) bool {
-	if clientID == "" {
-		return false
+func CheckClientID(xClientID string) (string, bool) {
+	if xClientID == "" {
+		return "", false
 	}
-	decodedClientID, err := base64.StdEncoding.DecodeString(clientID)
+	decodedClientID, err := base64.StdEncoding.DecodeString(xClientID)
 	if err != nil {
-		return false
+		return "", false
 	}
 	block, _ := pem.Decode([]byte(privateKey))
 	if block == nil {
-		return false
+		return "", false
 	}
 	privateKeyInterface, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	if err != nil {
-		return false
+		return "", false
 	}
 	rsaPrivate, ok := privateKeyInterface.(*rsa.PrivateKey)
 	if !ok {
-		return false
+		return "", false
 	}
 	plaintext, err := rsa.DecryptPKCS1v15(nil, rsaPrivate, decodedClientID)
 	if err != nil {
+		return "", false
+	}
+	if !IsValidClientID(string(plaintext)) {
+		return "", false
+	}
+	return string(plaintext), len(plaintext) == 32
+}
+
+// IsValidClientID 验证客户端ID格式
+func IsValidClientID(id string) bool {
+	if len(id) != 32 {
 		return false
 	}
-	return len(plaintext) == 32
+	match, _ := regexp.MatchString(`^[a-f0-9]{32}$`, id)
+	return match
 }

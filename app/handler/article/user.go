@@ -55,11 +55,15 @@ func (a *articleHandler) UserGetArticleDetail(c *gin.Context) {
 	}
 	session := sessions.Default(c)
 	sessionID := session.Get("session_id")
+	fmt.Println("session id", sessionID)
 
 	userID := ""
 	if sessionID == nil {
-		clientID := c.GetHeader("x-client-id")
-		if utils.CheckClientID(clientID) {
+		xClientID := c.GetHeader("x-client-id")
+		fmt.Println("client id 加密以后", xClientID)
+		clientID, exist := utils.CheckClientID(xClientID)
+		fmt.Println("client id 解密后", clientID)
+		if exist {
 			userID = clientID
 			newSessionID := uuid.New().String()
 			session.Options(sessions.Options{MaxAge: 86400, Path: "/", Secure: true, HttpOnly: true, SameSite: http.SameSiteNoneMode})

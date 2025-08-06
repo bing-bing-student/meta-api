@@ -136,7 +136,7 @@ func (t *tagService) AdminGetArticleListByTag(ctx context.Context,
 				"tagID":      articleInfo.TagID,
 				"tagName":    articleInfo.TagName,
 			}
-			if err = t.redis.HMSet(ctx, "article:"+articleItem.ID+":Hash", mapData).Err(); err != nil {
+			if err = t.redis.HMSet(ctx, "article:"+articleID+":Hash", mapData).Err(); err != nil {
 				t.logger.Error("failed to write article:articleID:ZSet", zap.Error(err))
 				return nil, fmt.Errorf("failed to write article:articleID:ZSet: %w", err)
 			}
@@ -177,7 +177,7 @@ func (t *tagService) AdminUpdateTag(ctx context.Context, request *types.AdminUpd
 		t.logger.Error("FindTagByName error", zap.Error(err))
 		return fmt.Errorf("FindTagByName error: %w", err)
 	}
-	if tagInfo.ID != 0 {
+	if tagInfo.ID == 0 {
 		// 如果标签不存在，则需要插入新标签
 		tagID, err := t.idGenerator.NextID()
 		if err != nil {

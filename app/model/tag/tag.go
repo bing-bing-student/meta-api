@@ -36,7 +36,7 @@ func (t *tagModel) CreateTag(ctx context.Context, newTag *Tag) error {
 func (t *tagModel) FindTagByName(ctx context.Context, tagName string) (*Tag, error) {
 	tagInfo := &Tag{}
 	if err := t.mysql.WithContext(ctx).Model(&Tag{}).
-		Where("name = ?", tagName).First(tagInfo).Error; err != nil {
+		Where("name = ?", tagName).Find(tagInfo).Error; err != nil {
 		return nil, err
 	}
 

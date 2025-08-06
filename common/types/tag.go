@@ -30,7 +30,7 @@ type AdminGetArticleListByTagResponse struct {
 }
 
 type AdminUpdateTagRequest struct {
-	ArticleIDList []string `json:"articleIDList" binding:"required,articleID"`
+	ArticleIDList []string `json:"articleIDList" binding:"required"`
 	NewTagName    string   `json:"newTagName" binding:"required,lte=20"`
 	OldTagName    string   `json:"oldTagName" binding:"required,lte=20"`
 }

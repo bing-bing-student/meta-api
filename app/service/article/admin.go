@@ -287,7 +287,13 @@ func (a *articleService) AdminUpdateArticle(ctx context.Context, request *types.
 	}
 
 	// 更新文章
+	id, err := strconv.ParseUint(request.ID, 10, 64)
+	if err != nil {
+		a.logger.Error("parse uint64 error", zap.Error(err))
+		return err
+	}
 	articleInfo := &article.Article{
+		ID:         id,
 		Title:      request.Title,
 		Describe:   request.Describe,
 		Content:    request.Content,

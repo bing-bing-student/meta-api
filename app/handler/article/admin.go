@@ -81,6 +81,11 @@ func (a *articleHandler) AdminUpdateArticle(c *gin.Context) {
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}
+	if int64(len(request.Content)) > constants.MaxFileSize {
+		a.logger.Error("Article content exceeds 64KB")
+		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "文章内容超过64KB", Data: nil})
+		return
+	}
 
 	if err := a.service.AdminUpdateArticle(ctx, request); err != nil {
 		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "更新文章失败", Data: nil})

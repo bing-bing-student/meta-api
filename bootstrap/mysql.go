@@ -61,7 +61,7 @@ func initMySQL(cfg *MySQLConfig) (db *gorm.DB) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	password := utils.NewSecureString(os.Getenv("MYSQL_PASSWORD"))
+	password := utils.NewSecureString(os.Getenv("MYSQL_WORK_PASSWORD"))
 	defer password.Clear()
 
 	username := os.Getenv("MYSQL_USERNAME") // 账号

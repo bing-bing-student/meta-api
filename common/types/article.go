@@ -53,7 +53,7 @@ type AdminDeleteArticleRequest struct {
 
 type UserGetArticleListRequest struct {
 	Page     int `form:"page" binding:"required,gte=1"`
-	PageSize int `form:"pageSize" binding:"required,gte=1,lte=10"`
+	PageSize int `form:"pageSize" binding:"required,gte=1,lte=50"`
 }
 
 type UserGetArticleItem struct {

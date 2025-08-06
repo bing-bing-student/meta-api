@@ -33,10 +33,11 @@ type Detail struct {
 }
 
 type SearchArticle struct {
-	ID       uint64 `gorm:"column:id" json:"id"`
-	Title    string `gorm:"column:title" json:"title"`
-	Describe string `gorm:"column:describe" json:"describe"`
-	ViewNum  uint64 `gorm:"column:view_num" json:"viewNum"`
+	ID         uint64    `gorm:"column:id" json:"id"`
+	Title      string    `gorm:"column:title" json:"title"`
+	Describe   string    `gorm:"column:describe" json:"describe"`
+	ViewNum    uint64    `gorm:"column:view_num" json:"viewNum"`
+	CreateTime time.Time `gorm:"column:create_time" json:"createTime"`
 }
 
 type DelArticle struct {
@@ -140,7 +141,7 @@ func (a *articleModel) SearchArticle(ctx context.Context, word string, limit, of
 	total := int64(0)
 	list := make([]SearchArticle, 0)
 	if err := a.mysql.WithContext(ctx).Model(&Article{}).
-		Select("`id`, `title`, `describe`, `view_num`").
+		Select("`id`, `title`, `describe`, `view_num`, `create_time`").
 		Where("MATCH(content) AGAINST(? IN BOOLEAN MODE)", word+"*").
 		Count(&total).
 		Limit(limit).Offset(offset).
@@ -164,4 +165,32 @@ func (a *articleModel) UpdateArticleTagID(ctx context.Context, articleIDList []s
 		return err
 	}
 	return nil
+}
+
+// GetArticleList 获取文章列表（带分页）
+func (a *articleModel) GetArticleList(ctx context.Context, offset, limit int) ([]*Article, error) {
+	var articles []*Article
+
+	// 使用 Preload 加载关联的标签数据
+	// 按创建时间倒序排列（根据需求可调整排序字段）
+	err := a.mysql.WithContext(ctx).
+		Preload("Tag").
+		Order("create_time DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&articles).Error
+
+	if err != nil {
+		return nil, err
+	}
+	return articles, nil
+}
+
+// GetArticleCount 获取文章总数
+func (a *articleModel) GetArticleCount(ctx context.Context) (int, error) {
+	var count int64
+	err := a.mysql.WithContext(ctx).
+		Model(&Article{}).
+		Count(&count).Error
+	return int(count), err
 }

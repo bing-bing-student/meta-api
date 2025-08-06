@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
@@ -18,86 +19,129 @@ import (
 func (a *articleService) UserGetArticleList(ctx context.Context,
 	request *types.UserGetArticleListRequest) (*types.UserGetArticleListResponse, error) {
 
-	start := (request.Page - 1) * request.PageSize
-	stop := start + request.PageSize - 1
+	// 实现方式1：查询Redis
+	//startTime := time.Now()
+	//start := (request.Page - 1) * request.PageSize
+	//stop := start + request.PageSize - 1
+	//
+	//// 获取文章ID有序集合
+	//articleIDZSet, err := a.redis.ZRevRangeWithScores(ctx, "article:time:ZSet", int64(start), int64(stop)).Result()
+	//if err != nil {
+	//	a.logger.Error("failed to get article:time:ZSet", zap.Error(err))
+	//	return nil, err
+	//}
+	//
+	//articleList := make([]types.UserGetArticleItem, 0)
+	//for _, z := range articleIDZSet {
+	//	articleItem := types.UserGetArticleItem{}
+	//
+	//	articleItem.ID = z.Member.(string)
+	//	hashKey := "article:" + z.Member.(string) + ":Hash"
+	//	if exist := a.redis.Exists(ctx, hashKey); exist.Val() == 1 {
+	//		// 获取缓存数据
+	//		fields := []string{"title", "tagName", "describe", "createTime", "updateTime", "viewNum"}
+	//		result, err := a.redis.HMGet(ctx, hashKey, fields...).Result()
+	//		if err != nil {
+	//			a.logger.Error("get article info hmget error", zap.Error(err))
+	//			return nil, fmt.Errorf("get article info hmget error, err: %w", err)
+	//		}
+	//		articleItem.Title = result[0].(string)
+	//		articleItem.TagName = result[1].(string)
+	//		articleItem.Describe = result[2].(string)
+	//		articleItem.CreateTime = result[3].(string)[:10]
+	//		articleItem.UpdateTime = result[4].(string)[:10]
+	//		viewNumStr := result[5].(string)
+	//		articleItem.ViewNum, err = strconv.Atoi(viewNumStr)
+	//		if err != nil {
+	//			a.logger.Error("parse string to int error", zap.Error(err))
+	//			return nil, fmt.Errorf("parse string to int error, err: %w", err)
+	//		}
+	//	} else {
+	//		// 查询数据库
+	//		id, err := strconv.ParseUint(articleItem.ID, 10, 64)
+	//		if err != nil {
+	//			a.logger.Error("parse uint64 error", zap.Error(err))
+	//			return nil, err
+	//		}
+	//		articleInfo, err := a.articleModel.GetArticleDetailByID(ctx, id)
+	//		if err != nil {
+	//			a.logger.Error("get article detail by id error", zap.Error(err))
+	//			return nil, fmt.Errorf("get article detail by id error, err: %w", err)
+	//		}
+	//
+	//		// 设置缓存
+	//		mapData := map[string]interface{}{
+	//			"id":         articleInfo.ID,
+	//			"title":      articleInfo.Title,
+	//			"describe":   articleInfo.Describe,
+	//			"content":    articleInfo.Content,
+	//			"viewNum":    articleInfo.ViewNum,
+	//			"createTime": articleInfo.CreateTime.Format(constants.TimeLayoutToSecond),
+	//			"updateTime": articleInfo.UpdateTime.Format(constants.TimeLayoutToSecond),
+	//			"tagID":      articleInfo.TagID,
+	//			"tagName":    articleInfo.TagName,
+	//		}
+	//		if err = a.redis.HMSet(ctx, "article:"+articleItem.ID+":Hash", mapData).Err(); err != nil {
+	//			a.logger.Error("redis set article hash error", zap.Error(err))
+	//			return nil, fmt.Errorf("redis set article hash error: %w", err)
+	//		}
+	//
+	//		// 返回数据
+	//		articleItem.Title = articleInfo.Title
+	//		articleItem.TagName = articleInfo.TagName
+	//		articleItem.Describe = articleInfo.Describe
+	//		articleItem.CreateTime = articleInfo.CreateTime.Format(constants.TimeLayoutToDay)
+	//		articleItem.UpdateTime = articleInfo.UpdateTime.Format(constants.TimeLayoutToDay)
+	//		articleItem.ViewNum = int(articleInfo.ViewNum)
+	//	}
+	//	articleList = append(articleList, articleItem)
+	//}
+	//response := &types.UserGetArticleListResponse{}
+	//response.Rows = articleList
+	//response.Total = int(a.redis.ZCard(ctx, "article:time:ZSet").Val())
+	//end := time.Now()
+	//fmt.Println("get article list time: ", end.Sub(startTime))
+	//return response, nil
 
-	// 获取文章ID有序集合
-	articleIDZSet, err := a.redis.ZRevRangeWithScores(ctx, "article:time:ZSet", int64(start), int64(stop)).Result()
+	// 实现方式2：查询MySQL
+	// 计算分页偏移量
+	start := time.Now()
+	offset := (request.Page - 1) * request.PageSize
+
+	// 直接查询数据库获取文章列表
+	articles, err := a.articleModel.GetArticleList(ctx, offset, request.PageSize)
 	if err != nil {
-		a.logger.Error("failed to get article:time:ZSet", zap.Error(err))
-		return nil, err
+		a.logger.Error("failed to get article list from database", zap.Error(err))
+		return nil, fmt.Errorf("failed to get article list: %w", err)
 	}
 
-	articleList := make([]types.UserGetArticleItem, 0)
-	for _, z := range articleIDZSet {
-		articleItem := types.UserGetArticleItem{}
-
-		articleItem.ID = z.Member.(string)
-		hashKey := "article:" + z.Member.(string) + ":Hash"
-		if exist := a.redis.Exists(ctx, hashKey); exist.Val() == 1 {
-			// 获取缓存数据
-			fields := []string{"title", "tagName", "describe", "createTime", "updateTime", "viewNum"}
-			result, err := a.redis.HMGet(ctx, hashKey, fields...).Result()
-			if err != nil {
-				a.logger.Error("get article info hmget error", zap.Error(err))
-				return nil, fmt.Errorf("get article info hmget error, err: %w", err)
-			}
-			articleItem.Title = result[0].(string)
-			articleItem.TagName = result[1].(string)
-			articleItem.Describe = result[2].(string)
-			articleItem.CreateTime = result[3].(string)[:10]
-			articleItem.UpdateTime = result[4].(string)[:10]
-			viewNumStr := result[5].(string)
-			articleItem.ViewNum, err = strconv.Atoi(viewNumStr)
-			if err != nil {
-				a.logger.Error("parse string to int error", zap.Error(err))
-				return nil, fmt.Errorf("parse string to int error, err: %w", err)
-			}
-		} else {
-			// 查询数据库
-			id, err := strconv.ParseUint(articleItem.ID, 10, 64)
-			if err != nil {
-				a.logger.Error("parse uint64 error", zap.Error(err))
-				return nil, err
-			}
-			articleInfo, err := a.articleModel.GetArticleDetailByID(ctx, id)
-			if err != nil {
-				a.logger.Error("get article detail by id error", zap.Error(err))
-				return nil, fmt.Errorf("get article detail by id error, err: %w", err)
-			}
-
-			// 设置缓存
-			mapData := map[string]interface{}{
-				"id":         articleInfo.ID,
-				"title":      articleInfo.Title,
-				"describe":   articleInfo.Describe,
-				"content":    articleInfo.Content,
-				"viewNum":    articleInfo.ViewNum,
-				"createTime": articleInfo.CreateTime.Format(constants.TimeLayoutToSecond),
-				"updateTime": articleInfo.UpdateTime.Format(constants.TimeLayoutToSecond),
-				"tagID":      articleInfo.TagID,
-				"tagName":    articleInfo.TagName,
-			}
-			if err = a.redis.HMSet(ctx, "article:"+articleItem.ID+":Hash", mapData).Err(); err != nil {
-				a.logger.Error("redis set article hash error", zap.Error(err))
-				return nil, fmt.Errorf("redis set article hash error: %w", err)
-			}
-
-			// 返回数据
-			articleItem.Title = articleInfo.Title
-			articleItem.TagName = articleInfo.TagName
-			articleItem.Describe = articleInfo.Describe
-			articleItem.CreateTime = articleInfo.CreateTime.Format(constants.TimeLayoutToDay)
-			articleItem.UpdateTime = articleInfo.UpdateTime.Format(constants.TimeLayoutToDay)
-			articleItem.ViewNum = int(articleInfo.ViewNum)
-		}
-		articleList = append(articleList, articleItem)
+	// 获取文章总数
+	total, err := a.articleModel.GetArticleCount(ctx)
+	if err != nil {
+		a.logger.Error("failed to get article count", zap.Error(err))
+		return nil, fmt.Errorf("failed to get article count: %w", err)
 	}
-	response := &types.UserGetArticleListResponse{}
-	response.Rows = articleList
-	response.Total = int(a.redis.ZCard(ctx, "article:time:ZSet").Val())
 
-	return response, nil
+	// 转换数据结构
+	articleList := make([]types.UserGetArticleItem, 0, len(articles))
+	for _, article := range articles {
+		articleList = append(articleList, types.UserGetArticleItem{
+			ID:         strconv.FormatUint(article.ID, 10),
+			Title:      article.Title,
+			TagName:    article.Tag.Name,
+			Describe:   article.Describe,
+			CreateTime: article.CreateTime.Format(constants.TimeLayoutToDay),
+			UpdateTime: article.UpdateTime.Format(constants.TimeLayoutToDay),
+			ViewNum:    int(article.ViewNum),
+		})
+	}
+	end := time.Now()
+	fmt.Println("get article list time: ", end.Sub(start))
+
+	return &types.UserGetArticleListResponse{
+		Rows:  articleList,
+		Total: total,
+	}, nil
 }
 
 // UserGetArticleDetail 获取文章详情
@@ -200,10 +244,11 @@ func (a *articleService) UserSearchArticle(ctx context.Context,
 	rows := make([]types.UserGetArticleItem, 0)
 	for _, item := range articleList {
 		rows = append(rows, types.UserGetArticleItem{
-			ID:       strconv.Itoa(int(item.ID)),
-			Title:    item.Title,
-			Describe: item.Describe,
-			ViewNum:  int(item.ViewNum),
+			ID:         strconv.Itoa(int(item.ID)),
+			Title:      item.Title,
+			Describe:   item.Describe,
+			ViewNum:    int(item.ViewNum),
+			CreateTime: item.CreateTime.Format(constants.TimeLayoutToDay),
 		})
 	}
 	response := &types.UserSearchArticleResponse{}

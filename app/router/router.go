@@ -3,6 +3,7 @@ package router
 import (
 	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
@@ -31,26 +32,26 @@ func SetUpRouter(bs *bootstrap.Bootstrap) *gin.Engine {
 	}
 
 	// 跨域配置(开发阶段使用)
-	//corsConfig := cors.Config{
-	//	AllowOrigins: []string{"http://localhost:3000", "http://localhost:4000"},
-	//	AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-	//	AllowHeaders: []string{
-	//		"Content-Type",
-	//		"Content-Length",
-	//		"Accept-Encoding",
-	//		"Authorization",
-	//		"accept",
-	//		"origin",
-	//		"Cache-Control",
-	//		"x-client-id",
-	//	},
-	//	MaxAge:           24 * time.Hour,
-	//	AllowCredentials: true,
-	//}
+	corsConfig := cors.Config{
+		AllowOrigins: []string{"http://localhost:3000", "http://localhost:4000"},
+		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders: []string{
+			"Content-Type",
+			"Content-Length",
+			"Accept-Encoding",
+			"Authorization",
+			"accept",
+			"origin",
+			"Cache-Control",
+			"x-client-id",
+		},
+		MaxAge:           24 * time.Hour,
+		AllowCredentials: true,
+	}
 
 	// 添加中间件
-	//r.Use(middlewares.TimeoutMiddleware(3*time.Second), cors.New(corsConfig), middlewares.GinLogger(logger), middlewares.GinRecovery(logger, true))
-	r.Use(middlewares.TimeoutMiddleware(3*time.Second), middlewares.GinLogger(logger), middlewares.GinRecovery(logger, true))
+	r.Use(middlewares.TimeoutMiddleware(3*time.Second), cors.New(corsConfig), middlewares.GinLogger(logger), middlewares.GinRecovery(logger, true))
+	//r.Use(middlewares.TimeoutMiddleware(3*time.Second), middlewares.GinLogger(logger), middlewares.GinRecovery(logger, true))
 
 	container, err := di.BuildContainer(bs)
 	if err != nil {

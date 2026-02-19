@@ -2,6 +2,7 @@ package admin
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -149,6 +150,19 @@ func (a *adminHandler) VerifyDynamicCode(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: response})
+}
+
+// FingerprintDecrypt 校验浏览器指纹
+func (a *adminHandler) FingerprintDecrypt(c *gin.Context) {
+	clientID, effect := utils.CheckClientID(c.GetHeader("x-client-id"))
+	if effect {
+		c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: map[string]string{"xClientID": clientID}})
+		return
+	} else {
+		a.logger.Error("failed to get client id", zap.Error(fmt.Errorf("invalid client id")))
+		c.JSON(http.StatusOK, types.Response{Code: codes.Forbidden, Message: "访问环境异常", Data: nil})
+		return
+	}
 }
 
 // AdminUpdateAboutMe 修改关于我

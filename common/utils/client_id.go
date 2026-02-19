@@ -12,6 +12,7 @@ import (
 // CheckClientID 校验clientID的utils函数
 func CheckClientID(xClientID string) (string, bool) {
 	keyPath := "/home/work/meta-api/private_key.pem"
+	//keyPath := "/Users/binary/Desktop/博客网站/blogWebsite/meta-api/private_key.pem"
 	if _, err := os.Stat(keyPath); os.IsNotExist(err) {
 		return "", false
 	}

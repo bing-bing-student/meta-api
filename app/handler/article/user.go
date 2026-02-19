@@ -3,6 +3,7 @@ package article
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -82,7 +83,7 @@ func (a *articleHandler) UserGetArticleDetail(c *gin.Context) {
 
 	response, err := a.service.UserGetArticleDetail(ctx, request)
 	if err != nil {
-		if err.Error() == "failed to get article detail by id" {
+		if strings.Contains(err.Error(), "record not found") {
 			c.JSON(http.StatusOK, types.Response{Code: codes.NotFound, Message: "文章不存在", Data: nil})
 			return
 		}

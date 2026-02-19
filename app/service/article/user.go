@@ -2,6 +2,8 @@ package article
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -18,7 +20,6 @@ import (
 func (a *articleService) UserGetArticleList(ctx context.Context,
 	request *types.UserGetArticleListRequest) (*types.UserGetArticleListResponse, error) {
 
-	// 实现方式1：查询Redis
 	start := (request.Page - 1) * request.PageSize
 	stop := start + request.PageSize - 1
 
@@ -129,6 +130,9 @@ func (a *articleService) UserGetArticleDetail(ctx context.Context,
 		}
 		articleInfo, err := a.articleModel.GetArticleDetailByID(ctx, id)
 		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, fmt.Errorf("record not found: %w", err)
+			}
 			a.logger.Error("get article detail by id error", zap.Error(err))
 			return nil, fmt.Errorf("get article detail by id error, err: %w", err)
 		}

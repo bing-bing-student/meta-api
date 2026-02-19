@@ -124,6 +124,7 @@ func SetUpRouter(bs *bootstrap.Bootstrap) *gin.Engine {
 	}
 
 	// 前台展示
+	r.POST("fingerprint/decrypt", adminHandler.FingerprintDecrypt)
 	authorizationKey, _ := utils.GenerateRandomBytes(32)
 	encryptionKey, _ := utils.GenerateRandomBytes(16)
 	userGroup := r.Group("/user")

@@ -3,6 +3,7 @@ package article
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"meta-api/app/model/tag"
@@ -55,6 +56,12 @@ type TimeAndViewZSet struct {
 	ID         uint64    `gorm:"column:id" json:"ID"`
 	ViewNum    uint64    `gorm:"column:view_num" json:"viewNum"`
 	CreateTime time.Time `gorm:"column:create_time" json:"createTime"`
+}
+
+// ViewNumUpdate 文章浏览量批量更新项
+type ViewNumUpdate struct {
+	ID      string
+	ViewNum int
 }
 
 // CreateArticle 创建文章
@@ -193,4 +200,42 @@ func (a *articleModel) GetArticleCount(ctx context.Context) (int, error) {
 		Model(&Article{}).
 		Count(&count).Error
 	return int(count), err
+}
+
+// ListTimeAndView 拉取所有文章的 ID/浏览量/创建时间，用于缓存预热
+func (a *articleModel) ListTimeAndView(ctx context.Context) ([]TimeAndViewZSet, error) {
+	list := make([]TimeAndViewZSet, 0)
+	if err := a.mysql.WithContext(ctx).
+		Model(&Article{}).
+		Select("id", "view_num", "create_time").
+		Find(&list).Error; err != nil {
+		return nil, fmt.Errorf("failed to list time and view: %w", err)
+	}
+	return list, nil
+}
+
+// BatchUpdateViewNum 批量回写浏览量到数据库
+// 使用 CASE WHEN 单条 SQL 完成 N 行更新，显著降低 RTT 与持久化耗时
+func (a *articleModel) BatchUpdateViewNum(ctx context.Context, items []ViewNumUpdate) error {
+	if len(items) == 0 {
+		return nil
+	}
+
+	var sb strings.Builder
+	sb.WriteString("UPDATE article SET view_num = CASE id ")
+
+	args := make([]any, 0, len(items)*2+len(items))
+	ids := make([]any, 0, len(items))
+	for _, it := range items {
+		sb.WriteString("WHEN ? THEN ? ")
+		args = append(args, it.ID, it.ViewNum)
+		ids = append(ids, it.ID)
+	}
+	sb.WriteString("END WHERE id IN ?")
+	args = append(args, ids)
+
+	if err := a.mysql.WithContext(ctx).Exec(sb.String(), args...).Error; err != nil {
+		return fmt.Errorf("failed to batch update view num: %w", err)
+	}
+	return nil
 }

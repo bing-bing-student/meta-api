@@ -12,7 +12,9 @@ import (
 
 	"meta-api/app/model/article"
 	"meta-api/app/model/tag"
+	"meta-api/common/cachekey"
 	"meta-api/common/constants"
+	"meta-api/common/idutil"
 	"meta-api/common/types"
 )
 
@@ -25,9 +27,13 @@ func (a *articleService) AdminGetArticleList(ctx context.Context,
 	start := (request.Page - 1) * request.PageSize
 	stop := start + request.PageSize - 1
 
-	zSetKey := "article:" + request.Order + ":ZSet"
+	zSetKey, ok := cachekey.ArticleOrderZSet(request.Order)
+	if !ok {
+		a.logger.Error("invalid article order", zap.String("order", request.Order))
+		return response, fmt.Errorf("invalid article order: %s", request.Order)
+	}
 	// 获取文章ID有序集合
-	articleIDZSet, err := a.redis.ZRevRangeWithScores(ctx, zSetKey, int64(start), int64(stop)).Result()
+	articleIDZSet, err := a.redis.ZRevRangeWithScores(ctx, zSetKey.String(), int64(start), int64(stop)).Result()
 	if err != nil {
 		a.logger.Error("failed to get article:time/view:ZSet", zap.Error(err))
 		return response, err
@@ -37,7 +43,7 @@ func (a *articleService) AdminGetArticleList(ctx context.Context,
 		articleItem := types.AdminGetArticleListItem{}
 		articleItem.ID = z.Member.(string)
 		// 获取数据
-		hashKey := "article:" + z.Member.(string) + ":Hash"
+		hashKey := cachekey.ArticleHash(articleItem.ID).String()
 		if exist := a.redis.Exists(ctx, hashKey); exist.Val() == 1 {
 			// redis当中存在该数据
 			fields := []string{"title", "tagName", "viewNum", "createTime", "updateTime"}
@@ -54,9 +60,9 @@ func (a *articleService) AdminGetArticleList(ctx context.Context,
 		} else {
 			// redis当中不存在该数据
 			articleModel := new(article.Detail)
-			id, err := strconv.ParseUint(z.Member.(string), 10, 64)
+			id, err := idutil.ParseID("articleID", z.Member.(string))
 			if err != nil {
-				a.logger.Error("parse uint64 error", zap.Error(err))
+				a.logger.Error("invalid article id", zap.Error(err))
 				return response, err
 			}
 			if articleModel, err = a.articleModel.GetArticleDetailByID(ctx, id); err != nil {
@@ -80,13 +86,13 @@ func (a *articleService) AdminGetArticleList(ctx context.Context,
 				"tagID":      articleModel.TagID,
 				"tagName":    articleModel.TagName,
 			}
-			a.redis.HMSet(ctx, "article:"+articleItem.ID+":Hash", mapData)
+			a.redis.HMSet(ctx, cachekey.ArticleHash(articleItem.ID).String(), mapData)
 		}
 		articleList = append(articleList, articleItem)
 	}
 
 	response.Rows = articleList
-	response.Total = int(a.redis.ZCard(ctx, zSetKey).Val())
+	response.Total = int(a.redis.ZCard(ctx, zSetKey.String()).Val())
 
 	return response, nil
 }
@@ -96,7 +102,7 @@ func (a *articleService) AdminGetArticleDetail(ctx context.Context,
 	request *types.AdminGetArticleDetailRequest) (*types.AdminGetArticleDetailResponse, error) {
 
 	response := &types.AdminGetArticleDetailResponse{}
-	hashKey := "article:" + request.ID + ":Hash"
+	hashKey := cachekey.ArticleHash(request.ID).String()
 	if exist := a.redis.Exists(ctx, hashKey); exist.Val() == 1 {
 		// redis当中存在该数据
 		fields := []string{"id", "title", "tagName", "describe", "content"}
@@ -112,9 +118,9 @@ func (a *articleService) AdminGetArticleDetail(ctx context.Context,
 		response.Content = result[4].(string)
 	} else {
 		// redis当中不存在该数据，从数据库当中获取数据
-		id, err := strconv.ParseUint(request.ID, 10, 64)
+		id, err := idutil.ParseID("articleID", request.ID)
 		if err != nil {
-			a.logger.Error("parse uint64 error", zap.Error(err))
+			a.logger.Error("invalid article id", zap.Error(err))
 			return response, err
 		}
 		articleInfo, err := a.articleModel.GetArticleDetailByID(ctx, id)
@@ -135,7 +141,7 @@ func (a *articleService) AdminGetArticleDetail(ctx context.Context,
 			"tagID":      articleInfo.TagID,
 			"tagName":    articleInfo.TagName,
 		}
-		if err = a.redis.HMSet(ctx, "article:"+response.ID+":Hash", mapData).Err(); err != nil {
+		if err = a.redis.HMSet(ctx, cachekey.ArticleHash(response.ID).String(), mapData).Err(); err != nil {
 			return response, err
 		}
 
@@ -201,24 +207,23 @@ func (a *articleService) AdminAddArticle(ctx context.Context, request *types.Adm
 	}
 
 	// 有序集合：按时间排序
-	timestamp := articleInfo.CreateTime.UnixNano() / int64(time.Millisecond)
 	timeMember := []redis.Z{
-		{Score: float64(timestamp), Member: articleInfo.ID},
+		{Score: cachekey.ArticleTimeScore(articleInfo.CreateTime), Member: articleInfo.ID},
 	}
-	if err = a.redis.ZAdd(ctx, "article:time:ZSet", timeMember...).Err(); err != nil {
+	if err = a.redis.ZAdd(ctx, cachekey.ArticleTimeZSet().String(), timeMember...).Err(); err != nil {
 		return err
 	}
 
 	// 有序集合：按浏览量排序
 	viewMember := []redis.Z{
-		{Score: float64(articleInfo.ViewNum), Member: articleInfo.ID},
+		{Score: cachekey.ArticleViewScore(articleInfo.ViewNum), Member: articleInfo.ID},
 	}
-	if err = a.redis.ZAdd(ctx, "article:view:ZSet", viewMember...).Err(); err != nil {
+	if err = a.redis.ZAdd(ctx, cachekey.ArticleViewZSet().String(), viewMember...).Err(); err != nil {
 		return err
 	}
 
 	// 有序集合：按标签对应的文章数量排序
-	tagArticleNumKey := "tag:articleNum:ZSet"
+	tagArticleNumKey := cachekey.TagArticleNumZSet().String()
 	tagName := tagInfo.Name
 	err = a.redis.ZScore(ctx, tagArticleNumKey, tagName).Err()
 	switch {
@@ -239,9 +244,9 @@ func (a *articleService) AdminAddArticle(ctx context.Context, request *types.Adm
 
 	// 有序集合：按标签下的文章的创建时间排序
 	timeMember = []redis.Z{
-		{Score: float64(timestamp), Member: articleInfo.ID},
+		{Score: cachekey.ArticleTimeScore(articleInfo.CreateTime), Member: articleInfo.ID},
 	}
-	if err = a.redis.ZAdd(ctx, tagName+":article"+":ZSet", timeMember...).Err(); err != nil {
+	if err = a.redis.ZAdd(ctx, cachekey.TagArticleListZSet(tagName).String(), timeMember...).Err(); err != nil {
 		a.logger.Error("failed to add tagIDArticleKey", zap.Error(err))
 		return err
 	}
@@ -251,6 +256,21 @@ func (a *articleService) AdminAddArticle(ctx context.Context, request *types.Adm
 
 // AdminUpdateArticle 更新文章
 func (a *articleService) AdminUpdateArticle(ctx context.Context, request *types.AdminUpdateArticleRequest) error {
+
+	// 解析文章 ID
+	id, err := idutil.ParseID("articleID", request.ID)
+	if err != nil {
+		a.logger.Error("invalid article id", zap.Error(err))
+		return err
+	}
+
+	// 在更新之前先查出旧文章信息，主要是为了拿到旧 tagName
+	oldArticle, err := a.articleModel.GetArticleDetailByID(ctx, id)
+	if err != nil {
+		a.logger.Error("failed to get old article info", zap.Error(err))
+		return fmt.Errorf("failed to get old article info: %w", err)
+	}
+	oldTagName := oldArticle.TagName
 
 	// 处理Tag
 	tagInfo, err := a.tagModel.FindTagByName(ctx, request.Tag)
@@ -273,9 +293,10 @@ func (a *articleService) AdminUpdateArticle(ctx context.Context, request *types.
 			return fmt.Errorf("failed to create tag: %w", err)
 		}
 	}
+	newTagName := tagInfo.Name
 
 	// 需要获取当前文章的浏览量，避免浏览量丢失
-	viewNum, err := a.redis.ZScore(ctx, "article:view:ZSet", request.ID).Result()
+	viewNum, err := a.redis.ZScore(ctx, cachekey.ArticleViewZSet().String(), request.ID).Result()
 	if err != nil {
 		a.logger.Error("failed to query article:view:ZSet", zap.Error(err))
 		return fmt.Errorf("failed to query article:view:ZSet: %w", err)
@@ -287,11 +308,6 @@ func (a *articleService) AdminUpdateArticle(ctx context.Context, request *types.
 	}
 
 	// 更新文章
-	id, err := strconv.ParseUint(request.ID, 10, 64)
-	if err != nil {
-		a.logger.Error("parse uint64 error", zap.Error(err))
-		return err
-	}
 	articleInfo := &article.Article{
 		ID:         id,
 		Title:      request.Title,
@@ -307,18 +323,27 @@ func (a *articleService) AdminUpdateArticle(ctx context.Context, request *types.
 	}
 
 	// 处理缓存数据
-	if err = a.redis.Del(ctx, "article:"+request.ID+":Hash").Err(); err != nil {
+	if err = a.redis.Del(ctx, cachekey.ArticleHash(request.ID).String()).Err(); err != nil {
 		a.logger.Error("failed to delete hash", zap.Error(err))
 		return fmt.Errorf("failed to delete hash: %w", err)
 	}
-	if err = a.redis.Del(ctx, "tag:articleNum:ZSet").Err(); err != nil {
+	if err = a.redis.Del(ctx, cachekey.TagArticleNumZSet().String()).Err(); err != nil {
 		a.logger.Error("failed to delete tag:articleNum:ZSet", zap.Error(err))
 		return fmt.Errorf("failed to delete tag:articleNum:ZSet: %w", err)
 	}
-	key := strconv.Itoa(int(tagInfo.ID)) + ":article" + ":ZSet"
-	if err = a.redis.Del(ctx, key).Err(); err != nil {
-		a.logger.Error("failed to delete tagID:article:ZSet", zap.Error(err))
-		return fmt.Errorf("failed to delete tagID:article:ZSet: %w", err)
+
+	// 清理「标签下的文章列表」ZSet 缓存：
+	if err = a.redis.Del(ctx, cachekey.TagArticleListZSet(oldTagName).String()).Err(); err != nil {
+		a.logger.Error("failed to delete oldTagName:article:ZSet",
+			zap.String("oldTagName", oldTagName), zap.Error(err))
+		return fmt.Errorf("failed to delete oldTagName:article:ZSet: %w", err)
+	}
+	if newTagName != oldTagName {
+		if err = a.redis.Del(ctx, cachekey.TagArticleListZSet(newTagName).String()).Err(); err != nil {
+			a.logger.Error("failed to delete newTagName:article:ZSet",
+				zap.String("newTagName", newTagName), zap.Error(err))
+			return fmt.Errorf("failed to delete newTagName:article:ZSet: %w", err)
+		}
 	}
 
 	return nil
@@ -327,9 +352,9 @@ func (a *articleService) AdminUpdateArticle(ctx context.Context, request *types.
 // AdminDeleteArticle 删除文章
 func (a *articleService) AdminDeleteArticle(ctx context.Context, request *types.AdminDeleteArticleRequest) error {
 	articleID := request.ID
-	id, err := strconv.ParseUint(request.ID, 10, 64)
+	id, err := idutil.ParseID("articleID", request.ID)
 	if err != nil {
-		a.logger.Error("parse uint64 error", zap.Error(err))
+		a.logger.Error("invalid article id", zap.Error(err))
 		return err
 	}
 	tagName, err := a.articleModel.DelArticleAndReturnTagName(ctx, id)
@@ -339,31 +364,31 @@ func (a *articleService) AdminDeleteArticle(ctx context.Context, request *types.
 	}
 
 	// 删除文章的hash
-	if err = a.redis.Del(ctx, "article:"+articleID+":Hash").Err(); err != nil {
+	if err = a.redis.Del(ctx, cachekey.ArticleHash(articleID).String()).Err(); err != nil {
 		a.logger.Error("failed to delete hash", zap.Error(err))
 		return err
 	}
 
 	// 删除article:time:ZSet里面的成员
-	if err = a.redis.ZRem(ctx, "article:time:ZSet", articleID).Err(); err != nil {
+	if err = a.redis.ZRem(ctx, cachekey.ArticleTimeZSet().String(), articleID).Err(); err != nil {
 		a.logger.Error("failed to delete article:time:ZSet", zap.Error(err))
 		return err
 	}
 
 	// 删除article:view:ZSet里面的成员
-	if err = a.redis.ZRem(ctx, "article:view:ZSet", articleID).Err(); err != nil {
+	if err = a.redis.ZRem(ctx, cachekey.ArticleViewZSet().String(), articleID).Err(); err != nil {
 		a.logger.Error("failed to delete article:view:ZSet", zap.Error(err))
 		return err
 	}
 
 	// 删除tag:articleNum:ZSet整个有序集合
-	if err = a.redis.Del(ctx, "tag:articleNum:ZSet").Err(); err != nil {
+	if err = a.redis.Del(ctx, cachekey.TagArticleNumZSet().String()).Err(); err != nil {
 		a.logger.Error("failed to delete tag:articleNum:ZSet", zap.Error(err))
 		return err
 	}
 
 	// 删除tagID:article:ZSet整个有序集合
-	tagNameArticleKey := tagName + ":article" + ":ZSet"
+	tagNameArticleKey := cachekey.TagArticleListZSet(tagName).String()
 	if err = a.redis.Del(ctx, tagNameArticleKey).Err(); err != nil {
 		a.logger.Error("failed to delete tagIDArticleKey", zap.Error(err))
 		return err

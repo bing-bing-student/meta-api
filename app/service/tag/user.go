@@ -4,19 +4,20 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
+	"meta-api/common/cachekey"
 	"meta-api/common/constants"
+	"meta-api/common/idutil"
 	"meta-api/common/types"
 )
 
 // UserGetTagList 获取标签列表
 func (t *tagService) UserGetTagList(ctx context.Context) (*types.UserGetTagListResponse, error) {
 	response := &types.UserGetTagListResponse{}
-	key := "tag:articleNum:ZSet"
+	key := cachekey.TagArticleNumZSet().String()
 
 	if exist := t.redis.Exists(ctx, key).Val(); exist == 0 {
 		articleCountWithTagNameList, err := t.tagModel.GetArticleCountWithTagName(ctx)
@@ -70,7 +71,7 @@ func (t *tagService) UserGetArticleListByTag(ctx context.Context,
 	// 计算偏移量
 	start := (request.Page - 1) * request.PageSize
 	stop := start + request.PageSize - 1
-	key := request.TagName + ":article:ZSet"
+	key := cachekey.TagArticleListZSet(request.TagName).String()
 	response := &types.UserGetArticleListByTagResponse{}
 
 	// 获取文章ID列表(包含分页条件)
@@ -92,7 +93,7 @@ func (t *tagService) UserGetArticleListByTag(ctx context.Context,
 		}
 		for _, v := range articleList {
 			if err = t.redis.ZAdd(ctx, key, redis.Z{
-				Score:  float64(v.CreateTime.UnixNano() / int64(time.Millisecond)),
+				Score:  cachekey.ArticleTimeScore(v.CreateTime),
 				Member: v.ID,
 			}).Err(); err != nil {
 				t.logger.Error("failed to write article:ZSet", zap.Error(err))
@@ -112,10 +113,10 @@ func (t *tagService) UserGetArticleListByTag(ctx context.Context,
 	for _, articleID := range articleIDList {
 		articleItem := types.UserGetArticleItem{}
 
-		if exists := t.redis.Exists(ctx, "article:"+articleID+":Hash").Val(); exists == 0 {
-			id, err := strconv.ParseUint(articleID, 10, 64)
+		if exists := t.redis.Exists(ctx, cachekey.ArticleHash(articleID).String()).Val(); exists == 0 {
+			id, err := idutil.ParseID("articleID", articleID)
 			if err != nil {
-				t.logger.Error("parse uint64 error", zap.Error(err))
+				t.logger.Error("invalid article id", zap.Error(err))
 				return response, err
 			}
 			articleInfo, mysqlErr := t.articleModel.GetArticleDetailByID(ctx, id)
@@ -140,13 +141,13 @@ func (t *tagService) UserGetArticleListByTag(ctx context.Context,
 				"tagID":      articleInfo.TagID,
 				"tagName":    articleInfo.TagName,
 			}
-			if err = t.redis.HMSet(ctx, "article:"+articleItem.ID+":Hash", mapData).Err(); err != nil {
+			if err = t.redis.HMSet(ctx, cachekey.ArticleHash(articleItem.ID).String(), mapData).Err(); err != nil {
 				t.logger.Error("failed to write article:articleID:ZSet", zap.Error(err))
 				return nil, fmt.Errorf("failed to write article:articleID:ZSet: %w", err)
 			}
 		}
 
-		data, err := t.redis.HMGet(ctx, "article:"+articleID+":Hash", fields...).Result()
+		data, err := t.redis.HMGet(ctx, cachekey.ArticleHash(articleID).String(), fields...).Result()
 		if err != nil {
 			t.logger.Error("failed to get article:ZSet", zap.Error(err))
 			return nil, err

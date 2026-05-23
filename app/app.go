@@ -8,39 +8,60 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
-	"meta-api/app/model/article"
+	"meta-api/app/di"
 	"meta-api/app/router"
+	articleService "meta-api/app/service/article"
 	"meta-api/bootstrap"
 )
 
 // Application 应用核心管理器
 type Application struct {
-	bootstrap *bootstrap.Bootstrap
-	http      *bootstrap.HTTPServer
+	bootstrap      *bootstrap.Bootstrap
+	http           *bootstrap.HTTPServer
+	articleService articleService.Service
 }
 
 // NewApp 创建应用实例
 func NewApp(bs *bootstrap.Bootstrap) *Application {
-	r := router.SetUpRouter(bs)
+	// 在 app 层统一构建依赖注入容器，
+	// 既给 router 使用，也给 app 自己拿 service 用，确保单例一致
+	container, err := di.BuildContainer(bs)
+	if err != nil {
+		bs.Logger.Fatal("failed to build di container", zap.Error(err))
+	}
+
+	var artSvc articleService.Service
+	if err = container.Invoke(func(s articleService.Service) { artSvc = s }); err != nil {
+		bs.Logger.Fatal("failed to resolve article service", zap.Error(err))
+	}
+
+	r := router.SetUpRouter(bs, container)
 	httpServer := bootstrap.NewHTTPServer(os.Getenv("HTTP_HOST"), os.Getenv("HTTP_PORT"), r, bs.Logger)
 
 	return &Application{
-		bootstrap: bs,
-		http:      httpServer,
+		bootstrap:      bs,
+		http:           httpServer,
+		articleService: artSvc,
 	}
 }
 
 // Run 启动应用核心服务
 func (a *Application) Run(ctx context.Context) {
-	// 启动基础组件
-	a.bootstrap.Start(ctx)
+	// 启动基础组件（仅启动 cron 调度器，业务任务在下面统一注册）
+	a.bootstrap.Start()
 
-	// 缓存预热
-	if err := WarmUp(ctx, a.bootstrap); err != nil {
-		a.bootstrap.Logger.Error("failed to warm up", zap.Error(err))
+	// 缓存预热（业务实现下沉到 service 层，app 层只负责调度与日志）
+	if err := a.articleService.WarmUpCache(ctx); err != nil {
+		a.bootstrap.Logger.Error("failed to warm up article cache", zap.Error(err))
+	}
+
+	// 注册定时任务：把 Redis 中的浏览量周期性回写 MySQL
+	if ids, err := a.articleService.RegisterCronJobs(a.bootstrap.Cron); err != nil {
+		a.bootstrap.Logger.Error("failed to register article cron jobs", zap.Error(err))
+	} else {
+		a.bootstrap.CronEntryIDList = &ids
 	}
 
 	// 启动HTTP服务器
@@ -49,15 +70,16 @@ func (a *Application) Run(ctx context.Context) {
 
 // Stop 停止应用
 func (a *Application) Stop(ctx context.Context) {
-	// 停止HTTP服务器
+	// 1. 停止 HTTP，确保不再有新请求产生浏览增量
 	a.http.Stop(ctx)
 
-	// 数据持久化
-	if err := PersistData(ctx, a.bootstrap); err != nil {
-		a.bootstrap.Logger.Error("failed to persist data", zap.Error(err))
+	// 2. 关闭时兜底落盘：把 Redis 中最新浏览量同步至 MySQL
+	//    防止两次 cron 之间崩溃 / 关闭导致的增量丢失
+	if err := a.articleService.PersistViewCount(ctx); err != nil {
+		a.bootstrap.Logger.Error("failed to persist article view count", zap.Error(err))
 	}
 
-	// 停止基础组件
+	// 3. 停止基础组件（关闭 cron / MySQL / Redis 连接）
 	a.bootstrap.Stop()
 }
 
@@ -93,73 +115,4 @@ func (a *Application) RunWithGracefulShutdown() {
 			a.bootstrap.Logger.Error("Graceful shutdown timed out")
 		}
 	}
-}
-
-// WarmUp 缓存预热
-func WarmUp(ctx context.Context, bs *bootstrap.Bootstrap) error {
-	redisClient := bs.Redis
-	mysqlClient := bs.MySQL
-	logger := bs.Logger
-
-	// 删除 Redis 中 article:time:ZSet 有序集合
-	if err := redisClient.Del(ctx, "article:time:ZSet").Err(); err != nil {
-		logger.Error("failed to delete article:time:ZSet", zap.Error(err))
-		return err
-	}
-	// 删除 Redis 中 article:view:ZSet 有序集合
-	if err := redisClient.Del(ctx, "article:view:ZSet").Err(); err != nil {
-		logger.Error("failed to delete article:view:ZSet", zap.Error(err))
-		return err
-	}
-
-	// 获取所有文章数据
-	timeAndViewData := make([]article.TimeAndViewZSet, 0)
-	if err := mysqlClient.Model(&article.Article{}).Select("id", "view_num", "create_time").Find(&timeAndViewData).Error; err != nil {
-		logger.Error("failed to get timeAndViewData", zap.Error(err))
-		return err
-	}
-
-	// 初始化 article:time:ZSet 和 article:view:ZSet 有序集合
-	for _, data := range timeAndViewData {
-		if err := redisClient.ZAdd(ctx, "article:time:ZSet", redis.Z{
-			Score:  float64(data.CreateTime.UnixNano() / int64(time.Millisecond)),
-			Member: data.ID,
-		}).Err(); err != nil {
-			logger.Error("failed to add article:time:ZSet", zap.Error(err))
-			return err
-		}
-		if err := redisClient.ZAdd(ctx, "article:view:ZSet", redis.Z{
-			Score:  float64(data.ViewNum),
-			Member: data.ID,
-		}).Err(); err != nil {
-			logger.Error("failed to add article:view:ZSet", zap.Error(err))
-			return err
-		}
-	}
-	return nil
-}
-
-// PersistData 数据持久化
-func PersistData(ctx context.Context, bs *bootstrap.Bootstrap) error {
-	redisClient := bs.Redis
-	mysqlClient := bs.MySQL
-	logger := bs.Logger
-
-	// 获取缓存数据
-	list, err := redisClient.ZRangeWithScores(ctx, "article:view:ZSet", 0, -1).Result()
-	if err != nil {
-		logger.Error("failed to query article:view:ZSet", zap.Error(err))
-		return err
-	}
-
-	// 批量更新 - 文章浏览量同步至MySQL
-	for _, element := range list {
-		articleID := element.Member.(string)
-		viewNum := int(element.Score)
-		if err = mysqlClient.WithContext(ctx).Model(&article.Article{}).Where("id = ?", articleID).Update("view_num", viewNum).Error; err != nil {
-			logger.Error("failed to update article view num", zap.Error(err))
-			return err
-		}
-	}
-	return nil
 }

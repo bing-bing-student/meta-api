@@ -19,6 +19,9 @@ type Model interface {
 
 	GetArticleList(ctx context.Context, offset, limit int) ([]*Article, error)
 	GetArticleCount(ctx context.Context) (int, error)
+
+	ListTimeAndView(ctx context.Context) ([]TimeAndViewZSet, error)
+	BatchUpdateViewNum(ctx context.Context, items []ViewNumUpdate) error
 }
 
 type articleModel struct {

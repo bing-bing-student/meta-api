@@ -13,6 +13,8 @@ import (
 	"go.uber.org/zap"
 
 	"meta-api/app/model/admin"
+	"meta-api/common/cachekey"
+	"meta-api/common/idutil"
 	"meta-api/common/types"
 	"meta-api/common/utils"
 	"meta-api/pkg/sms"
@@ -87,8 +89,8 @@ func (a *adminService) SendSMSCode(ctx context.Context, request *types.SendSMSCo
 		return err
 	}
 
-	// 缓存验证码
-	if err = a.redis.Set(ctx, "code", code, time.Minute).Err(); err != nil {
+	// 缓存验证码（按手机号隔离，避免并发请求互相覆盖）
+	if err = a.redis.Set(ctx, cachekey.SMSCode(request.Phone).String(), code, time.Minute).Err(); err != nil {
 		a.logger.Error("failed to cache sms code", zap.Error(err))
 		return err
 	}
@@ -99,9 +101,10 @@ func (a *adminService) SendSMSCode(ctx context.Context, request *types.SendSMSCo
 func (a *adminService) SMSCodeLogin(ctx context.Context,
 	request *types.SMSCodeLoginRequest) (*types.SMSCodeLoginResponse, error) {
 
-	// 校验短信验证码
+	// 校验短信验证码（按手机号取对应缓存）
 	response := &types.SMSCodeLoginResponse{}
-	smsCode, err := a.redis.Get(ctx, "code").Result()
+	smsKey := cachekey.SMSCode(request.Phone).String()
+	smsCode, err := a.redis.Get(ctx, smsKey).Result()
 	if err != nil {
 		a.logger.Error("sms verification code does not exist", zap.Error(err))
 		return response, errors.New("sms verification code does not exist")
@@ -116,6 +119,12 @@ func (a *adminService) SMSCodeLogin(ctx context.Context,
 	if userID == "" || err != nil {
 		a.logger.Error("invalid mobile number", zap.Error(err))
 		return response, fmt.Errorf("invalid mobile number")
+	}
+
+	// 验证码一次性使用，登录成功后立即删除，防止重放
+	if err = a.redis.Del(ctx, smsKey).Err(); err != nil {
+		// 删除失败只记录日志，不影响登录流程
+		a.logger.Warn("failed to delete sms code after login", zap.Error(err))
 	}
 
 	// 生成双Token
@@ -156,7 +165,7 @@ func (a *adminService) AccountLogin(ctx context.Context,
 			return response, errors.New("生成TOTP密钥和二维码URL失败")
 		}
 
-		key := fmt.Sprintf("admin:%d:secret", adminInfo.ID)
+		key := cachekey.AdminTOTPSecret(strconv.FormatUint(adminInfo.ID, 10)).String()
 		if err = a.redis.Set(ctx, key, secret, 1*time.Minute).Err(); err != nil {
 			a.logger.Error("failed to store TOTP secret key in Redis", zap.Error(err))
 			return nil, errors.New("生成TOTP密钥和二维码URL失败")
@@ -175,7 +184,7 @@ func (a *adminService) BindDynamicCode(ctx context.Context,
 	// 检查密钥是否存在并验证
 	response := new(types.BindDynamicCodeResponse)
 	userID := request.UserID
-	key := fmt.Sprintf("admin:%s:secret", userID)
+	key := cachekey.AdminTOTPSecret(userID).String()
 	secretKey, err := a.redis.Get(ctx, key).Result()
 	if err != nil {
 		a.logger.Error("failed to get secret key from Redis", zap.Error(err))
@@ -191,10 +200,10 @@ func (a *adminService) BindDynamicCode(ctx context.Context,
 		a.logger.Error("failed to delete secret key from Redis", zap.Error(err))
 		return response, errors.New("failed to delete secret key from Redis")
 	}
-	id, err := strconv.ParseUint(userID, 10, 64)
+	id, err := idutil.ParseID("userID", userID)
 	if err != nil {
-		a.logger.Error("failed to convert userID to int", zap.Error(err))
-		return response, errors.New("failed to convert userID to int")
+		a.logger.Error("invalid userID", zap.Error(err))
+		return response, errors.New("invalid userID")
 	}
 	if err = a.model.AddAdminSecretKey(ctx, id, secretKey); err != nil {
 		a.logger.Error("failed to add secret key to database", zap.Error(err))
@@ -223,10 +232,10 @@ func (a *adminService) VerifyDynamicCode(ctx context.Context,
 	// 从mysql当中获取secretKey并进行验证
 	response := &types.VerifyDynamicCodeResponse{}
 	userID := request.UserID
-	id, err := strconv.ParseUint(userID, 10, 64)
+	id, err := idutil.ParseID("userID", userID)
 	if err != nil {
-		a.logger.Error("failed to convert userID to int", zap.Error(err))
-		return response, errors.New("failed to convert userID to int")
+		a.logger.Error("invalid userID", zap.Error(err))
+		return response, errors.New("invalid userID")
 	}
 	secretKey, err := a.model.GetAdminSecretKey(ctx, id)
 	if err != nil {
@@ -256,10 +265,10 @@ func (a *adminService) VerifyDynamicCode(ctx context.Context,
 // AdminUpdateAboutMe 修改关于我
 func (a *adminService) AdminUpdateAboutMe(ctx context.Context, request *types.UpdateAboutMeRequest) error {
 	// 获取管理员信息
-	id, err := strconv.ParseUint(request.UserID, 10, 64)
+	id, err := idutil.ParseID("userID", request.UserID)
 	if err != nil {
-		a.logger.Error("failed to get admin info", zap.Error(err))
-		return fmt.Errorf("failed to get admin info")
+		a.logger.Error("invalid userID", zap.Error(err))
+		return fmt.Errorf("invalid userID: %w", err)
 	}
 	adminInfo, err := a.model.GetAdminInfoByID(ctx, id)
 	if err != nil {
@@ -339,7 +348,7 @@ func (a *adminService) AdminUpdateAboutMe(ctx context.Context, request *types.Up
 	}
 
 	// 删除缓存
-	if err = a.redis.Del(ctx, "aboutMeInfo:Hash").Err(); err != nil {
+	if err = a.redis.Del(ctx, cachekey.AboutMeHash().String()).Err(); err != nil {
 		a.logger.Error("failed to clear aboutMeInfo cache", zap.Error(err))
 		return err
 	}

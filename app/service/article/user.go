@@ -12,7 +12,9 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
+	"meta-api/common/cachekey"
 	"meta-api/common/constants"
+	"meta-api/common/idutil"
 	"meta-api/common/types"
 )
 
@@ -24,7 +26,7 @@ func (a *articleService) UserGetArticleList(ctx context.Context,
 	stop := start + request.PageSize - 1
 
 	// 获取文章ID有序集合
-	articleIDZSet, err := a.redis.ZRevRangeWithScores(ctx, "article:time:ZSet", int64(start), int64(stop)).Result()
+	articleIDZSet, err := a.redis.ZRevRangeWithScores(ctx, cachekey.ArticleTimeZSet().String(), int64(start), int64(stop)).Result()
 	if err != nil {
 		a.logger.Error("failed to get article:time:ZSet", zap.Error(err))
 		return nil, err
@@ -35,7 +37,7 @@ func (a *articleService) UserGetArticleList(ctx context.Context,
 		articleItem := types.UserGetArticleItem{}
 
 		articleItem.ID = z.Member.(string)
-		hashKey := "article:" + z.Member.(string) + ":Hash"
+		hashKey := cachekey.ArticleHash(articleItem.ID).String()
 		if exist := a.redis.Exists(ctx, hashKey); exist.Val() == 1 {
 			// 获取缓存数据
 			fields := []string{"title", "tagName", "describe", "createTime", "updateTime", "viewNum"}
@@ -57,9 +59,9 @@ func (a *articleService) UserGetArticleList(ctx context.Context,
 			}
 		} else {
 			// 查询数据库
-			id, err := strconv.ParseUint(articleItem.ID, 10, 64)
+			id, err := idutil.ParseID("articleID", articleItem.ID)
 			if err != nil {
-				a.logger.Error("parse uint64 error", zap.Error(err))
+				a.logger.Error("invalid article id", zap.Error(err))
 				return nil, err
 			}
 			articleInfo, err := a.articleModel.GetArticleDetailByID(ctx, id)
@@ -80,7 +82,7 @@ func (a *articleService) UserGetArticleList(ctx context.Context,
 				"tagID":      articleInfo.TagID,
 				"tagName":    articleInfo.TagName,
 			}
-			if err = a.redis.HMSet(ctx, "article:"+articleItem.ID+":Hash", mapData).Err(); err != nil {
+			if err = a.redis.HMSet(ctx, cachekey.ArticleHash(articleItem.ID).String(), mapData).Err(); err != nil {
 				a.logger.Error("redis set article hash error", zap.Error(err))
 				return nil, fmt.Errorf("redis set article hash error: %w", err)
 			}
@@ -97,7 +99,7 @@ func (a *articleService) UserGetArticleList(ctx context.Context,
 	}
 	response := &types.UserGetArticleListResponse{}
 	response.Rows = articleList
-	response.Total = int(a.redis.ZCard(ctx, "article:time:ZSet").Val())
+	response.Total = int(a.redis.ZCard(ctx, cachekey.ArticleTimeZSet().String()).Val())
 	return response, nil
 }
 
@@ -106,7 +108,7 @@ func (a *articleService) UserGetArticleDetail(ctx context.Context,
 	request *types.UserGetArticleDetailRequest) (*types.UserGetArticleDetailResponse, error) {
 
 	response := &types.UserGetArticleDetailResponse{}
-	hashKey := "article:" + request.ID + ":Hash"
+	hashKey := cachekey.ArticleHash(request.ID).String()
 	if exist := a.redis.Exists(ctx, hashKey); exist.Val() == 1 {
 		// 缓存查询
 		fields := []string{"title", "tagName", "content", "createTime", "updateTime"}
@@ -123,9 +125,9 @@ func (a *articleService) UserGetArticleDetail(ctx context.Context,
 		response.UpdateTime = result[4].(string)[:10]
 	} else {
 		// 查询MySQL
-		id, err := strconv.ParseUint(request.ID, 10, 64)
+		id, err := idutil.ParseID("articleID", request.ID)
 		if err != nil {
-			a.logger.Error("parse uint64 error", zap.Error(err))
+			a.logger.Error("invalid article id", zap.Error(err))
 			return nil, err
 		}
 		articleInfo, err := a.articleModel.GetArticleDetailByID(ctx, id)
@@ -149,7 +151,7 @@ func (a *articleService) UserGetArticleDetail(ctx context.Context,
 			"tagID":      articleInfo.TagID,
 			"tagName":    articleInfo.TagName,
 		}
-		if err = a.redis.HMSet(ctx, "article:"+request.ID+":Hash", mapData).Err(); err != nil {
+		if err = a.redis.HMSet(ctx, cachekey.ArticleHash(request.ID).String(), mapData).Err(); err != nil {
 			a.logger.Error("redis set article hash error", zap.Error(err))
 			return nil, fmt.Errorf("redis set article hash error: %w", err)
 		}
@@ -164,22 +166,31 @@ func (a *articleService) UserGetArticleDetail(ctx context.Context,
 	}
 
 	// 浏览量自增
+	// KEYS[1] 浏览去重锁  KEYS[2] 文章 Hash  KEYS[3] 文章浏览量 ZSet
+	// ARGV[1] 锁过期秒数  ARGV[2] ZINCRBY 用到的 articleID（ZSet member）
 	lua := redis.NewScript(`
-	local articleID = KEYS[1]
-	local userID = KEYS[2]
+	local lockKey = KEYS[1]
+	local hashKey = KEYS[2]
+	local viewZSetKey = KEYS[3]
 	local expireTime = tonumber(ARGV[1])
+	local articleID = ARGV[2]
 	
-	local isSet = redis.call('SETNX', articleID .. ':' .. userID, 1)
+	local isSet = redis.call('SETNX', lockKey, 1)
 	if isSet == 1 then
-		redis.call('EXPIRE', articleID .. ':' .. userID, expireTime)
-		redis.call('HINCRBY', 'article:' .. articleID .. ':Hash', 'viewNum', 1)
-		redis.call('ZINCRBY', 'article:view:ZSet', 1, articleID)
+		redis.call('EXPIRE', lockKey, expireTime)
+		redis.call('HINCRBY', hashKey, 'viewNum', 1)
+		redis.call('ZINCRBY', viewZSetKey, 1, articleID)
 	end
 	
 	return isSet`)
 
 	expireTime := 30
-	result, err := lua.Run(ctx, a.redis, []string{request.ID, request.UserID}, expireTime).Int()
+	keys := []string{
+		cachekey.ArticleViewLock(request.ID, request.UserID).String(),
+		cachekey.ArticleHash(request.ID).String(),
+		cachekey.ArticleViewZSet().String(),
+	}
+	result, err := lua.Run(ctx, a.redis, keys, expireTime, request.ID).Int()
 	if err != nil {
 		a.logger.Error("failed to run lua script", zap.Int("result of value: ", result))
 		return nil, fmt.Errorf("failed to run lua script: %w", err)
@@ -189,6 +200,13 @@ func (a *articleService) UserGetArticleDetail(ctx context.Context,
 }
 
 // UserSearchArticle 搜索文章
+//
+// 注意：MySQL 中的 article.view_num 由 cron 周期性回写，会落后于 Redis 中的真实浏览量
+// （热路径只 +1 到 article:view:ZSet 与 article:{id}:Hash）。直接返回 MySQL 的 view_num
+// 会与文章详情页 / 热门文章列表的浏览量不一致。
+//
+// 这里在 MySQL 检索结果之上，用 article:view:ZSet 中的 score 校正每条结果的 view_num，
+// ZSet 不存在该 member 时（极少见，比如缓存预热未覆盖到）才回退到 MySQL 的值兜底。
 func (a *articleService) UserSearchArticle(ctx context.Context,
 	request *types.UserSearchArticleRequest) (*types.UserSearchArticleResponse, error) {
 
@@ -201,13 +219,42 @@ func (a *articleService) UserSearchArticle(ctx context.Context,
 		return nil, fmt.Errorf("failed to search article, err: %w", err)
 	}
 
-	rows := make([]types.UserGetArticleItem, 0)
-	for _, item := range articleList {
+	// 用 Redis ZSet 中的 score 校正浏览量，pipeline 一次拿到所有结果
+	// 用 ZScore 而不是 ZMScore，方便通过 redis.Nil 区分「不存在」与「分数恰好为 0」
+	viewZSetKey := cachekey.ArticleViewZSet().String()
+	scoreCmds := make([]*redis.FloatCmd, len(articleList))
+	if len(articleList) > 0 {
+		_, pipeErr := a.redis.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+			for i, item := range articleList {
+				scoreCmds[i] = pipe.ZScore(ctx, viewZSetKey, strconv.FormatUint(item.ID, 10))
+			}
+			return nil
+		})
+		// pipeline 整体失败仅记录日志、降级使用 MySQL 的 view_num，不阻塞搜索
+		if pipeErr != nil && !errors.Is(pipeErr, redis.Nil) {
+			a.logger.Warn("failed to pipeline ZScore for view num correction",
+				zap.Error(pipeErr))
+		}
+	}
+
+	rows := make([]types.UserGetArticleItem, 0, len(articleList))
+	for i, item := range articleList {
+		viewNum := int(item.ViewNum)
+		if scoreCmds[i] != nil {
+			if score, scoreErr := scoreCmds[i].Result(); scoreErr == nil {
+				viewNum = int(score)
+			} else if !errors.Is(scoreErr, redis.Nil) {
+				// 单条失败（非 not-found）仅打日志，不影响该条返回
+				a.logger.Warn("zscore failed for article",
+					zap.Uint64("articleID", item.ID), zap.Error(scoreErr))
+			}
+		}
+
 		rows = append(rows, types.UserGetArticleItem{
 			ID:         strconv.Itoa(int(item.ID)),
 			Title:      item.Title,
 			Describe:   item.Describe,
-			ViewNum:    int(item.ViewNum),
+			ViewNum:    viewNum,
 			CreateTime: item.CreateTime.Format(constants.TimeLayoutToDay),
 		})
 	}
@@ -220,7 +267,7 @@ func (a *articleService) UserSearchArticle(ctx context.Context,
 
 // UserGetHotArticle 获取热门文章
 func (a *articleService) UserGetHotArticle(ctx context.Context) (*types.UserGetHotArticleResponse, error) {
-	articleIDZSet, err := a.redis.ZRevRangeWithScores(ctx, "article:view:ZSet", 0, 2).Result()
+	articleIDZSet, err := a.redis.ZRevRangeWithScores(ctx, cachekey.ArticleViewZSet().String(), 0, 2).Result()
 	if err != nil {
 		a.logger.Error("failed to get article:view:ZSet", zap.Error(err))
 		return nil, fmt.Errorf("failed to get article:view:ZSet, err: %w", err)
@@ -232,7 +279,7 @@ func (a *articleService) UserGetHotArticle(ctx context.Context) (*types.UserGetH
 		articleItem := types.GetHotArticleItem{}
 
 		articleItem.ID = z.Member.(string)
-		hashKey := "article:" + articleItem.ID + ":Hash"
+		hashKey := cachekey.ArticleHash(articleItem.ID).String()
 		if exist := a.redis.Exists(ctx, hashKey); exist.Val() == 1 {
 			fields := []string{"title", "viewNum"}
 			result, err := a.redis.HMGet(ctx, hashKey, fields...).Result()
@@ -247,10 +294,10 @@ func (a *articleService) UserGetHotArticle(ctx context.Context) (*types.UserGetH
 			}
 		} else {
 			// 查询MySQL
-			id, err := strconv.ParseUint(articleItem.ID, 10, 64)
+			id, err := idutil.ParseID("articleID", articleItem.ID)
 			if err != nil {
-				a.logger.Error("parse uint64 error", zap.Error(err))
-				return nil, fmt.Errorf("parse uint64 error, err: %w", err)
+				a.logger.Error("invalid article id", zap.Error(err))
+				return nil, fmt.Errorf("invalid article id, err: %w", err)
 			}
 			articleInfo, err := a.articleModel.GetArticleDetailByID(ctx, id)
 			if err != nil {
@@ -270,7 +317,7 @@ func (a *articleService) UserGetHotArticle(ctx context.Context) (*types.UserGetH
 				"tagID":      articleInfo.TagID,
 				"tagName":    articleInfo.TagName,
 			}
-			if err = a.redis.HMSet(ctx, "article:"+articleItem.ID+":Hash", mapData).Err(); err != nil {
+			if err = a.redis.HMSet(ctx, cachekey.ArticleHash(articleItem.ID).String(), mapData).Err(); err != nil {
 				a.logger.Error("redis set article hash error", zap.Error(err))
 				return nil, fmt.Errorf("redis set article hash error: %w", err)
 			}
@@ -291,7 +338,7 @@ func (a *articleService) UserGetHotArticle(ctx context.Context) (*types.UserGetH
 func (a *articleService) UserGetTimeline(ctx context.Context) (*types.GetTimelineResponse, error) {
 	// ==============================================实现方式1: 循环读取redis的Hash结构==============================================
 	response := &types.GetTimelineResponse{}
-	articleIDZSet, err := a.redis.ZRevRangeWithScores(ctx, "article:time:ZSet", 0, -1).Result()
+	articleIDZSet, err := a.redis.ZRevRangeWithScores(ctx, cachekey.ArticleTimeZSet().String(), 0, -1).Result()
 	if err != nil {
 		a.logger.Error("failed to get article:time:ZSet", zap.Error(err))
 		return nil, fmt.Errorf("failed to get article:time:ZSet, err: %w", err)
@@ -299,7 +346,7 @@ func (a *articleService) UserGetTimeline(ctx context.Context) (*types.GetTimelin
 	groupedArticles := make(map[string][]types.GetTimelineListItem)
 	for _, z := range articleIDZSet {
 		articleID := z.Member.(string)
-		hashKey := "article:" + articleID + ":Hash"
+		hashKey := cachekey.ArticleHash(articleID).String()
 		if exist := a.redis.Exists(ctx, hashKey); exist.Val() == 1 {
 			result, err := a.redis.HMGet(ctx, hashKey, []string{"title", "createTime"}...).Result()
 			if err != nil {
@@ -315,9 +362,9 @@ func (a *articleService) UserGetTimeline(ctx context.Context) (*types.GetTimelin
 			groupedArticles[year] = append(groupedArticles[year], articleItem)
 		} else {
 			// 查MySQL数据库
-			id, err := strconv.ParseUint(articleID, 10, 64)
+			id, err := idutil.ParseID("articleID", articleID)
 			if err != nil {
-				a.logger.Error("parse uint64 error", zap.Error(err))
+				a.logger.Error("invalid article id", zap.Error(err))
 				return nil, err
 			}
 			articleInfo, err := a.articleModel.GetArticleDetailByID(ctx, id)
@@ -338,7 +385,7 @@ func (a *articleService) UserGetTimeline(ctx context.Context) (*types.GetTimelin
 				"tagID":      articleInfo.TagID,
 				"tagName":    articleInfo.TagName,
 			}
-			if err = a.redis.HMSet(ctx, "article:"+articleID+":Hash", mapData).Err(); err != nil {
+			if err = a.redis.HMSet(ctx, cachekey.ArticleHash(articleID).String(), mapData).Err(); err != nil {
 				a.logger.Error("redis set article hash error", zap.Error(err))
 				return nil, fmt.Errorf("redis set article hash error: %w", err)
 			}

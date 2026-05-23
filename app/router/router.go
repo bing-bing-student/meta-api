@@ -7,9 +7,9 @@ import (
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/dig"
 	"go.uber.org/zap"
 
-	"meta-api/app/di"
 	"meta-api/app/handler/admin"
 	"meta-api/app/handler/article"
 	"meta-api/app/handler/link"
@@ -20,7 +20,8 @@ import (
 )
 
 // SetUpRouter 启动路由
-func SetUpRouter(bs *bootstrap.Bootstrap) *gin.Engine {
+// container 由调用方（app 层）统一构建并传入，避免重复创建容器导致依赖实例发散
+func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	logger := bs.Logger
@@ -53,36 +54,30 @@ func SetUpRouter(bs *bootstrap.Bootstrap) *gin.Engine {
 	r.Use(middlewares.TimeoutMiddleware(3*time.Second), cors.New(corsConfig), middlewares.GinLogger(logger), middlewares.GinRecovery(logger, true))
 	//r.Use(middlewares.TimeoutMiddleware(3*time.Second), middlewares.GinLogger(logger), middlewares.GinRecovery(logger, true))
 
-	container, err := di.BuildContainer(bs)
-	if err != nil {
-		logger.Error("failed to build container", zap.Error(err))
-		return nil
-	}
-
 	// 获取 adminHandler 实例
 	var adminHandler admin.Handler
-	if err = container.Invoke(func(h admin.Handler) { adminHandler = h }); err != nil {
+	if err := container.Invoke(func(h admin.Handler) { adminHandler = h }); err != nil {
 		logger.Error("failed to get admin handler", zap.Error(err))
 		return nil
 	}
 
 	// 获取 articleHandler 实例
 	var articleHandler article.Handler
-	if err = container.Invoke(func(h article.Handler) { articleHandler = h }); err != nil {
+	if err := container.Invoke(func(h article.Handler) { articleHandler = h }); err != nil {
 		logger.Error("failed to get article handler", zap.Error(err))
 		return nil
 	}
 
 	// 获取 tagHandler 实例
 	var tagHandler tag.Handler
-	if err = container.Invoke(func(h tag.Handler) { tagHandler = h }); err != nil {
+	if err := container.Invoke(func(h tag.Handler) { tagHandler = h }); err != nil {
 		logger.Error("failed to get tag handler", zap.Error(err))
 		return nil
 	}
 
 	// 获取 linkHandler 实例
 	var linkHandler link.Handler
-	if err = container.Invoke(func(h link.Handler) { linkHandler = h }); err != nil {
+	if err := container.Invoke(func(h link.Handler) { linkHandler = h }); err != nil {
 		logger.Error("failed to get link handler", zap.Error(err))
 		return nil
 	}

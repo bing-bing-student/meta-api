@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 
 	"meta-api/app/model/link"
+	"meta-api/common/idutil"
 	"meta-api/common/types"
 )
 
@@ -132,9 +133,9 @@ func (l *linkService) AdminUpdateLink(ctx context.Context, request *types.AdminU
 		l.logger.Error("failed to load location", zap.Error(err))
 		return fmt.Errorf("failed to load location, error: %w", err)
 	}
-	id, err := strconv.ParseUint(request.ID, 10, 64)
+	id, err := idutil.ParseID("linkID", request.ID)
 	if err != nil {
-		l.logger.Error("parse uint64 error", zap.Error(err))
+		l.logger.Error("invalid link id", zap.Error(err))
 		return err
 	}
 	linkInfo := &link.Link{
@@ -161,10 +162,10 @@ func (l *linkService) AdminUpdateLink(ctx context.Context, request *types.AdminU
 // AdminDeleteLink 删除友链
 func (l *linkService) AdminDeleteLink(ctx context.Context, request *types.AdminDeleteLinkRequest) error {
 	// 删除MySQL数据
-	id, err := strconv.ParseUint(request.ID, 10, 64)
+	id, err := idutil.ParseID("linkID", request.ID)
 	if err != nil {
-		l.logger.Error("parse uint64 error", zap.Error(err))
-		return fmt.Errorf("parse uint64 error: %w", err)
+		l.logger.Error("invalid link id", zap.Error(err))
+		return fmt.Errorf("invalid link id: %w", err)
 	}
 	if err = l.model.DeleteLink(ctx, id); err != nil {
 		l.logger.Error("failed to delete link", zap.Error(err))

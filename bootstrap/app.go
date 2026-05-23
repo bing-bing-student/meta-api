@@ -1,7 +1,6 @@
 package bootstrap
 
 import (
-	"context"
 	"os"
 	"strings"
 
@@ -12,8 +11,6 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 
-	"meta-api/app/model/article"
-	"meta-api/common/constants"
 	"meta-api/config"
 )
 
@@ -110,37 +107,18 @@ func (b *Bootstrap) InitRedis() *Bootstrap {
 }
 
 // Start 启动所有服务组件
-func (b *Bootstrap) Start(ctx context.Context) {
-	// 定时任务配置并启动
-	entryID, err := b.Cron.AddFunc(constants.Spec, func() {
-		list, err := b.Redis.ZRangeWithScores(ctx, "article:view:ZSet", 0, -1).Result()
-		if err != nil {
-			b.Logger.Error("failed to query article:view:ZSet", zap.Error(err))
-			return
-		}
-		for _, element := range list {
-			articleID := element.Member.(string)
-			viewNum := int(element.Score)
-			if err = b.MySQL.Model(&article.Article{}).Where("id = ?", articleID).Update("view_num", viewNum).Error; err != nil {
-				b.Logger.Error("failed to update article view num", zap.Error(err))
-				return
-			}
-		}
-	})
-	if err != nil {
-		b.Logger.Error("failed to add a scheduled task", zap.Error(err))
-		return
-	}
-
-	b.CronEntryIDList = &[]cron.EntryID{entryID}
+// 业务定时任务由 app 层 / service 层各自注册到 b.Cron 后再调用本方法启动调度器
+func (b *Bootstrap) Start() {
 	b.Cron.Start()
 }
 
 // Stop 停止所有服务组件
 func (b *Bootstrap) Stop() {
 	// 关闭定时任务
-	for _, entryID := range *b.CronEntryIDList {
-		b.Cron.Remove(entryID)
+	if b.CronEntryIDList != nil {
+		for _, entryID := range *b.CronEntryIDList {
+			b.Cron.Remove(entryID)
+		}
 	}
 	b.Cron.Stop()
 

@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 
 	"meta-api/app/model/admin"
+	"meta-api/common/cachekey"
 	"meta-api/common/types"
 	"meta-api/common/utils"
 )
@@ -15,9 +16,10 @@ import (
 func (a *adminService) UserGetAboutMe(ctx context.Context) (*types.GetAboutMeResponse, error) {
 	// 获取缓存
 	response := &types.GetAboutMeResponse{}
-	if exist := a.redis.Exists(ctx, "aboutMeInfo:Hash").Val(); exist == 1 {
+	aboutMeKey := cachekey.AboutMeHash().String()
+	if exist := a.redis.Exists(ctx, aboutMeKey).Val(); exist == 1 {
 		fields := []string{"name", "job", "workLife", "address", "domainInfo", "blogContent", "websiteLocation", "statement", "email"}
-		aboutMeInfo, err := a.redis.HMGet(ctx, "aboutMeInfo:Hash", fields...).Result()
+		aboutMeInfo, err := a.redis.HMGet(ctx, aboutMeKey, fields...).Result()
 		if err != nil {
 			a.logger.Error("failed to get aboutMeInfo from redis", zap.Error(err))
 			return response, err
@@ -82,7 +84,7 @@ func (a *adminService) UserGetAboutMe(ctx context.Context) (*types.GetAboutMeRes
 			"statement":       response.Statement,
 			"email":           strings.Join(response.Email, ","),
 		}
-		if err = a.redis.HSet(ctx, "aboutMeInfo:Hash", aboutMeMap).Err(); err != nil {
+		if err = a.redis.HSet(ctx, aboutMeKey, aboutMeMap).Err(); err != nil {
 			a.logger.Error("failed to set aboutMeInfo to redis", zap.Error(err))
 			return response, err
 		}

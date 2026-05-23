@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/robfig/cron/v3"
 	"github.com/sony/sonyflake"
 	"go.uber.org/zap"
 
@@ -26,6 +27,10 @@ type Service interface {
 	UserSearchArticle(ctx context.Context, request *types.UserSearchArticleRequest) (*types.UserSearchArticleResponse, error)
 	UserGetHotArticle(ctx context.Context) (*types.UserGetHotArticleResponse, error)
 	UserGetTimeline(ctx context.Context) (*types.GetTimelineResponse, error)
+
+	WarmUpCache(ctx context.Context) error
+	PersistViewCount(ctx context.Context) error
+	RegisterCronJobs(c *cron.Cron) ([]cron.EntryID, error)
 }
 
 // articleService 文章服务

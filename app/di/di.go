@@ -46,7 +46,7 @@ func BuildContainer(bs *bootstrap.Bootstrap) (*dig.Container, error) {
 		}
 	}
 
-	// 注册Handler层依赖
+	// 注册 Handler 层依赖
 	handlerProviders := []interface{}{
 		adminHandler.NewHandler,
 		articleHandler.NewHandler,
@@ -59,7 +59,7 @@ func BuildContainer(bs *bootstrap.Bootstrap) (*dig.Container, error) {
 		}
 	}
 
-	// 注册Model层依赖
+	// 注册 Model 层依赖
 	modelProviders := []interface{}{
 		adminModel.NewModel,
 		articleModel.NewModel,
@@ -72,7 +72,7 @@ func BuildContainer(bs *bootstrap.Bootstrap) (*dig.Container, error) {
 		}
 	}
 
-	// 注册Service层依赖
+	// 注册 Service 层依赖
 	serviceProviders := []interface{}{
 		adminService.NewService,
 		articleService.NewService,

@@ -4,19 +4,20 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
+	"meta-api/common/cachekey"
 	"meta-api/common/constants"
+	"meta-api/common/idutil"
 	"meta-api/common/types"
 )
 
 // AdminGetTagList 获取标签列表
 func (t *tagService) AdminGetTagList(ctx context.Context) (*types.AdminGetTagListResponse, error) {
 	response := &types.AdminGetTagListResponse{}
-	key := "tag:articleNum:ZSet"
+	key := cachekey.TagArticleNumZSet().String()
 
 	if exist := t.redis.Exists(ctx, key).Val(); exist == 0 {
 		articleCountWithTagNameList, err := t.tagModel.GetArticleCountWithTagName(ctx)
@@ -69,7 +70,7 @@ func (t *tagService) AdminGetArticleListByTag(ctx context.Context,
 
 	start := (request.Page - 1) * request.PageSize
 	stop := start + request.PageSize - 1
-	key := request.TagName + ":article:ZSet"
+	key := cachekey.TagArticleListZSet(request.TagName).String()
 	response := &types.AdminGetArticleListByTagResponse{}
 
 	// 获取文章ID列表(包含分页条件)
@@ -93,7 +94,7 @@ func (t *tagService) AdminGetArticleListByTag(ctx context.Context,
 		// 写入Redis
 		for _, v := range articleList {
 			if err = t.redis.ZAdd(ctx, key, redis.Z{
-				Score:  float64(v.CreateTime.UnixNano() / int64(time.Millisecond)),
+				Score:  cachekey.ArticleTimeScore(v.CreateTime),
 				Member: v.ID,
 			}).Err(); err != nil {
 				t.logger.Error("failed to write article:ZSet", zap.Error(err))
@@ -114,10 +115,10 @@ func (t *tagService) AdminGetArticleListByTag(ctx context.Context,
 		articleItem := types.AdminGetArticleListByTagItem{}
 
 		// 如果Redis中没有这个文章Hash数据
-		if exists := t.redis.Exists(ctx, "article:"+articleID+":Hash").Val(); exists == 0 {
-			id, err := strconv.ParseUint(articleID, 10, 64)
+		if exists := t.redis.Exists(ctx, cachekey.ArticleHash(articleID).String()).Val(); exists == 0 {
+			id, err := idutil.ParseID("articleID", articleID)
 			if err != nil {
-				t.logger.Error("parse uint64 error", zap.Error(err))
+				t.logger.Error("invalid article id", zap.Error(err))
 				return response, err
 			}
 			articleInfo, mysqlErr := t.articleModel.GetArticleDetailByID(ctx, id)
@@ -136,7 +137,7 @@ func (t *tagService) AdminGetArticleListByTag(ctx context.Context,
 				"tagID":      articleInfo.TagID,
 				"tagName":    articleInfo.TagName,
 			}
-			if err = t.redis.HMSet(ctx, "article:"+articleID+":Hash", mapData).Err(); err != nil {
+			if err = t.redis.HMSet(ctx, cachekey.ArticleHash(articleID).String(), mapData).Err(); err != nil {
 				t.logger.Error("failed to write article:articleID:ZSet", zap.Error(err))
 				return nil, fmt.Errorf("failed to write article:articleID:ZSet: %w", err)
 			}
@@ -149,7 +150,7 @@ func (t *tagService) AdminGetArticleListByTag(ctx context.Context,
 		}
 
 		// 获取缓存当中的文章详情
-		data, err := t.redis.HMGet(ctx, "article:"+articleID+":Hash", fields...).Result()
+		data, err := t.redis.HMGet(ctx, cachekey.ArticleHash(articleID).String(), fields...).Result()
 		if err != nil {
 			t.logger.Error("failed to get article:ZSet", zap.Error(err))
 			return nil, err
@@ -200,7 +201,7 @@ func (t *tagService) AdminUpdateTag(ctx context.Context, request *types.AdminUpd
 
 	// 更新标签之前先将缓存当中的浏览量数据写入mysql
 	for _, articleID := range request.ArticleIDList {
-		viewNum, err := t.redis.ZScore(ctx, "article:view:ZSet", articleID).Result()
+		viewNum, err := t.redis.ZScore(ctx, cachekey.ArticleViewZSet().String(), articleID).Result()
 		if err != nil {
 			t.logger.Error("failed to query article:view:ZSet", zap.Error(err))
 			return fmt.Errorf("failed to query article:view:ZSet: %w", err)
@@ -213,23 +214,23 @@ func (t *tagService) AdminUpdateTag(ctx context.Context, request *types.AdminUpd
 
 	// 删除缓存脏数据
 	for _, id := range request.ArticleIDList {
-		if err = t.redis.Del(ctx, "article:"+id+":Hash").Err(); err != nil {
+		if err = t.redis.Del(ctx, cachekey.ArticleHash(id).String()).Err(); err != nil {
 			t.logger.Error("failed to delete article:id:Hash", zap.Error(err))
 			return fmt.Errorf("failed to delete article:id:Hash: %w", err)
 		}
 	}
 
-	if err = t.redis.Del(ctx, request.OldTagName+":article:ZSet").Err(); err != nil {
+	if err = t.redis.Del(ctx, cachekey.TagArticleListZSet(request.OldTagName).String()).Err(); err != nil {
 		t.logger.Error("failed to delete oldTagName:article:ZSet", zap.Error(err))
 		return fmt.Errorf("failed to delete oldTagName:article:ZSet: %w", err)
 	}
 
-	if err = t.redis.Del(ctx, request.NewTagName+":article:ZSet").Err(); err != nil {
+	if err = t.redis.Del(ctx, cachekey.TagArticleListZSet(request.NewTagName).String()).Err(); err != nil {
 		t.logger.Error("failed to delete newTagName:article:ZSet", zap.Error(err))
 		return fmt.Errorf("failed to delete newTagName:article:ZSet: %w", err)
 	}
 
-	if err = t.redis.Del(ctx, "tag:articleNum:ZSet").Err(); err != nil {
+	if err = t.redis.Del(ctx, cachekey.TagArticleNumZSet().String()).Err(); err != nil {
 		t.logger.Error("failed to delete tag:articleNum:ZSet", zap.Error(err))
 		return fmt.Errorf("failed to delete tag:articleNum:ZSet: %w", err)
 	}

@@ -15,6 +15,7 @@ import (
 	"meta-api/common/cachekey"
 	"meta-api/common/constants"
 	"meta-api/common/idutil"
+	"meta-api/common/revalidator"
 	"meta-api/common/types"
 )
 
@@ -251,6 +252,14 @@ func (a *articleService) AdminAddArticle(ctx context.Context, request *types.Adm
 		return err
 	}
 
+	// 通知前端 Nuxt 失效与新增文章相关的 ISR 缓存。
+	// 新增文章影响：首页（最新列表）、新文章所属标签页。
+	// 文章详情页本身从未被访问过，无需失效（Nuxt 端是懒加载缓存）。
+	a.revalidator.Revalidate(
+		revalidator.HomePath(),
+		revalidator.TagPath(tagName),
+	)
+
 	return nil
 }
 
@@ -346,6 +355,18 @@ func (a *articleService) AdminUpdateArticle(ctx context.Context, request *types.
 		}
 	}
 
+	// 通知前端 Nuxt 失效与本次更新相关的 ISR 缓存。
+	// 更新文章影响：当前文章详情页、首页（标题/描述可能变更）、新旧标签页（tag 改动时新旧都要清）。
+	paths := []string{
+		revalidator.ArticleDetailPath(request.ID),
+		revalidator.HomePath(),
+		revalidator.TagPath(newTagName),
+	}
+	if newTagName != oldTagName {
+		paths = append(paths, revalidator.TagPath(oldTagName))
+	}
+	a.revalidator.Revalidate(paths...)
+
 	return nil
 }
 
@@ -393,6 +414,14 @@ func (a *articleService) AdminDeleteArticle(ctx context.Context, request *types.
 		a.logger.Error("failed to delete tagIDArticleKey", zap.Error(err))
 		return err
 	}
+
+	// 通知前端 Nuxt 失效与本次删除相关的 ISR 缓存。
+	// 删除文章影响：被删文章的详情页（防止旧 HTML 残留）、首页、所属标签页。
+	a.revalidator.Revalidate(
+		revalidator.ArticleDetailPath(articleID),
+		revalidator.HomePath(),
+		revalidator.TagPath(tagName),
+	)
 
 	return nil
 }

@@ -10,6 +10,7 @@ import (
 
 	"meta-api/app/model/article"
 	"meta-api/app/model/tag"
+	"meta-api/common/revalidator"
 	"meta-api/common/types"
 	"meta-api/config"
 )
@@ -41,12 +42,14 @@ type articleService struct {
 	redis        *redis.Client
 	articleModel article.Model
 	tagModel     tag.Model
+	revalidator  *revalidator.Client
 }
 
 // NewService 创建服务实例
 func NewService(config *config.Config, logger *zap.Logger,
 	idGenerator *sonyflake.Sonyflake, redis *redis.Client,
-	articleModel article.Model, tagModel tag.Model) Service {
+	articleModel article.Model, tagModel tag.Model,
+	rev *revalidator.Client) Service {
 
 	return &articleService{
 		config:       config,
@@ -55,5 +58,6 @@ func NewService(config *config.Config, logger *zap.Logger,
 		redis:        redis,
 		articleModel: articleModel,
 		tagModel:     tagModel,
+		revalidator:  rev,
 	}
 }

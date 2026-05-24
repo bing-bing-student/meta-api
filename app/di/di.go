@@ -25,6 +25,7 @@ import (
 	tagService "meta-api/app/service/tag"
 
 	"meta-api/bootstrap"
+	"meta-api/common/revalidator"
 	"meta-api/config"
 )
 
@@ -39,6 +40,7 @@ func BuildContainer(bs *bootstrap.Bootstrap) (*dig.Container, error) {
 		func() *sonyflake.Sonyflake { return bs.IDGenerator },
 		func() *gorm.DB { return bs.MySQL },
 		func() *redis.Client { return bs.Redis },
+		func(logger *zap.Logger) *revalidator.Client {return revalidator.New(logger)},
 	}
 	for _, provider := range baseProviders {
 		if err := container.Provide(provider); err != nil {

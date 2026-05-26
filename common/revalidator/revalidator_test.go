@@ -84,7 +84,7 @@ func TestNew_DefaultTimeoutApplied(t *testing.T) {
 	}
 }
 
-func TestRevalidate_NoopWhenDisabled(t *testing.T) {
+func TestRevalidateArticles_NoopWhenDisabled(t *testing.T) {
 	srv, hits, _, _ := startMockNuxt(http.StatusOK)
 	defer srv.Close()
 
@@ -92,7 +92,7 @@ func TestRevalidate_NoopWhenDisabled(t *testing.T) {
 	t.Setenv(envEndpoint, srv.URL)
 	t.Setenv(envSecret, "")
 	c := New(zap.NewNop())
-	c.Revalidate("/any")
+	c.RevalidateArticles("123")
 
 	// 给一段时间确认确实没发起 HTTP
 	time.Sleep(50 * time.Millisecond)
@@ -101,27 +101,43 @@ func TestRevalidate_NoopWhenDisabled(t *testing.T) {
 	}
 }
 
-func TestRevalidate_NoopWhenPathsEmpty(t *testing.T) {
+func TestRevalidateArticles_NoopWhenEmpty(t *testing.T) {
 	srv, hits, _, _ := startMockNuxt(http.StatusOK)
 	defer srv.Close()
 
 	setEnvs(t, srv.URL, "s")
 	c := New(zap.NewNop())
-	c.Revalidate()
+	c.RevalidateArticles()
 
 	time.Sleep(50 * time.Millisecond)
 	if hits.Load() != 0 {
-		t.Fatalf("expected 0 hits when paths empty, got %d", hits.Load())
+		t.Fatalf("expected 0 hits when ids empty, got %d", hits.Load())
 	}
 }
 
-func TestRevalidate_SendsExpectedRequest(t *testing.T) {
+func TestRevalidateArticles_NoopWhenAllIDsBlank(t *testing.T) {
+	// 入参全是空串时不应发出请求，避免拼出 /article-detail/ 这种非法路径。
+	srv, hits, _, _ := startMockNuxt(http.StatusOK)
+	defer srv.Close()
+
+	setEnvs(t, srv.URL, "s")
+	c := New(zap.NewNop())
+	c.RevalidateArticles("", "")
+
+	time.Sleep(50 * time.Millisecond)
+	if hits.Load() != 0 {
+		t.Fatalf("expected 0 hits when all ids blank, got %d", hits.Load())
+	}
+}
+
+func TestRevalidateArticles_BuildsExpectedPaths(t *testing.T) {
 	srv, hits, lastSecret, lastBody := startMockNuxt(http.StatusOK)
 	defer srv.Close()
 
 	setEnvs(t, srv.URL, "topsecret")
 	c := New(zap.NewNop())
-	c.Revalidate("/article-detail/1", "/", "/tag?tagName=Go")
+	// 故意混入一个空串，验证会被静默丢弃
+	c.RevalidateArticles("123", "", "456")
 
 	if !waitFor(time.Second, func() bool { return hits.Load() == 1 }) {
 		t.Fatalf("expected 1 hit, got %d", hits.Load())
@@ -136,7 +152,7 @@ func TestRevalidate_SendsExpectedRequest(t *testing.T) {
 	if err := sonic.UnmarshalString(body, &parsed); err != nil {
 		t.Fatalf("body is not valid JSON: %s err=%v", body, err)
 	}
-	want := []string{"/article-detail/1", "/", "/tag?tagName=Go"}
+	want := []string{"/article-detail/123", "/article-detail/456"}
 	if len(parsed.Paths) != len(want) {
 		t.Fatalf("expected %d paths, got %d (body=%s)", len(want), len(parsed.Paths), body)
 	}
@@ -147,64 +163,38 @@ func TestRevalidate_SendsExpectedRequest(t *testing.T) {
 	}
 }
 
-func TestRevalidate_SwallowsNon2xx(t *testing.T) {
+func TestRevalidateArticles_SwallowsNon2xx(t *testing.T) {
 	srv, hits, _, _ := startMockNuxt(http.StatusUnauthorized)
 	defer srv.Close()
 
 	setEnvs(t, srv.URL, "s")
 	c := New(zap.NewNop())
 	// 关键约定：调用方拿不到错误，单测靠"调用未 panic / 无 deadlock"判定通过
-	c.Revalidate("/x")
+	c.RevalidateArticles("999")
 
 	if !waitFor(time.Second, func() bool { return hits.Load() == 1 }) {
 		t.Fatalf("expected 1 hit even when server returns 401, got %d", hits.Load())
 	}
 }
 
-func TestRevalidate_PathsCloneIsolatesCallerMutation(t *testing.T) {
+func TestRevalidateArticles_MutationIsolation(t *testing.T) {
+	// 虽然实现里是逐个 append 进新 slice，理论上已天然隔离，
+	// 仍补一条用例锁定行为：调用方在调用后立刻篡改原 slice 不影响异步 payload。
 	srv, hits, _, lastBody := startMockNuxt(http.StatusOK)
 	defer srv.Close()
 
 	setEnvs(t, srv.URL, "s")
 	c := New(zap.NewNop())
-	paths := []string{"/article-detail/1"}
-	c.Revalidate(paths...)
-	// 立刻篡改原 slice，验证不会影响异步发出的请求
-	paths[0] = "/article-detail/MUTATED"
+	ids := []string{"123"}
+	c.RevalidateArticles(ids...)
+	ids[0] = "MUTATED"
 
 	if !waitFor(time.Second, func() bool { return hits.Load() == 1 }) {
 		t.Fatalf("expected 1 hit, got %d", hits.Load())
 	}
 	body, _ := lastBody.Load().(string)
-	if want := `"/article-detail/1"`; !contains(body, want) {
+	if want := `"/article-detail/123"`; !contains(body, want) {
 		t.Fatalf("body should still carry the original path, body=%s", body)
-	}
-}
-
-func TestArticleDetailPath(t *testing.T) {
-	if got := ArticleDetailPath("111"); got != "/article-detail/111" {
-		t.Fatalf("got %q", got)
-	}
-}
-
-func TestHomePath(t *testing.T) {
-	if got := HomePath(); got != "/" {
-		t.Fatalf("got %q", got)
-	}
-}
-
-func TestTagPath_PlainAscii(t *testing.T) {
-	if got := TagPath("Go"); got != "/tag?tagName=Go" {
-		t.Fatalf("got %q", got)
-	}
-}
-
-func TestTagPath_EscapesUnicodeAndSpace(t *testing.T) {
-	// "Go 语言" 应被 url.QueryEscape 编码，避免拼接出非法 URL
-	got := TagPath("Go 语言")
-	want := "/tag?tagName=Go+%E8%AF%AD%E8%A8%80"
-	if got != want {
-		t.Fatalf("got %q, want %q", got, want)
 	}
 }
 

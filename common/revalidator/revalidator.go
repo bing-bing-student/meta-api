@@ -4,14 +4,19 @@
 //   - 永不阻塞业务主流程：所有 HTTP 调用走 goroutine + 超时 context；
 //   - 永不向上抛错：失败只打 Warn 日志，TTL 兜底（Nuxt 侧默认 7 天）；
 //   - 永不影响本地开发：当 Endpoint 或 Secret 为空时退化为 noop；
-//   - 与前端契约对齐：参见 portal-web 仓库 .dbg/revalidate-contract.md。
+//   - 与前端契约对齐：参见 portal-web 仓库 server/api/_revalidate.post.ts。
+//
+// 范围说明：
+//
+//	前端目前仅对 /article-detail/<id> 启用了 ISR 缓存（其它页面 SSR 走源站），
+//	因此本包只暴露面向"文章详情"的语义接口；其它路径调过去前端会被忽略，
+//	没有意义，所以也不开放调用入口，避免误用。
 package revalidator
 
 import (
 	"bytes"
 	"context"
 	"net/http"
-	"net/url"
 	"os"
 	"time"
 
@@ -32,12 +37,17 @@ const (
 	// envSecret 共享密钥所在的环境变量名。
 	// 与 portal-web 侧 NUXT_REVALIDATE_SECRET 保持一致；任一为空都会退化为 noop。
 	envSecret = "NUXT_REVALIDATE_SECRET"
+
+	// articleDetailPathPrefix 与 portal-web 路由 pages/article-detail/[id].vue 对齐，
+	// 前端 _revalidate.post.ts 的 pathToCacheKeys 用 /article-detail/<id> 正则解析，
+	// 必须严格保持该形态：不带 query、不带 hash。
+	articleDetailPathPrefix = "/article-detail/"
 )
 
 // Client 用来调用 Nuxt 失效接口。
 //
 // 实例由 DI 容器构造，单例复用 http.Client（内部连接池）。
-// 当 endpoint 或 secret 任一为空，Revalidate 立即返回，不发起任何 HTTP 调用。
+// 当 endpoint 或 secret 任一为空，所有失效调用立即返回，不发起任何 HTTP 调用。
 type Client struct {
 	endpoint string
 	secret   string
@@ -76,18 +86,28 @@ func (c *Client) enabled() bool {
 	return c != nil && c.endpoint != "" && c.secret != ""
 }
 
-// Revalidate 异步通知 Nuxt 失效给定路径列表，永不阻塞调用方。
+// RevalidateArticles 异步通知 Nuxt 失效给定文章详情页的 ISR 缓存，永不阻塞调用方。
 //
-// 重复路径不做去重（Nuxt 侧本身幂等，对一个不存在的 key 调 remove 也是 0 cost）。
+// 入参为文章主键 ID 列表（即雪花 ID 的字符串形式）；包内部按前端契约拼成
+// /article-detail/<id> 路径再发出。空 ID 会被丢弃，避免拼出 /article-detail/。
+//
+// 重复 ID 不做去重（前端 _revalidate 是幂等的，对不存在的 key removeItem 也是 0 cost）。
 // 空切片或 client 未启用时直接返回，调用方无需自行判空。
-func (c *Client) Revalidate(paths ...string) {
-	if !c.enabled() || len(paths) == 0 {
+func (c *Client) RevalidateArticles(articleIDs ...string) {
+	if !c.enabled() || len(articleIDs) == 0 {
 		return
 	}
-	// 在拷贝 slice 后再启动 goroutine，避免被调用方后续修改影响。
-	cloned := make([]string, len(paths))
-	copy(cloned, paths)
-	go c.do(map[string]any{"paths": cloned})
+	paths := make([]string, 0, len(articleIDs))
+	for _, id := range articleIDs {
+		if id == "" {
+			continue
+		}
+		paths = append(paths, articleDetailPathPrefix+id)
+	}
+	if len(paths) == 0 {
+		return
+	}
+	go c.do(map[string]any{"paths": paths})
 }
 
 // do 实际发起 HTTP 调用。失败仅记录 Warn 日志。
@@ -122,24 +142,4 @@ func (c *Client) do(payload map[string]any) {
 		return
 	}
 	c.logger.Info("revalidate ok", zap.Any("payload", payload))
-}
-
-// ArticleDetailPath 返回文章详情页对应的前端路径。
-//
-// 与 portal-web 路由 pages/article-detail/[id].vue 对齐。
-func ArticleDetailPath(articleID string) string {
-	return "/article-detail/" + articleID
-}
-
-// HomePath 首页路径。
-func HomePath() string {
-	return "/"
-}
-
-// TagPath 返回标签筛选页对应的前端路径。
-//
-// 与 portal-web 路由 pages/tag.vue 对齐：标签通过 query string 传递。
-// 这里使用 url.QueryEscape 处理含中文 / 空格的标签名，避免被前端 trim 出错。
-func TagPath(tagName string) string {
-	return "/tag?tagName=" + url.QueryEscape(tagName)
 }

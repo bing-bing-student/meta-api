@@ -25,8 +25,8 @@ func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) *gin.Engine 
 	r := gin.New()
 	logger := bs.Logger
 
-	// 禁用代理
-	if err := r.SetTrustedProxies(nil); err != nil {
+	// 信任 Nginx 代理所在网段的请求
+	if err := r.SetTrustedProxies([]string{"172.16.0.0/12"}); err != nil {
 		logger.Error("error set trusted proxy", zap.Error(err))
 		return nil
 	}

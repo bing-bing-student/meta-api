@@ -25,8 +25,9 @@ import (
 	tagService "meta-api/app/service/tag"
 
 	"meta-api/bootstrap"
-	"meta-api/common/revalidator"
 	"meta-api/config"
+	"meta-api/pkg/edgeone"
+	"meta-api/pkg/revalidator"
 )
 
 // BuildContainer 依赖注入容器
@@ -40,7 +41,8 @@ func BuildContainer(bs *bootstrap.Bootstrap) (*dig.Container, error) {
 		func() *sonyflake.Sonyflake { return bs.IDGenerator },
 		func() *gorm.DB { return bs.MySQL },
 		func() *redis.Client { return bs.Redis },
-		func(logger *zap.Logger) *revalidator.Client {return revalidator.New(logger)},
+		func(logger *zap.Logger) *revalidator.Client { return revalidator.New(logger) },
+		func(logger *zap.Logger) *edgeone.Client { return edgeone.New(logger) },
 	}
 	for _, provider := range baseProviders {
 		if err := container.Provide(provider); err != nil {

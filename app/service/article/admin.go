@@ -356,6 +356,10 @@ func (a *articleService) AdminUpdateArticle(ctx context.Context, request *types.
 	// 失效详情页本身就够了；标签页本身就是 SSR，不需要清。
 	a.revalidator.RevalidateArticles(request.ID)
 
+	// 清理 EdgeOne CDN 上 /article-detail/<id>/ 前缀下的所有缓存（包含 _payload.json 及其带 hash 查询参数的变体）。
+	// Nuxt ISR 失效只清源站内部缓存，CDN 边缘节点的旧副本仍可能命中，所以两层缓存都要失效。
+	a.edgeone.PurgeArticles(request.ID)
+
 	return nil
 }
 
@@ -407,6 +411,9 @@ func (a *articleService) AdminDeleteArticle(ctx context.Context, request *types.
 	// 通知前端 Nuxt 失效被删文章详情页的 ISR 缓存，避免旧 HTML 残留可访问。
 	// 前端只缓存 /article-detail/<id>，首页、标签页都不走 ISR，无需通知。
 	a.revalidator.RevalidateArticles(articleID)
+
+	// 同时清理 EdgeOne CDN 上 /article-detail/<id>/ 前缀下的所有缓存。
+	a.edgeone.PurgeArticles(articleID)
 
 	return nil
 }

@@ -31,12 +31,6 @@ func ArticleOrderZSet(order string) (Key, bool) {
 	}
 }
 
-// ArticleViewLock 浏览量去重锁的 Key（lua 脚本中用于同一用户在 expireTime 内只计一次）
-// 当前格式与历史 Lua 脚本保持一致：{articleID}:{userID}
-func ArticleViewLock(articleID, userID string) Key {
-	return Key(articleID + ":" + userID)
-}
-
 // ArticleTimeScore 文章按创建时间排序的 score（毫秒时间戳）
 func ArticleTimeScore(t time.Time) float64 { return float64(t.UnixMilli()) }
 

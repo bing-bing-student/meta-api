@@ -165,37 +165,6 @@ func (a *articleService) UserGetArticleDetail(ctx context.Context,
 		response.UpdateTime = articleInfo.UpdateTime.Format(constants.TimeLayoutToMinute)
 	}
 
-	// 浏览量自增
-	// KEYS[1] 浏览去重锁  KEYS[2] 文章 Hash  KEYS[3] 文章浏览量 ZSet
-	// ARGV[1] 锁过期秒数  ARGV[2] ZINCRBY 用到的 articleID（ZSet member）
-	lua := redis.NewScript(`
-	local lockKey = KEYS[1]
-	local hashKey = KEYS[2]
-	local viewZSetKey = KEYS[3]
-	local expireTime = tonumber(ARGV[1])
-	local articleID = ARGV[2]
-	
-	local isSet = redis.call('SETNX', lockKey, 1)
-	if isSet == 1 then
-		redis.call('EXPIRE', lockKey, expireTime)
-		redis.call('HINCRBY', hashKey, 'viewNum', 1)
-		redis.call('ZINCRBY', viewZSetKey, 1, articleID)
-	end
-	
-	return isSet`)
-
-	expireTime := 30
-	keys := []string{
-		cachekey.ArticleViewLock(request.ID, request.UserID).String(),
-		cachekey.ArticleHash(request.ID).String(),
-		cachekey.ArticleViewZSet().String(),
-	}
-	result, err := lua.Run(ctx, a.redis, keys, expireTime, request.ID).Int()
-	if err != nil {
-		a.logger.Error("failed to run lua script", zap.Int("result of value: ", result))
-		return nil, fmt.Errorf("failed to run lua script: %w", err)
-	}
-
 	return response, nil
 }
 

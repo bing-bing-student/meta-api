@@ -4,9 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	"meta-api/common/codes"
@@ -22,18 +20,6 @@ func (a *articleHandler) UserGetArticleList(c *gin.Context) {
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}
-	session := sessions.Default(c)
-	sessionID := session.Get("session_id")
-	if sessionID == nil {
-		newSessionID := uuid.New().String()
-		session.Options(sessions.Options{MaxAge: 86400, Path: "/", Secure: true, HttpOnly: true, SameSite: http.SameSiteNoneMode})
-		session.Set("session_id", newSessionID)
-		if err := session.Save(); err != nil {
-			a.logger.Error("failed to save session", zap.Error(err))
-			c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "服务器内部错误", Data: nil})
-			return
-		}
-	}
 
 	response, err := a.service.UserGetArticleList(ctx, request)
 	if err != nil {
@@ -48,8 +34,7 @@ func (a *articleHandler) UserGetArticleList(c *gin.Context) {
 // 该接口对所有访客完全开放，不做任何 cookie / 浏览器指纹校验，
 // SSR、curl、搜索引擎爬虫均可直接访问，便于 SEO 与服务端渲染场景。
 //
-// 浏览量去重逻辑保留：cookie 中已有 session_id 的访客复用该值作为锁 key，
-// 匿名访客统一走一把全局锁（避免接口被无限刷）。
+// 浏览量统计已迁移至独立打点接口 POST /user/article/view-log/:id，本接口不再 +1。
 func (a *articleHandler) UserGetArticleDetail(c *gin.Context) {
 	ctx := c.Request.Context()
 	request := new(types.UserGetArticleDetailRequest)
@@ -58,15 +43,6 @@ func (a *articleHandler) UserGetArticleDetail(c *gin.Context) {
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}
-
-	session := sessions.Default(c)
-	userID := ""
-	if sid := session.Get("session_id"); sid != nil {
-		if s, ok := sid.(string); ok {
-			userID = s
-		}
-	}
-	request.UserID = userID
 
 	response, err := a.service.UserGetArticleDetail(ctx, request) // ignore_security_alert // ignore_security_alert // ignore_security_alert
 	if err != nil {

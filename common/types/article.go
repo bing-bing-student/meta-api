@@ -94,8 +94,7 @@ type UserGetHotArticleResponse struct {
 }
 
 type UserGetArticleDetailRequest struct {
-	UserID string `json:"-"`
-	ID     string `form:"id" binding:"required,lte=19"`
+	ID string `form:"id" binding:"required,lte=19"`
 }
 
 type UserGetArticleDetailResponse struct {

@@ -3,8 +3,6 @@ package router
 import (
 	"time"
 
-	"github.com/gin-contrib/sessions"
-	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/dig"
 	"go.uber.org/zap"
@@ -13,9 +11,9 @@ import (
 	"meta-api/app/handler/article"
 	"meta-api/app/handler/link"
 	"meta-api/app/handler/tag"
+	"meta-api/app/handler/viewlog"
 	"meta-api/bootstrap"
 	"meta-api/common/middlewares"
-	"meta-api/common/utils"
 )
 
 // SetUpRouter 启动路由
@@ -62,6 +60,13 @@ func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) *gin.Engine 
 		return nil
 	}
 
+	// 获取 viewLogHandler 实例
+	var viewLogHandler viewlog.Handler
+	if err := container.Invoke(func(h viewlog.Handler) { viewLogHandler = h }); err != nil {
+		logger.Error("failed to get view-log handler", zap.Error(err))
+		return nil
+	}
+
 	// 后台管理路由(不需要JWT验证)
 	adminGroup := r.Group("/admin")
 	{
@@ -100,10 +105,7 @@ func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) *gin.Engine 
 
 	// 前台展示
 	r.POST("fingerprint/decrypt", adminHandler.FingerprintDecrypt)
-	authorizationKey, _ := utils.GenerateRandomBytes(32)
-	encryptionKey, _ := utils.GenerateRandomBytes(16)
 	userGroup := r.Group("/user")
-	userGroup.Use(sessions.Sessions("session_id", cookie.NewStore(authorizationKey, encryptionKey)))
 	{
 		// 文章相关
 		userGroup.GET("/article/list", articleHandler.UserGetArticleList)
@@ -111,6 +113,7 @@ func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) *gin.Engine 
 		userGroup.GET("/article/hot", articleHandler.UserGetHotArticle)
 		userGroup.GET("/article/detail", articleHandler.UserGetArticleDetail)
 		userGroup.GET("/article/timeline", articleHandler.UserGetTimeline)
+		userGroup.POST("/article/view-log/:id", viewLogHandler.PostViewLog)
 
 		// 标签相关
 		userGroup.GET("/tag/list", tagHandler.UserGetTagList)

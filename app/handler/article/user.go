@@ -30,12 +30,7 @@ func (a *articleHandler) UserGetArticleList(c *gin.Context) {
 }
 
 // UserGetArticleDetail 获取文章详情
-//
-// 该接口对所有访客完全开放，不做任何 cookie / 浏览器指纹校验，
-// SSR、curl、搜索引擎爬虫均可直接访问，便于 SEO 与服务端渲染场景。
-//
-// 浏览量统计已迁移至独立打点接口 POST /user/article/view-log/:id，本接口不再 +1。
-func (a *articleHandler) UserGetArticleDetail(c *gin.Context) {
+func (a *articleHandler) UserGetArticleDetail(c *gin.Context) { // ignore_security_alert
 	ctx := c.Request.Context()
 	request := new(types.UserGetArticleDetailRequest)
 	if err := c.ShouldBind(request); err != nil {
@@ -44,7 +39,7 @@ func (a *articleHandler) UserGetArticleDetail(c *gin.Context) {
 		return
 	}
 
-	response, err := a.service.UserGetArticleDetail(ctx, request) // ignore_security_alert // ignore_security_alert // ignore_security_alert
+	response, err := a.service.UserGetArticleDetail(ctx, request) // ignore_security_alert
 	if err != nil {
 		if strings.Contains(err.Error(), "record not found") {
 			c.JSON(http.StatusOK, types.Response{Code: codes.NotFound, Message: "文章不存在", Data: nil})

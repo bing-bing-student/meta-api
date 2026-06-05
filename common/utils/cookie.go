@@ -34,18 +34,29 @@ func isProd() bool {
 // SetAuthCookies 登录/刷新成功时下发 access_token 和 refresh_token 两个 HttpOnly Cookie
 func SetAuthCookies(c *gin.Context, accessToken, refreshToken string) {
 	secure := isProd()
+	sameSite := sameSiteMode()
 	// gin 的 SetCookie 第 6 个参数 secure、第 7 个 httpOnly；SameSite 需用 SetSameSite 设置
-	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetSameSite(sameSite)
 	c.SetCookie(AccessTokenCookie, accessToken, accessCookieMaxAge, accessCookiePath, "", secure, true)
-	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetSameSite(sameSite)
 	c.SetCookie(RefreshTokenCookie, refreshToken, refreshCookieMaxAge, refreshCookiePath, "", secure, true)
 }
 
 // ClearAuthCookies 登出/刷新失败时清除两个 Cookie，Path 必须与下发时一致，否则无法删除
 func ClearAuthCookies(c *gin.Context) {
 	secure := isProd()
-	c.SetSameSite(http.SameSiteStrictMode)
+	sameSite := sameSiteMode()
+	c.SetSameSite(sameSite)
 	c.SetCookie(AccessTokenCookie, "", -1, accessCookiePath, "", secure, true)
-	c.SetSameSite(http.SameSiteStrictMode)
+	c.SetSameSite(sameSite)
 	c.SetCookie(RefreshTokenCookie, "", -1, refreshCookiePath, "", secure, true)
+}
+
+// sameSiteMode 生产用 Strict（最强 CSRF 防护），本地 HTTP 调试用 Lax 兜底，
+// 避免在跨端口反代、HTTP localhost 等边界场景下 Cookie 被浏览器拦截。
+func sameSiteMode() http.SameSite {
+	if isProd() {
+		return http.SameSiteStrictMode
+	}
+	return http.SameSiteLaxMode
 }

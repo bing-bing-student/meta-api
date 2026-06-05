@@ -25,8 +25,8 @@ func (a *adminService) GenerateToken(userClaims *types.UserClaims) (*types.Token
 	tokenDetails := &types.TokenDetails{}
 	mySigningKey := []byte(os.Getenv("JWT_SIGNING_KEY"))
 
-	// 访问令牌1小时后过期
-	tokenDetails.AtExpires = time.Now().Add(time.Hour * 1).Unix()
+	// 访问令牌15分钟后过期
+	tokenDetails.AtExpires = time.Now().Add(time.Minute * 15).Unix()
 	tokenDetails.AccessUUID = uuid.New().String()
 
 	// 创建访问令牌的声明

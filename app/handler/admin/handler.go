@@ -9,6 +9,7 @@ import (
 
 type Handler interface {
 	RefreshToken(c *gin.Context)
+	Logout(c *gin.Context)
 	SendSMSCode(c *gin.Context)
 	SMSCodeLogin(c *gin.Context)
 	AccountLogin(c *gin.Context)

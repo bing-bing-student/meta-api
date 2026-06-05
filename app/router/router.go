@@ -71,6 +71,7 @@ func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) *gin.Engine 
 	adminGroup := r.Group("/admin")
 	{
 		adminGroup.POST("/refresh-token", adminHandler.RefreshToken)            // 刷新RefreshToken
+		adminGroup.POST("/logout", adminHandler.Logout)                        // 登出，清除Cookie
 		adminGroup.POST("/sms-code", adminHandler.SendSMSCode)                  // 发送短信验证码
 		adminGroup.POST("/account-login", adminHandler.AccountLogin)            // 账号密码登录
 		adminGroup.POST("/bind-dynamic-code", adminHandler.BindDynamicCode)     // 绑定TOTP动态码

@@ -1,10 +1,8 @@
 package admin
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -16,8 +14,9 @@ import (
 
 // RefreshToken 刷新RefreshToken
 func (a *adminHandler) RefreshToken(c *gin.Context) {
-	refreshToken := strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer ")
-	if refreshToken == "" {
+	// 从 Cookie 读取 refresh_token，不再从 Authorization 头读取
+	refreshToken, err := c.Cookie(utils.RefreshTokenCookie)
+	if err != nil || refreshToken == "" {
 		c.JSON(http.StatusOK, types.Response{Code: codes.Unauthorized, Message: "需要授权令牌", Data: nil})
 		return
 	}
@@ -26,35 +25,30 @@ func (a *adminHandler) RefreshToken(c *gin.Context) {
 	userClaims, err := utils.ParseToken(refreshToken)
 	if err != nil {
 		a.logger.Error("parse refreshToken failed", zap.Error(err))
-		codeInfo := 0
-		messageInfo := ""
-		if errors.Is(err, errors.New("TokenExpired")) {
-			codeInfo = codes.TokenExpired
-			messageInfo = "Token已过期"
-		} else {
-			codeInfo = codes.AuthFailed // 4011: Token 无效
-			messageInfo = "无效的Token"
-		}
-
-		c.JSON(http.StatusOK, types.Response{Code: codeInfo, Message: messageInfo, Data: nil})
+		// refresh token 无效 / 过期，清除 Cookie 并返回 4010，前端跳转登录页
+		utils.ClearAuthCookies(c)
+		c.JSON(http.StatusOK, types.Response{Code: codes.Unauthorized, Message: "无效的Token", Data: nil})
 		return
 	}
 
-	// 生成新访问令牌和刷新令牌
+	// 生成新访问令牌和刷新令牌（滚动刷新）
 	doubleToken, err := a.service.GenerateToken(userClaims)
 	if err != nil {
 		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "生成Token失败", Data: nil})
 		return
 	}
 
-	// 返回新生成的访问令牌和刷新令牌
+	// 通过 Set-Cookie 下发新的 access_token 和 refresh_token，响应体不再返回 token
+	utils.SetAuthCookies(c, doubleToken.AccessToken, doubleToken.RefreshToken)
 	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "",
-		Data: map[string]string{
-			"userID":       userClaims.UserID,
-			"accessToken":  doubleToken.AccessToken,
-			"refreshToken": doubleToken.RefreshToken,
-		},
+		Data: map[string]string{"userID": userClaims.UserID},
 	})
+}
+
+// Logout 登出，清除 access_token 和 refresh_token Cookie
+func (a *adminHandler) Logout(c *gin.Context) {
+	utils.ClearAuthCookies(c)
+	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: nil})
 }
 
 // SendSMSCode 发送短信验证码
@@ -128,8 +122,11 @@ func (a *adminHandler) BindDynamicCode(c *gin.Context) {
 	response, err := a.service.BindDynamicCode(ctx, request)
 	if err != nil {
 		c.JSON(http.StatusOK, types.Response{Code: codes.AuthFailed, Message: err.Error(), Data: nil})
+		return
 	}
 
+	// 最终登录成功，通过 Set-Cookie 下发 token
+	utils.SetAuthCookies(c, response.AccessToken, response.RefreshToken)
 	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: response})
 }
 
@@ -149,6 +146,8 @@ func (a *adminHandler) VerifyDynamicCode(c *gin.Context) {
 		return
 	}
 
+	// 最终登录成功，通过 Set-Cookie 下发 token
+	utils.SetAuthCookies(c, response.AccessToken, response.RefreshToken)
 	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: response})
 }
 

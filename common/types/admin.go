@@ -53,9 +53,10 @@ type BindDynamicCodeRequest struct {
 }
 
 type BindDynamicCodeResponse struct {
-	UserID       string `json:"userID"`
-	AccessToken  string `json:"accessToken"`
-	RefreshToken string `json:"refreshToken"`
+	UserID string `json:"userID"`
+	// token 改由 Set-Cookie 下发，不再序列化进响应体 data
+	AccessToken  string `json:"-"`
+	RefreshToken string `json:"-"`
 }
 
 // VerifyDynamicCodeRequest 验证动态码请求
@@ -65,9 +66,10 @@ type VerifyDynamicCodeRequest struct {
 }
 
 type VerifyDynamicCodeResponse struct {
-	UserID       string `json:"userID"`
-	AccessToken  string `json:"accessToken"`
-	RefreshToken string `json:"refreshToken"`
+	UserID string `json:"userID"`
+	// token 改由 Set-Cookie 下发，不再序列化进响应体 data
+	AccessToken  string `json:"-"`
+	RefreshToken string `json:"-"`
 }
 
 // UpdateAboutMeRequest 修改关于我请求

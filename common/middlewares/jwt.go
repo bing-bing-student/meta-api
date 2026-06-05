@@ -14,9 +14,9 @@ import (
 // JWT 定义中间件, 进行用户权限校验
 func JWT() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var err error
-		token := c.GetHeader("Authorization")
-		if token == "" {
+		// 从 Cookie 读取 access_token，不再从 Authorization 头读取
+		token, err := c.Cookie(utils.AccessTokenCookie)
+		if err != nil || token == "" {
 			c.JSON(http.StatusOK, types.Response{
 				Code:    codes.Unauthorized,
 				Message: "需要授权令牌",
@@ -25,14 +25,11 @@ func JWT() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		// 去掉Bearer前缀
-		token = strings.TrimPrefix(token, "Bearer ")
-		if token != "" {
-			if _, err = utils.ParseToken(token); err == nil {
-				c.Next()
-				return
-			} else if strings.Contains(err.Error(), "TokenExpired") {
-				// 返回过期的业务状态码, 让前端去拿RefreshToken过来, 去请求/refresh-token接口
+
+		claims, err := utils.ParseToken(token)
+		if err != nil {
+			if strings.Contains(err.Error(), "TokenExpired") {
+				// 过期但格式合法 -> 4012，让前端去 /refresh-token 接口刷新
 				c.JSON(http.StatusOK, types.Response{
 					Code:    codes.TokenExpired,
 					Message: "Token已过期",
@@ -42,15 +39,17 @@ func JWT() gin.HandlerFunc {
 				return
 			}
 
-			// AssetToken解析失败
+			// 格式非法 / 签名错误等无效情形 -> 4010
 			c.JSON(http.StatusOK, types.Response{
-				Code:    codes.AuthFailed,
+				Code:    codes.Unauthorized,
 				Message: "无效的Token",
 				Data:    nil,
 			})
 			c.Abort()
 			return
 		}
-		return
+
+		c.Set("userID", claims.UserID)
+		c.Next()
 	}
 }

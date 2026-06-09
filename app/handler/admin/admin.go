@@ -77,6 +77,7 @@ func (a *adminHandler) SMSCodeLogin(c *gin.Context) {
 	if err := c.ShouldBind(request); err != nil {
 		a.logger.Error("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
+		return
 	}
 
 	response, err := a.service.SMSCodeLogin(ctx, request)
@@ -138,6 +139,7 @@ func (a *adminHandler) VerifyDynamicCode(c *gin.Context) {
 	if err := c.ShouldBind(request); err != nil {
 		a.logger.Error("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: err.Error(), Data: nil})
+		return
 	}
 
 	response, err := a.service.VerifyDynamicCode(ctx, request)

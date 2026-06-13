@@ -1,129 +1,101 @@
-// Package viewlog 实现文章浏览量打点接口的业务编排。
+// Package viewlog 实现文章浏览量打点的业务编排（新链路）。
 //
-//  1. RSA 解密 token，校验字段绑定 / 时间窗口 / nonce 防重放
-//  2. 四层风控漏斗：L1 黑名单 → L2 可信度评分 → L3 去重&频控 → L4 审计日志
-//  3. 通过后执行计数：Redis ZINCRBY ArticleViewZSet + HINCRBY ArticleHash.viewNum
-//  4. 不论是否 +1，统一返回 204（429 频控除外，方便前端重试）
+// 职责：
+//  1. EnsureArticleExists：MySQL 校验 articleId 是否真实存在
+//  2. Increment：Redis HINCRBY + ZINCRBY 完成 +1
+//
+// MySQL 由后台 cron PersistViewCount 周期性把 ZSet 里的增量回写。
 //
 // 文件分布：
 //
-//	service.go —— Service 接口 + impl 入口 + DI 构造
-//	token.go   —— RSA 解密 + JSON 解析 + 字段校验 + nonce SETNX
-//	risk.go    —— L1/L2/L3 风控判定
+//	service.go —— Service 接口 + impl + DI 构造 + 文章存在性校验
 //	counter.go —— 计数（Redis HINCRBY + ZINCRBY）
-//	audit.go   —— 同步 zap 审计日志
-//	types.go   —— 请求 / 明文 / Outcome / 评分常量 / 拒因常量
+//	types.go   —— Outcome 结构与业务码
 package viewlog
 
 import (
 	"context"
-	"time"
+	"fmt"
+	"strings"
 
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
 	articleModel "meta-api/app/model/article"
-	"meta-api/pkg/keymanager"
 )
 
-// dedupTTL (fp, articleId) 去重窗口
-const dedupTTL = time.Minute
-
-// uaBlacklist UA 黑名单（小写子串），匹配时对入参 UA 做 strings.ToLower 后子串包含判定。
-var uaBlacklist = []string{
-	"bot", "spider", "crawl", "slurp",
-	"googlebot", "baiduspider", "bingbot", "yandexbot", "duckduckbot",
-	"headless", "phantomjs",
-	"curl", "wget", "python-requests", "go-http-client",
-}
-
-// Service 浏览量打点服务接口。
+// Service 浏览量打点服务接口。专供新链路（guard.Engine）调用 EnsureArticleExists / Increment。
 type Service interface {
-	// PostViewLog 处理一次打点请求，返回 HTTP 层应使用的 Outcome。
-	// 错误返回非 nil 表示出现意外异常（应映射为 500），业务拒绝走 Outcome 字段。
-	PostViewLog(ctx context.Context, req *PostViewLogRequest) (*Outcome, error)
+	// EnsureArticleExists 文章存在性校验。
+	//
+	// 返回 nil 表示存在，可继续 +1；返回 *Outcome 表示需要按对应 HTTP 状态返回。
+	EnsureArticleExists(ctx context.Context, articleID string) *Outcome
+
+	// Increment 执行计数 +1（HINCRBY + ZINCRBY，与原内部 increment 行为一致）。
+	//
+	// 对失败仅打日志，调用方无需感知错误（避免响应差异成为攻击信号）。
+	Increment(ctx context.Context, articleID string)
 }
 
 // viewLogService 浏览量打点服务实现。
 type viewLogService struct {
 	logger       *zap.Logger
 	redis        *redis.Client
-	keyManager   *keymanager.Manager
 	articleModel articleModel.Model
 }
 
 // NewService 构造打点服务实例。
-func NewService(logger *zap.Logger, rdb *redis.Client,
-	km *keymanager.Manager, am articleModel.Model) Service {
-
+func NewService(logger *zap.Logger, rdb *redis.Client, am articleModel.Model) Service {
 	return &viewLogService{
 		logger:       logger,
 		redis:        rdb,
-		keyManager:   km,
 		articleModel: am,
 	}
 }
 
-// PostViewLog 整体编排：token 校验 → 风控 → 计数 → 审计日志。
-//
-// 任一阶段判定为拒：填充 Outcome 后立即写审计日志返回，不进入下一阶段。
-// 通过所有阶段：执行计数，写一条 accepted 日志，返回 204。
-func (s *viewLogService) PostViewLog(ctx context.Context, req *PostViewLogRequest) (*Outcome, error) {
-	serverNowMs := nowMillis()
-
-	// 1. Token 解密与校验
-	payload, outcome := s.verifyToken(ctx, req)
-	if outcome != nil {
-		s.audit(req, payload, decisionRejected, outcome.Reason, scoreStart, serverNowMs)
-		return outcome.Result, nil
+// EnsureArticleExists 校验 articleId 在 MySQL 中真实存在。
+// 不存在 → 404；其它 DB 错误 → 500。
+func (s *viewLogService) EnsureArticleExists(ctx context.Context, articleIDStr string) *Outcome {
+	id, err := parseArticleID(articleIDStr)
+	if err != nil {
+		return &Outcome{HTTPStatus: 404, Code: codeNotFound, Message: "article not found"}
 	}
-
-	// 2. 文章存在性校验（404 与 token invalid 区分开）
-	if outcome := s.ensureArticleExists(ctx, payload.ArticleID); outcome != nil {
-		s.audit(req, payload, decisionRejected, outcome.Reason, scoreStart, serverNowMs)
-		return outcome.Result, nil
+	if _, err = s.articleModel.GetArticleDetailByID(ctx, id); err != nil {
+		// 与现有代码一致：MySQL 未命中既可能是 sql.ErrNoRows，也可能 GORM 返回字符串 "record not found"
+		if isNotFoundErr(err) {
+			return &Outcome{HTTPStatus: 404, Code: codeNotFound, Message: "article not found"}
+		}
+		s.logger.Error("view-log article exists check failed",
+			zap.String("article_id", articleIDStr), zap.Error(err))
+		return &Outcome{HTTPStatus: 500, Code: codeInternalError, Message: "internal error"}
 	}
-
-	// 3. L1 硬规则黑名单
-	if outcome := s.checkL1(ctx, req); outcome != nil {
-		s.audit(req, payload, decisionRejected, outcome.Reason, scoreStart, serverNowMs)
-		return outcome.Result, nil
-	}
-
-	// 4. L2 可信度评分（含 referer 直接拒）
-	score, outcome := s.checkL2(req, payload, serverNowMs)
-	if outcome != nil {
-		s.audit(req, payload, decisionRejected, outcome.Reason, score, serverNowMs)
-		return outcome.Result, nil
-	}
-
-	// 5. L3 去重 + 频控
-	if outcome := s.checkL3(ctx, req, payload); outcome != nil {
-		s.audit(req, payload, decisionRejected, outcome.Reason, score, serverNowMs)
-		return outcome.Result, nil
-	}
-
-	// 6. 计数：失败仅打日志，不影响响应（避免攻击者通过响应差异探测）
-	s.increment(ctx, payload.ArticleID)
-
-	// 7. 审计日志
-	s.audit(req, payload, decisionAccepted, "", score, serverNowMs)
-
-	return &Outcome{HTTPStatus: 204}, nil
+	return nil
 }
 
-// rejectOutcome 内部辅助类型：携带 HTTP Outcome + 审计 reason。
-type rejectOutcome struct {
-	Result *Outcome
-	Reason string
+// parseArticleID 字符串雪花 ID → uint64，与现有 idutil.ParseID 保持同样的 0 拒绝语义。
+// 这里独立实现避免对 idutil 包产生反向依赖（idutil 不依赖 viewlog）。
+func parseArticleID(s string) (uint64, error) {
+	var id uint64
+	if s == "" {
+		return 0, fmt.Errorf("empty id")
+	}
+	for _, ch := range s {
+		if ch < '0' || ch > '9' {
+			return 0, fmt.Errorf("invalid id")
+		}
+		id = id*10 + uint64(ch-'0')
+	}
+	if id == 0 {
+		return 0, fmt.Errorf("zero id")
+	}
+	return id, nil
 }
 
-// nowMillis 当前服务端时间（毫秒）。提取出来便于测试时可替换。
-var nowMillis = func() int64 {
-	return timeNow().UnixMilli()
-}
-
-// secondsToDuration 秒整数 → time.Duration，避免在调用处反复乘 time.Second。
-func secondsToDuration(s int) time.Duration {
-	return time.Duration(s) * time.Second
+// isNotFoundErr GORM v2 record not found 判定。
+func isNotFoundErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	// 与 service/article/user.go 中现有判定保持一致
+	return strings.Contains(err.Error(), "record not found")
 }

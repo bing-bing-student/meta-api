@@ -6,7 +6,6 @@ import "time"
 const (
 	nsArticle = "article"
 
-	// ZSet 排序维度（也是请求参数 request.Order 的合法值）
 	OrderTime = "time"
 	OrderView = "view"
 )

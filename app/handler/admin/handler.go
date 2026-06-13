@@ -15,7 +15,6 @@ type Handler interface {
 	AccountLogin(c *gin.Context)
 	BindDynamicCode(c *gin.Context)
 	VerifyDynamicCode(c *gin.Context)
-	FingerprintDecrypt(c *gin.Context)
 
 	AdminUpdateAboutMe(c *gin.Context)
 	UserGetAboutMe(c *gin.Context)

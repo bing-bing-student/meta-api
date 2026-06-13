@@ -38,7 +38,7 @@ func (t *tagService) UserGetTagList(ctx context.Context) (*types.UserGetTagListR
 				})
 			}
 
-			// 批量写入Redis
+			// 批量写入 Redis
 			if err = t.redis.ZAdd(ctx, key, zAddArgs...).Err(); err != nil {
 				t.logger.Error("failed to write tag:articleNum:ZSet", zap.Error(err))
 				return nil, fmt.Errorf("failed to write tag:articleNum:ZSet, err: %w", err)
@@ -80,7 +80,7 @@ func (t *tagService) UserGetArticleListByTag(ctx context.Context,
 		t.logger.Error("failed to get article:ZSet", zap.Error(err))
 		return nil, fmt.Errorf("failed to get article:ZSet: %w", err)
 	}
-	// 如果Redis中没有这个有序集合
+	// 如果 Redis 中没有这个有序集合
 	if len(articleIDList) == 0 {
 		articleList, err := t.tagModel.GetArticleListByTagName(ctx, request.TagName)
 		if err != nil {
@@ -108,7 +108,7 @@ func (t *tagService) UserGetArticleListByTag(ctx context.Context,
 		}
 	}
 
-	// 获取Redis当中的文章Hash数据
+	// 获取 Redis 当中的文章Hash数据
 	fields := []string{"title", "describe", "viewNum", "createTime"}
 	for _, articleID := range articleIDList {
 		articleItem := types.UserGetArticleItem{}

@@ -10,6 +10,7 @@ import (
 	"meta-api/app/handler/admin"
 	"meta-api/app/handler/article"
 	"meta-api/app/handler/link"
+	"meta-api/app/handler/share"
 	"meta-api/app/handler/tag"
 	"meta-api/app/handler/viewlog"
 	"meta-api/bootstrap"
@@ -68,15 +69,22 @@ func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) *gin.Engine 
 		return nil
 	}
 
+	// 获取 shareHandler 实例
+	var shareHandler share.Handler
+	if err := container.Invoke(func(h share.Handler) { shareHandler = h }); err != nil {
+		logger.Error("failed to get share handler", zap.Error(err))
+		return nil
+	}
+
 	// 后台管理路由(不需要JWT验证)
 	adminGroup := r.Group("/admin")
 	{
-		adminGroup.POST("/refresh-token", adminHandler.RefreshToken)            // 刷新RefreshToken
+		adminGroup.POST("/refresh-token", adminHandler.RefreshToken)            // 刷新 RefreshToken
 		adminGroup.POST("/logout", adminHandler.Logout)                         // 登出，清除Cookie
 		adminGroup.POST("/sms-code", adminHandler.SendSMSCode)                  // 发送短信验证码
 		adminGroup.POST("/account-login", adminHandler.AccountLogin)            // 账号密码登录
-		adminGroup.POST("/bind-dynamic-code", adminHandler.BindDynamicCode)     // 绑定TOTP动态码
-		adminGroup.POST("/verify-dynamic-code", adminHandler.VerifyDynamicCode) // 验证TOTP动态码
+		adminGroup.POST("/bind-dynamic-code", adminHandler.BindDynamicCode)     // 绑定 TOTP 动态码
+		adminGroup.POST("/verify-dynamic-code", adminHandler.VerifyDynamicCode) // 验证 TOTP 动态码
 	}
 
 	// 后台管理路由(需要JWT验证)
@@ -106,7 +114,6 @@ func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) *gin.Engine 
 	}
 
 	// 前台展示
-	r.POST("fingerprint/decrypt", adminHandler.FingerprintDecrypt)
 	userGroup := r.Group("/user")
 	{
 		// 文章相关
@@ -126,6 +133,11 @@ func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) *gin.Engine 
 
 		// 管理员相关
 		userGroup.GET("/about-me", adminHandler.UserGetAboutMe)
+
+		// 分享风控守卫（v1）：浏览器→precheck（信封风控签发 token）；
+		// Nuxt SSR→consume（一次性消费 token，拿到 fingerprint 继续走文件存储）
+		userGroup.POST("/share/precheck", shareHandler.Precheck)
+		userGroup.POST("/share/consume", shareHandler.Consume)
 	}
 
 	return r

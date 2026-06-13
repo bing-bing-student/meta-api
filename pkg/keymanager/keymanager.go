@@ -1,27 +1,8 @@
-// Package keymanager 负责管理用于浏览量打点接口的 RSA 私钥，并支持 fsnotify 热更新。
-//
-// 设计原则：
-//   - 私钥仅在进程启动时与文件变更时加载，解密路径只走内存，避免每次请求 IO + parse；
-//   - 同时持有 current + previous 两套私钥，覆盖宿主机 cron 轮换瞬间的兼容窗口；
-//   - 永不向上抛错：fsnotify watcher 异常仅打 Warn 日志，不影响业务请求；
-//   - 永不影响本地开发：当 keys 目录或 current 文件缺失时退化为 noop，所有 Decrypt 失败返回 ErrNotReady。
-//
-// 与生产部署对齐：
-//
-//	生成脚本 /root/blog-website/keys/generate_keys.sh 行为是
-//	"先 mv 旧 private_key.pem → private_key.pem.prev，再 openssl genpkey 写入新 private_key.pem"。
-//	因为 mv 会改变 inode，所以 watcher 监听的是 keys 目录而不是具体文件。
-//	进程内 reload 不读 .prev：旧的 current 引用直接降级为 previous，新文件 parse 后成为 current。
-//
-// 文件分布：
-//
-//	keymanager.go —— Package doc + Manager 结构 + Decrypt 业务入口 + 错误定义
-//	manager.go    —— New 构造 + 文件加载 + fsnotify 监听 goroutine + debounce 重新加载
 package keymanager
 
 import (
-	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"errors"
 	"sync"
 
@@ -30,13 +11,13 @@ import (
 
 // ErrNotReady 表示 KeyManager 未加载到任何可用私钥（本地缺文件 / 启动失败）。
 // 调用方收到此错误时应按 token 解密失败处理（返回 400）。
-var ErrNotReady = errors.New("keymanager: no private key loaded")
+var ErrNotReady = errors.New("keyManager: no private key loaded")
 
 // Manager 持有当前与上一轮 RSA 私钥，并在后台监听 keys 目录变更触发热更新。
 //
 // 实例由 DI 容器单例化构造。所有方法对并发安全。
 // 当任一关键参数缺失或 fsnotify 初始化失败时，Manager 仍可构造，
-// 但 Decrypt 会一直返回 ErrNotReady，便于本地开发不依赖密钥文件。
+// 但 DecryptOAEP 会一直返回 ErrNotReady，便于本地开发不依赖密钥文件。
 type Manager struct {
 	mu       sync.RWMutex
 	current  *rsa.PrivateKey
@@ -47,11 +28,16 @@ type Manager struct {
 	debounce sync.Mutex // 串行化 reload 调用，避免并发 parse
 }
 
-// Decrypt 用 current 私钥尝试 PKCS#1 v1.5 解密，失败时回退到 previous（如果存在）。
+// DecryptOAEP 用 current 私钥尝试 RSA-OAEP(SHA-256) 解密，失败时回退到 previous（如果存在）。
 //
-// 入参为 RSA 密文原始字节（调用方负责 base64 解码）。
-// 返回值为解密后的明文 JSON 字节，调用方继续 Unmarshal。
-func (m *Manager) Decrypt(ciphertext []byte) ([]byte, error) {
+// 与前端 Rust `Oaep::new::<Sha256>()` 协议对齐：
+//   - hash 算法：SHA-256（OAEP 内部用作 MGF1 与 label hash）
+//   - label：固定为 nil（前端 wasm 端也未传 label）
+//   - random：传 nil；OAEP 解密路径不需要随机数（仅加密路径用），nil 比传 rand.Reader 更清晰
+//
+// 入参为 RSA 密文原始字节（调用方负责 base64 / hex 解码）。
+// 返回值为解密后的明文字节，调用方继续 Unmarshal / 解 TLV。
+func (m *Manager) DecryptOAEP(ciphertext []byte) ([]byte, error) {
 	m.mu.RLock()
 	cur, prev := m.current, m.previous
 	m.mu.RUnlock()
@@ -60,14 +46,26 @@ func (m *Manager) Decrypt(ciphertext []byte) ([]byte, error) {
 		return nil, ErrNotReady
 	}
 
-	plaintext, err := rsa.DecryptPKCS1v15(rand.Reader, cur, ciphertext)
+	// 注意：每次 RSA-OAEP 调用都需要全新的 hash 实例，因为 stdlib 内部会消费它。
+	plaintext, err := rsa.DecryptOAEP(sha256.New(), nil, cur, ciphertext, nil)
 	if err == nil {
 		return plaintext, nil
 	}
 	if prev != nil {
-		if pt, err2 := rsa.DecryptPKCS1v15(rand.Reader, prev, ciphertext); err2 == nil {
+		if pt, err2 := rsa.DecryptOAEP(sha256.New(), nil, prev, ciphertext, nil); err2 == nil {
 			return pt, nil
 		}
 	}
 	return nil, err
+}
+
+// NewForTest 用现成的 RSA 私钥构造一个不依赖文件 IO / fsnotify 的 Manager。
+//
+// 仅用于测试场景：guard 包的 roundtrip 互通测试需要把动态生成的 RSA 密钥
+// 注入 engine（engine.km 字段类型为 *keymanager.Manager 不是 interface），
+// 不便引入 mock。这里提供一个轻量构造，logger 允许 nil（给业务环境用）。
+//
+// 生产代码必须使用 New()。
+func NewForTest(cur *rsa.PrivateKey) *Manager {
+	return &Manager{current: cur}
 }

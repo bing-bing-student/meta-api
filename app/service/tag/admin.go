@@ -38,7 +38,7 @@ func (t *tagService) AdminGetTagList(ctx context.Context) (*types.AdminGetTagLis
 				})
 			}
 
-			// 批量写入Redis
+			// 批量写入 Redis
 			if err = t.redis.ZAdd(ctx, key, zAddArgs...).Err(); err != nil {
 				t.logger.Error("failed to write tag:articleNum:ZSet", zap.Error(err))
 				return nil, fmt.Errorf("failed to write tag:articleNum:ZSet, err: %w", err)
@@ -79,9 +79,9 @@ func (t *tagService) AdminGetArticleListByTag(ctx context.Context,
 		t.logger.Error("failed to get article:ZSet", zap.Error(err))
 		return nil, err
 	}
-	// 如果Redis中没有这个有序集合
+	// 如果 Redis 中没有这个有序集合
 	if len(articleIDList) == 0 {
-		// 查询MySQL
+		// 查询 MySQL
 		articleList, err := t.tagModel.GetArticleListByTagName(ctx, request.TagName)
 		if err != nil {
 			t.logger.Error("failed to get tagIDArticleZSet", zap.Error(err))
@@ -91,7 +91,7 @@ func (t *tagService) AdminGetArticleListByTag(ctx context.Context,
 			t.logger.Error("not found tagName", zap.Error(err))
 			return nil, fmt.Errorf("not found tagName")
 		}
-		// 写入Redis
+		// 写入 Redis
 		for _, v := range articleList {
 			if err = t.redis.ZAdd(ctx, key, redis.Z{
 				Score:  cachekey.ArticleTimeScore(v.CreateTime),
@@ -109,12 +109,12 @@ func (t *tagService) AdminGetArticleListByTag(ctx context.Context,
 		}
 	}
 
-	// 获取Redis当中的文章Hash数据
+	// 获取 Redis 当中的文章Hash数据
 	fields := []string{"title", "viewNum", "createTime", "updateTime"}
 	for _, articleID := range articleIDList {
 		articleItem := types.AdminGetArticleListByTagItem{}
 
-		// 如果Redis中没有这个文章Hash数据
+		// 如果 Redis 中没有这个文章Hash数据
 		if exists := t.redis.Exists(ctx, cachekey.ArticleHash(articleID).String()).Val(); exists == 0 {
 			id, err := idutil.ParseID("articleID", articleID)
 			if err != nil {
@@ -193,13 +193,13 @@ func (t *tagService) AdminUpdateTag(ctx context.Context, request *types.AdminUpd
 		}
 	}
 
-	// 更新文章表中的标签ID
+	// 更新文章表中的标签 ID
 	if err = t.articleModel.UpdateArticleTagID(ctx, request.ArticleIDList, tagInfo.ID); err != nil {
 		t.logger.Error("failed to update article list tag", zap.Error(err))
 		return fmt.Errorf("failed to update article list tag: %w", err)
 	}
 
-	// 更新标签之前先将缓存当中的浏览量数据写入mysql
+	// 更新标签之前先将缓存当中的浏览量数据写入 mysql
 	for _, articleID := range request.ArticleIDList {
 		viewNum, err := t.redis.ZScore(ctx, cachekey.ArticleViewZSet().String(), articleID).Result()
 		if err != nil {

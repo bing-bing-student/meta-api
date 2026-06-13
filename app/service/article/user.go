@@ -25,7 +25,7 @@ func (a *articleService) UserGetArticleList(ctx context.Context,
 	start := (request.Page - 1) * request.PageSize
 	stop := start + request.PageSize - 1
 
-	// 获取文章ID有序集合
+	// 获取文章 ID 有序集合
 	articleIDZSet, err := a.redis.ZRevRangeWithScores(ctx, cachekey.ArticleTimeZSet().String(), int64(start), int64(stop)).Result()
 	if err != nil {
 		a.logger.Error("failed to get article:time:ZSet", zap.Error(err))
@@ -43,8 +43,8 @@ func (a *articleService) UserGetArticleList(ctx context.Context,
 			fields := []string{"title", "tagName", "describe", "createTime", "updateTime", "viewNum"}
 			result, err := a.redis.HMGet(ctx, hashKey, fields...).Result()
 			if err != nil {
-				a.logger.Error("get article info hmget error", zap.Error(err))
-				return nil, fmt.Errorf("get article info hmget error, err: %w", err)
+				a.logger.Error("get article info HMGet error", zap.Error(err))
+				return nil, fmt.Errorf("get article info HMGet error, err: %w", err)
 			}
 			articleItem.Title = result[0].(string)
 			articleItem.TagName = result[1].(string)
@@ -114,7 +114,7 @@ func (a *articleService) UserGetArticleDetail(ctx context.Context,
 		fields := []string{"title", "tagName", "content", "createTime", "updateTime"}
 		result, err := a.redis.HMGet(ctx, hashKey, fields...).Result()
 		if err != nil {
-			a.logger.Error("get article info hmget error", zap.Error(err))
+			a.logger.Error("get article info HMGet error", zap.Error(err))
 			return nil, err
 		}
 		response.ID = request.ID
@@ -124,7 +124,7 @@ func (a *articleService) UserGetArticleDetail(ctx context.Context,
 		response.CreateTime = result[3].(string)[:10]
 		response.UpdateTime = result[4].(string)[:10]
 	} else {
-		// 查询MySQL
+		// 查询 MySQL
 		id, err := idutil.ParseID("articleID", request.ID)
 		if err != nil {
 			a.logger.Error("invalid article id", zap.Error(err))
@@ -262,7 +262,7 @@ func (a *articleService) UserGetHotArticle(ctx context.Context) (*types.UserGetH
 				return nil, fmt.Errorf("parse int error, err: %w", err)
 			}
 		} else {
-			// 查询MySQL
+			// 查询 MySQL
 			id, err := idutil.ParseID("articleID", articleItem.ID)
 			if err != nil {
 				a.logger.Error("invalid article id", zap.Error(err))
@@ -330,7 +330,7 @@ func (a *articleService) UserGetTimeline(ctx context.Context) (*types.GetTimelin
 			year := articleItem.CreateTime[:4]
 			groupedArticles[year] = append(groupedArticles[year], articleItem)
 		} else {
-			// 查MySQL数据库
+			// 查 MySQL 数据库
 			id, err := idutil.ParseID("articleID", articleID)
 			if err != nil {
 				a.logger.Error("invalid article id", zap.Error(err))

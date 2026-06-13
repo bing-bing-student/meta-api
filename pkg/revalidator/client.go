@@ -35,11 +35,6 @@ type Client struct {
 	logger   *zap.Logger
 }
 
-// New 构造一个 Revalidator 客户端。
-//
-// 与 mysql / redis 的连接信息保持同一风格：endpoint 与 secret 都从环境变量读取，
-// 不写入 config.yml。生产环境通过 docker secrets 落到 /run/secrets/* 后由
-// bootstrap/app.go 的 init() 自动注入到 os.Getenv。
 func New(logger *zap.Logger) *Client {
 	endpoint := os.Getenv(envEndpoint)
 	secret := os.Getenv(envSecret)
@@ -51,7 +46,7 @@ func New(logger *zap.Logger) *Client {
 		logger:   logger,
 	}
 	if !c.enabled() {
-		logger.Warn("revalidator disabled: endpoint or secret missing",
+		logger.Warn("validator disabled: endpoint or secret missing",
 			zap.String("endpoint_env", envEndpoint),
 			zap.Bool("endpoint_loaded", endpoint != ""),
 			zap.String("secret_env", envSecret),

@@ -1,25 +1,3 @@
-// Package edgeone 负责把"文章变更"通知给腾讯云 EdgeOne，让它清除对应的 CDN 缓存。
-//
-// 设计原则：
-//   - 永不阻塞业务主流程：所有 SDK 调用走 goroutine + 超时 context；
-//   - 永不向上抛错：失败只打 Warn 日志，下次回源时缓存自然刷新；
-//   - 永不影响本地开发：当任意必备 env 缺失时退化为 noop；
-//   - 与前端缓存规则对齐：前端在 EdgeOne 侧的缓存 key 规则为
-//     /article-detail/<id>/_payload.json（含 build-hash query），
-//     由于 build-hash 后端不可知，这里采用前缀刷新（purge_prefix + delete）
-//     精确清理 /article-detail/<id>/ 下所有资源。
-//
-// 范围说明：
-//
-//	本包只暴露面向"文章详情"的语义接口；其它路径按当前 EO 缓存规则不会被缓存，
-//	因此也没必要开放调用入口，避免误用浪费每日清理配额。
-//
-// 文件分布：
-//
-//	edgeone.go  —— Package doc + 业务入口 PurgeArticles + SDK 调用
-//	client.go   —— Client 结构、构造与可用性判定（含 env 读取）
-//	types.go    —— 内部使用的类型抽象（便于单测注入 fake）
-//	utils.go    —— 文章 ID → 前缀 URL 的拼接帮手
 package edgeone
 
 import (
@@ -81,22 +59,22 @@ func (c *Client) do(targets []string) {
 
 	resp, err := c.purger.CreatePurgeTaskWithContext(ctx, req)
 	if err != nil {
-		c.logger.Warn("edgeone purge call failed",
+		c.logger.Warn("edgeOne purge call failed",
 			zap.Strings("targets", targets), zap.Error(err))
 		return
 	}
 	if resp == nil || resp.Response == nil {
-		c.logger.Warn("edgeone purge empty response", zap.Strings("targets", targets))
+		c.logger.Warn("edgeOne purge empty response", zap.Strings("targets", targets))
 		return
 	}
 	if len(resp.Response.FailedList) > 0 {
-		c.logger.Warn("edgeone purge partial failed",
+		c.logger.Warn("edgeOne purge partial failed",
 			zap.Strings("targets", targets),
 			zap.Int("failed_count", len(resp.Response.FailedList)),
 			zap.String("request_id", derefString(resp.Response.RequestId)))
 		return
 	}
-	c.logger.Info("edgeone purge ok",
+	c.logger.Info("edgeOne purge ok",
 		zap.Strings("targets", targets),
 		zap.String("job_id", derefString(resp.Response.JobId)),
 		zap.String("request_id", derefString(resp.Response.RequestId)))

@@ -1,7 +1,6 @@
 package admin
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -27,14 +26,14 @@ func (a *adminHandler) RefreshToken(c *gin.Context) {
 		a.logger.Error("parse refreshToken failed", zap.Error(err))
 		// refresh token 无效 / 过期，清除 Cookie 并返回 4010，前端跳转登录页
 		utils.ClearAuthCookies(c)
-		c.JSON(http.StatusOK, types.Response{Code: codes.Unauthorized, Message: "无效的Token", Data: nil})
+		c.JSON(http.StatusOK, types.Response{Code: codes.Unauthorized, Message: "无效的 Token", Data: nil})
 		return
 	}
 
 	// 生成新访问令牌和刷新令牌（滚动刷新）
 	doubleToken, err := a.service.GenerateToken(userClaims)
 	if err != nil {
-		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "生成Token失败", Data: nil})
+		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "生成 Token 失败", Data: nil})
 		return
 	}
 
@@ -151,19 +150,6 @@ func (a *adminHandler) VerifyDynamicCode(c *gin.Context) {
 	// 最终登录成功，通过 Set-Cookie 下发 token
 	utils.SetAuthCookies(c, response.AccessToken, response.RefreshToken)
 	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: response})
-}
-
-// FingerprintDecrypt 校验浏览器指纹
-func (a *adminHandler) FingerprintDecrypt(c *gin.Context) {
-	clientID, effect := utils.CheckClientID(c.GetHeader("x-client-id"))
-	if effect {
-		c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: map[string]string{"xClientID": clientID}})
-		return
-	} else {
-		a.logger.Error("failed to get client id", zap.Error(fmt.Errorf("invalid client id")))
-		c.JSON(http.StatusOK, types.Response{Code: codes.Forbidden, Message: "访问环境异常", Data: nil})
-		return
-	}
 }
 
 // AdminUpdateAboutMe 修改关于我

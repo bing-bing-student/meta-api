@@ -12,10 +12,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// waitFor 在最长 d 时间内轮询 cond，cond 为 true 立即返回 true，超时返回 false。
-//
-// revalidator 的对外 API 是 fire-and-forget，单测里无法直接 wait goroutine，
-// 所以统一在断言路径上用这种轮询的方式确认副作用是否发生。
 func waitFor(d time.Duration, cond func() bool) bool {
 	deadline := time.Now().Add(d)
 	for time.Now().Before(deadline) {
@@ -134,7 +130,7 @@ func TestRevalidateArticles_BuildsExpectedPaths(t *testing.T) {
 	srv, hits, lastSecret, lastBody := startMockNuxt(http.StatusOK)
 	defer srv.Close()
 
-	setEnvs(t, srv.URL, "topsecret")
+	setEnvs(t, srv.URL, "topSecret")
 	c := New(zap.NewNop())
 	// 故意混入一个空串，验证会被静默丢弃
 	c.RevalidateArticles("123", "", "456")
@@ -142,8 +138,8 @@ func TestRevalidateArticles_BuildsExpectedPaths(t *testing.T) {
 	if !waitFor(time.Second, func() bool { return hits.Load() == 1 }) {
 		t.Fatalf("expected 1 hit, got %d", hits.Load())
 	}
-	if got, _ := lastSecret.Load().(string); got != "topsecret" {
-		t.Fatalf("expected secret 'topsecret', got %q", got)
+	if got, _ := lastSecret.Load().(string); got != "topSecret" {
+		t.Fatalf("expected secret 'topSecret', got %q", got)
 	}
 	body, _ := lastBody.Load().(string)
 	parsed := struct {

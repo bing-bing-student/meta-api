@@ -32,7 +32,7 @@ func (a *articleService) AdminGetArticleList(ctx context.Context,
 		a.logger.Error("invalid article order", zap.String("order", request.Order))
 		return response, fmt.Errorf("invalid article order: %s", request.Order)
 	}
-	// 获取文章ID有序集合
+	// 获取文章 ID 有序集合
 	articleIDZSet, err := a.redis.ZRevRangeWithScores(ctx, zSetKey.String(), int64(start), int64(stop)).Result()
 	if err != nil {
 		a.logger.Error("failed to get article:time/view:ZSet", zap.Error(err))
@@ -45,7 +45,7 @@ func (a *articleService) AdminGetArticleList(ctx context.Context,
 		// 获取数据
 		hashKey := cachekey.ArticleHash(articleItem.ID).String()
 		if exist := a.redis.Exists(ctx, hashKey); exist.Val() == 1 {
-			// redis当中存在该数据
+			// redis 当中存在该数据
 			fields := []string{"title", "tagName", "viewNum", "createTime", "updateTime"}
 			result, err := a.redis.HMGet(ctx, hashKey, fields...).Result()
 			if err != nil {
@@ -58,7 +58,7 @@ func (a *articleService) AdminGetArticleList(ctx context.Context,
 			articleItem.CreateTime = result[3].(string)[:16]
 			articleItem.UpdateTime = result[4].(string)[:16]
 		} else {
-			// redis当中不存在该数据
+			// redis 当中不存在该数据
 			articleModel := new(article.Detail)
 			id, err := idutil.ParseID("articleID", z.Member.(string))
 			if err != nil {
@@ -104,11 +104,11 @@ func (a *articleService) AdminGetArticleDetail(ctx context.Context,
 	response := &types.AdminGetArticleDetailResponse{}
 	hashKey := cachekey.ArticleHash(request.ID).String()
 	if exist := a.redis.Exists(ctx, hashKey); exist.Val() == 1 {
-		// redis当中存在该数据
+		// redis 当中存在该数据
 		fields := []string{"id", "title", "tagName", "describe", "content"}
 		result, err := a.redis.HMGet(ctx, hashKey, fields...).Result()
 		if err != nil {
-			a.logger.Error("hmget error", zap.Error(err))
+			a.logger.Error("HMGET error", zap.Error(err))
 			return response, err
 		}
 		response.ID = result[0].(string)
@@ -158,7 +158,7 @@ func (a *articleService) AdminGetArticleDetail(ctx context.Context,
 // AdminAddArticle 添加文章
 func (a *articleService) AdminAddArticle(ctx context.Context, request *types.AdminAddArticleRequest) error {
 
-	// 获取tag
+	// 获取 tag
 	tagInfo, err := a.tagModel.FindTagByName(ctx, request.Tag)
 	if err != nil {
 		a.logger.Error("failed to find tag", zap.Error(err))
@@ -276,7 +276,7 @@ func (a *articleService) AdminUpdateArticle(ctx context.Context, request *types.
 	}
 	oldTagName := oldArticle.TagName
 
-	// 处理Tag
+	// 处理 Tag
 	tagInfo, err := a.tagModel.FindTagByName(ctx, request.Tag)
 	if err != nil {
 		a.logger.Error("failed to find tag", zap.Error(err))
@@ -377,7 +377,7 @@ func (a *articleService) AdminDeleteArticle(ctx context.Context, request *types.
 		return fmt.Errorf("failed to delete article: %w", err)
 	}
 
-	// 删除文章的hash
+	// 删除文章的 hash
 	if err = a.redis.Del(ctx, cachekey.ArticleHash(articleID).String()).Err(); err != nil {
 		a.logger.Error("failed to delete hash", zap.Error(err))
 		return err

@@ -127,7 +127,7 @@ func (a *adminService) SMSCodeLogin(ctx context.Context,
 		a.logger.Warn("failed to delete sms code after login", zap.Error(err))
 	}
 
-	// 生成双Token
+	// 生成双 Token
 	claims := new(types.UserClaims)
 	claims.UserID = userID
 	doubleToken, err := a.GenerateToken(claims)
@@ -162,13 +162,13 @@ func (a *adminService) AccountLogin(ctx context.Context,
 		secret, qrCodeURL, err := utils.GenerateTOTP(issuer, accountName)
 		if err != nil {
 			a.logger.Error("failed to generate TOTP", zap.Error(err))
-			return response, errors.New("生成TOTP密钥和二维码URL失败")
+			return response, errors.New("生成 TOTP 密钥和二维码URL失败")
 		}
 
 		key := cachekey.AdminTOTPSecret(strconv.FormatUint(adminInfo.ID, 10)).String()
 		if err = a.redis.Set(ctx, key, secret, 1*time.Minute).Err(); err != nil {
 			a.logger.Error("failed to store TOTP secret key in Redis", zap.Error(err))
-			return nil, errors.New("生成TOTP密钥和二维码URL失败")
+			return nil, errors.New("生成 TOTP 密钥和二维码 URL 失败")
 		}
 		response.QRCodeURL = qrCodeURL
 		return response, nil
@@ -210,7 +210,7 @@ func (a *adminService) BindDynamicCode(ctx context.Context,
 		return response, errors.New("failed to add secret key to database")
 	}
 
-	// 生成双Token
+	// 生成双 Token
 	claims := new(types.UserClaims)
 	claims.UserID = userID
 	doubleToken, err := a.GenerateToken(claims)
@@ -229,7 +229,7 @@ func (a *adminService) BindDynamicCode(ctx context.Context,
 func (a *adminService) VerifyDynamicCode(ctx context.Context,
 	request *types.VerifyDynamicCodeRequest) (*types.VerifyDynamicCodeResponse, error) {
 
-	// 从mysql当中获取secretKey并进行验证
+	// 从 mysql 当中获取 secretKey 并进行验证
 	response := &types.VerifyDynamicCodeResponse{}
 	userID := request.UserID
 	id, err := idutil.ParseID("userID", userID)
@@ -247,7 +247,7 @@ func (a *adminService) VerifyDynamicCode(ctx context.Context,
 		return response, errors.New("无效的动态验证码")
 	}
 
-	// 生成双Token
+	// 生成双 Token
 	claims := new(types.UserClaims)
 	claims.UserID = userID
 	doubleToken, err := a.GenerateToken(claims)

@@ -64,7 +64,7 @@ func (a *Application) Run(ctx context.Context) {
 		a.bootstrap.CronEntryIDList = &ids
 	}
 
-	// 启动HTTP服务器
+	// 启动 HTTP 服务器
 	a.http.Start()
 }
 

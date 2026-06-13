@@ -1,11 +1,3 @@
-// Package cachekey 集中管理项目所有 Redis 缓存键。
-//
-// 设计目标：
-//  1. 所有 Key 通过类型化函数生成，避免在业务代码中出现裸字符串拼接。
-//  2. Key 使用专门的 Key 类型而非 string，防止把任意字符串当作 Key 误传。
-//  3. 同一类 Key 的命名规范、Score 公式集中维护，方便统一改造（含未来加 namespace、做 redis 集群迁移等）。
-//
-// 命名约定：{module}:{dimension}[:{id}][:{type}]
 package cachekey
 
 import "strings"

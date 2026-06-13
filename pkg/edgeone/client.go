@@ -47,12 +47,6 @@ type Client struct {
 }
 
 // New 构造一个 EdgeOne 清缓存客户端。
-//
-// 与 mysql / redis / revalidator 风格一致：所有连接信息从 env 读取，不进 config.yml。
-// 生产环境通过 docker secrets 落到 /run/secrets/* 后由 bootstrap/app.go 的 init()
-// 自动注入到 os.Getenv。
-//
-// 任一关键参数缺失：返回一个 noop client，所有方法静默返回，便于本地开发不依赖云资源。
 func New(logger *zap.Logger) *Client {
 	secretID := os.Getenv(envSecretID)
 	secretKey := os.Getenv(envSecretKey)
@@ -60,7 +54,7 @@ func New(logger *zap.Logger) *Client {
 	domain := strings.TrimRight(os.Getenv(envPurgeDomain), "/")
 
 	if secretID == "" || secretKey == "" || zoneID == "" || domain == "" {
-		logger.Warn("edgeone disabled: required env missing",
+		logger.Warn("edgeOne disabled: required env missing",
 			zap.Bool("secret_id_loaded", secretID != ""),
 			zap.Bool("secret_key_loaded", secretKey != ""),
 			zap.Bool("zone_id_loaded", zoneID != ""),
@@ -75,7 +69,7 @@ func New(logger *zap.Logger) *Client {
 
 	sdkClient, err := teo.NewClient(cred, "", cpf)
 	if err != nil {
-		logger.Warn("edgeone sdk init failed", zap.Error(err))
+		logger.Warn("edgeOne sdk init failed", zap.Error(err))
 		return &Client{logger: logger, timeout: defaultTimeout}
 	}
 

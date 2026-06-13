@@ -1,23 +1,3 @@
-// Package revalidator 负责把"文章变更"通知给前端 Nuxt 容器，让它失效对应的 ISR 缓存。
-//
-// 设计原则：
-//   - 永不阻塞业务主流程：所有 HTTP 调用走 goroutine + 超时 context；
-//   - 永不向上抛错：失败只打 Warn 日志，TTL 兜底（Nuxt 侧默认 7 天）；
-//   - 永不影响本地开发：当 Endpoint 或 Secret 为空时退化为 noop；
-//   - 与前端契约对齐：参见 portal-web 仓库 server/api/_revalidate.post.ts。
-//
-// 范围说明：
-//
-//	前端目前仅对 /article-detail/<id> 启用了 ISR 缓存（其它页面 SSR 走源站），
-//	因此本包只暴露面向"文章详情"的语义接口；其它路径调过去前端会被忽略，
-//	没有意义，所以也不开放调用入口，避免误用。
-//
-// 文件分布：
-//
-//	revalidator.go  —— Package doc + 业务入口 RevalidateArticles + HTTP 发送逻辑
-//	client.go       —— Client 结构、构造与可用性判定（含 env 读取）
-//	types.go        —— 与前端契约对齐的请求体结构
-//	utils.go        —— 文章 ID → 前端路径 的拼接帮手
 package revalidator
 
 import (
@@ -77,7 +57,11 @@ func (c *Client) do(payload revalidatePayload) {
 		c.logger.Warn("revalidate call failed", zap.Strings("paths", payload.Paths), zap.Error(err))
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			c.logger.Debug("revalidate response body close failed", zap.Error(err))
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		c.logger.Warn("revalidate non-200",

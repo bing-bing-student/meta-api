@@ -48,9 +48,9 @@ func init() {
 type Bootstrap struct {
 	Config          *config.Config       // 配置
 	Logger          *zap.Logger          // 日志
-	IDGenerator     *sonyflake.Sonyflake // 雪花ID生成器
+	IDGenerator     *sonyflake.Sonyflake // 雪花 ID 生成器
 	Cron            *cron.Cron           // 定时任务
-	CronEntryIDList *[]cron.EntryID      // 定时任务ID列表
+	CronEntryIDList *[]cron.EntryID      // 定时任务 ID 列表
 	MySQL           *gorm.DB             // MySQL 客户端
 	Redis           *redis.Client        // Redis 客户端
 }
@@ -122,7 +122,7 @@ func (b *Bootstrap) Stop() {
 	}
 	b.Cron.Stop()
 
-	// 关闭MySQL数据库连接
+	// 关闭 MySQL 数据库连接
 	if sqlDB, err := b.MySQL.DB(); err == nil {
 		if err = sqlDB.Close(); err != nil {
 			b.Logger.Error("failed to close MySQL connection", zap.Error(err))
@@ -131,7 +131,7 @@ func (b *Bootstrap) Stop() {
 		b.Logger.Error("failed to get MySQL DB instance", zap.Error(err))
 	}
 
-	// 关闭Redis连接
+	// 关闭 Redis 连接
 	if b.Redis != nil {
 		if err := b.Redis.Close(); err != nil {
 			b.Logger.Error("failed to close Redis connection", zap.Error(err))

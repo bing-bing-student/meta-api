@@ -33,6 +33,10 @@ const (
 	// debounceWindow fsnotify 在生成脚本"mv + create + write"的连续动作中
 	// 通常会触发多个事件，用 200ms 防抖窗口收敛为一次 reload。
 	debounceWindow = 200 * time.Millisecond
+
+	// minRSABits 接受的最小 RSA 模数长度（位）。
+	// 2048 位是 NIST SP 800-57 自 2014 年以来的最低推荐强度；低于此值的
+	minRSABits = 2048
 )
 
 // New 构造一个 KeyManager。
@@ -55,27 +59,27 @@ func New(logger *zap.Logger) *Manager {
 
 	// 初始加载 current + previous
 	if cur, err := loadPrivateKey(filepath.Join(keyDir, privateKeyFile)); err != nil {
-		logger.Warn("keymanager disabled: load current key failed",
+		logger.Warn("keyManager disabled: load current key failed",
 			zap.String("key_dir", keyDir), zap.Error(err))
 	} else {
 		m.current = cur
-		logger.Info("keymanager loaded current key", zap.String("key_dir", keyDir))
+		logger.Info("keyManager loaded current key", zap.String("key_dir", keyDir))
 	}
 
 	if prev, err := loadPrivateKey(filepath.Join(keyDir, previousKeyFile)); err != nil {
 		// .prev 不存在是正常的（首次部署），不打 warn
 		if !errors.Is(err, os.ErrNotExist) {
-			logger.Warn("keymanager load previous key failed",
+			logger.Warn("keyManager load previous key failed",
 				zap.String("key_dir", keyDir), zap.Error(err))
 		}
 	} else {
 		m.previous = prev
-		logger.Info("keymanager loaded previous key", zap.String("key_dir", keyDir))
+		logger.Info("keyManager loaded previous key", zap.String("key_dir", keyDir))
 	}
 
 	// 启动 watcher（失败不影响 Decrypt，仅丧失热更新能力）
 	if err := m.startWatcher(); err != nil {
-		logger.Warn("keymanager watcher disabled", zap.String("key_dir", keyDir), zap.Error(err))
+		logger.Warn("keyManager watcher disabled", zap.String("key_dir", keyDir), zap.Error(err))
 	}
 
 	return m
@@ -91,18 +95,28 @@ func (m *Manager) startWatcher() error {
 		return fmt.Errorf("new watcher: %w", err)
 	}
 	if err := watcher.Add(m.keyDir); err != nil {
-		_ = watcher.Close()
+		// 初始化失败路径：watcher 已创建但未启动 watchLoop，必须显式关闭释放 fd。
+		// 用闭包记录关闭错误，便于追溯 OS 级资源释放异常。
+		func() {
+			if cerr := watcher.Close(); cerr != nil {
+				m.logger.Warn("keyManager watcher close failed during init", zap.Error(cerr))
+			}
+		}()
 		return fmt.Errorf("watch %s: %w", m.keyDir, err)
 	}
 
 	go m.watchLoop(watcher)
-	m.logger.Info("keymanager watcher started", zap.String("key_dir", m.keyDir))
+	m.logger.Info("keyManager watcher started", zap.String("key_dir", m.keyDir))
 	return nil
 }
 
 // watchLoop 消费 fsnotify 事件，对 private_key.pem 的修改触发防抖重载。
 func (m *Manager) watchLoop(watcher *fsnotify.Watcher) {
-	defer watcher.Close()
+	defer func() {
+		if err := watcher.Close(); err != nil {
+			m.logger.Warn("keyManager watcher close failed", zap.Error(err))
+		}
+	}()
 
 	var (
 		timer  *time.Timer
@@ -158,7 +172,7 @@ func (m *Manager) reload() {
 	path := filepath.Join(m.keyDir, privateKeyFile)
 	newCur, err := loadPrivateKey(path)
 	if err != nil {
-		m.logger.Warn("keymanager reload failed", zap.String("path", path), zap.Error(err))
+		m.logger.Warn("keyManager reload failed", zap.String("path", path), zap.Error(err))
 		return
 	}
 
@@ -170,14 +184,15 @@ func (m *Manager) reload() {
 	}
 	m.mu.Unlock()
 
-	m.logger.Info("keymanager rotated key",
+	m.logger.Info("keyManager rotated key",
 		zap.String("path", path),
 		zap.Bool("previous_set", oldCur != nil))
 }
 
 // loadPrivateKey 读取 PEM 文件并 parse 成 *rsa.PrivateKey。
 // 兼容 PKCS#1（"RSA PRIVATE KEY"）与 PKCS#8（"PRIVATE KEY"）两种封装。
-// openssl genpkey 生成的是 PKCS#8。
+//
+// 返回前会强制校验 RSA 模数长度 >= minRSABits（2048 位）：
 func loadPrivateKey(path string) (*rsa.PrivateKey, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -188,20 +203,31 @@ func loadPrivateKey(path string) (*rsa.PrivateKey, error) {
 		return nil, fmt.Errorf("invalid pem: %s", path)
 	}
 
+	var key *rsa.PrivateKey
 	switch {
 	case strings.Contains(block.Type, "RSA PRIVATE KEY"):
-		return x509.ParsePKCS1PrivateKey(block.Bytes)
-	case strings.Contains(block.Type, "PRIVATE KEY"):
-		key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+		k, err := x509.ParsePKCS1PrivateKey(block.Bytes)
 		if err != nil {
 			return nil, err
 		}
-		rsaKey, ok := key.(*rsa.PrivateKey)
+		key = k
+	case strings.Contains(block.Type, "PRIVATE KEY"):
+		parsed, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+		if err != nil {
+			return nil, err
+		}
+		rsaKey, ok := parsed.(*rsa.PrivateKey)
 		if !ok {
 			return nil, fmt.Errorf("not an rsa private key: %s", path)
 		}
-		return rsaKey, nil
+		key = rsaKey
 	default:
 		return nil, fmt.Errorf("unsupported pem type %q in %s", block.Type, path)
 	}
+
+	if bits := key.N.BitLen(); bits < minRSABits {
+		return nil, fmt.Errorf("rsa key too weak in %s: got %d bits, need >=%d",
+			path, bits, minRSABits)
+	}
+	return key, nil
 }

@@ -32,7 +32,7 @@ func JWT() gin.HandlerFunc {
 				// 过期但格式合法 -> 4012，让前端去 /refresh-token 接口刷新
 				c.JSON(http.StatusOK, types.Response{
 					Code:    codes.TokenExpired,
-					Message: "Token已过期",
+					Message: "Token 已过期",
 					Data:    nil,
 				})
 				c.Abort()
@@ -42,7 +42,7 @@ func JWT() gin.HandlerFunc {
 			// 格式非法 / 签名错误等无效情形 -> 4010
 			c.JSON(http.StatusOK, types.Response{
 				Code:    codes.Unauthorized,
-				Message: "无效的Token",
+				Message: "无效的 Token",
 				Data:    nil,
 			})
 			c.Abort()

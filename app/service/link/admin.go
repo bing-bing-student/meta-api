@@ -127,7 +127,7 @@ func (l *linkService) AdminAddLink(ctx context.Context, request *types.AdminAddL
 
 // AdminUpdateLink 修改友链
 func (l *linkService) AdminUpdateLink(ctx context.Context, request *types.AdminUpdateLinkRequest) error {
-	// 更新MySQL数据
+	// 更新 MySQL 数据
 	loc, err := time.LoadLocation("Asia/Shanghai")
 	if err != nil {
 		l.logger.Error("failed to load location", zap.Error(err))
@@ -161,7 +161,7 @@ func (l *linkService) AdminUpdateLink(ctx context.Context, request *types.AdminU
 
 // AdminDeleteLink 删除友链
 func (l *linkService) AdminDeleteLink(ctx context.Context, request *types.AdminDeleteLinkRequest) error {
-	// 删除MySQL数据
+	// 删除 MySQL 数据
 	id, err := idutil.ParseID("linkID", request.ID)
 	if err != nil {
 		l.logger.Error("invalid link id", zap.Error(err))

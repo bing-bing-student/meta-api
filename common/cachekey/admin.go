@@ -10,7 +10,7 @@ func AdminTOTPSecret(adminID string) Key {
 // AboutMeHash 前台 "关于我" 信息缓存
 //
 // 历史 Key 是 "aboutMeInfo:Hash"（无 admin 前缀），保持原格式以避免存量缓存失效。
-func AboutMeHash() Key { return Key("aboutMeInfo:Hash") }
+func AboutMeHash() Key { return "aboutMeInfo:Hash" }
 
 // SMSCode 短信验证码缓存（按手机号隔离）
 //

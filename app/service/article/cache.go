@@ -29,8 +29,8 @@ func (a *articleService) WarmUpCache(ctx context.Context) error {
 	timeKey := cachekey.ArticleTimeZSet().String()
 	viewKey := cachekey.ArticleViewZSet().String()
 	if err := a.redis.Del(ctx, timeKey, viewKey).Err(); err != nil {
-		a.logger.Error("failed to clear article zset", zap.Error(err))
-		return fmt.Errorf("failed to clear article zset: %w", err)
+		a.logger.Error("failed to clear article ZSet", zap.Error(err))
+		return fmt.Errorf("failed to clear article ZSet: %w", err)
 	}
 
 	list, err := a.articleModel.ListTimeAndView(ctx)
@@ -71,9 +71,9 @@ func (a *articleService) WarmUpCache(ctx context.Context) error {
 		pipe.ZAdd(ctx, timeKey, timeMembers...)
 		pipe.ZAdd(ctx, viewKey, viewMembers...)
 		if _, err = pipe.Exec(ctx); err != nil {
-			a.logger.Error("failed to warm up article zset",
+			a.logger.Error("failed to warm up article ZSet",
 				zap.Int("start", start), zap.Int("end", end), zap.Error(err))
-			return fmt.Errorf("failed to warm up article zset: %w", err)
+			return fmt.Errorf("failed to warm up article ZSet: %w", err)
 		}
 	}
 
@@ -86,8 +86,8 @@ func (a *articleService) WarmUpCache(ctx context.Context) error {
 func (a *articleService) PersistViewCount(ctx context.Context) error {
 	list, err := a.redis.ZRangeWithScores(ctx, cachekey.ArticleViewZSet().String(), 0, -1).Result()
 	if err != nil {
-		a.logger.Error("failed to query article view zset", zap.Error(err))
-		return fmt.Errorf("failed to query article view zset: %w", err)
+		a.logger.Error("failed to query article view ZSet", zap.Error(err))
+		return fmt.Errorf("failed to query article view ZSet: %w", err)
 	}
 	if len(list) == 0 {
 		return nil
@@ -97,7 +97,7 @@ func (a *articleService) PersistViewCount(ctx context.Context) error {
 	for _, element := range list {
 		id, ok := toIDString(element.Member)
 		if !ok {
-			a.logger.Warn("unexpected zset member type", zap.Any("member", element.Member))
+			a.logger.Warn("unexpected ZSet member type", zap.Any("member", element.Member))
 			continue
 		}
 		items = append(items, article.ViewNumUpdate{

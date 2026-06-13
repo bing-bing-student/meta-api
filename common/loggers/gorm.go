@@ -34,9 +34,6 @@ func (c *CompositeLogger) Error(ctx context.Context, msg string, data ...interfa
 }
 
 func (c *CompositeLogger) Trace(ctx context.Context, begin time.Time, fc func() (string, int64), err error) {
-	// 全量日志记录所有SQL
 	c.FullLogger.Trace(ctx, begin, fc, err)
-
-	// 慢日志只记录超过阈值的SQL
 	c.SlowLogger.Trace(ctx, begin, fc, err)
 }

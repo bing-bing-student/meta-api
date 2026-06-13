@@ -41,6 +41,12 @@ type AdminInfoConfig struct {
 	AccountName string `mapstructure:"account_name"`
 }
 
+// GuardConfig 风控守卫引擎配置。
+type GuardConfig struct {
+	BuildHashes       []string `mapstructure:"build_hashes"`
+	SkipHMACWhenEmpty bool     `mapstructure:"skip_hmac_when_empty"`
+}
+
 // Config 定义项目配置文件结构体
 type Config struct {
 	LogConfig       *LogConfig       `mapstructure:"log"`
@@ -48,4 +54,5 @@ type Config struct {
 	MySQLConfig     *MySQLConfig     `mapstructure:"mysql"`
 	RedisConfig     *RedisConfig     `mapstructure:"redis"`
 	AdminInfoConfig *AdminInfoConfig `mapstructure:"admin_info"`
+	GuardConfig     *GuardConfig     `mapstructure:"guard"`
 }

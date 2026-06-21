@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"meta-api/app/model/tag"
+	"meta-api/common/utils"
 )
 
 type Article struct {
@@ -144,13 +145,30 @@ func (a *articleModel) DelArticleAndReturnTagName(ctx context.Context, id uint64
 }
 
 // SearchArticle 搜索文章
+//
+// 标题与正文均按子串匹配（LIKE）：标题是短的高信号字段、正文是长字段，
+// 文章量级很小（线上 ≤500 篇），全表扫描即为毫秒级，无需全文索引。
+// 排序上让标题命中的优先，其次按浏览量近似相关度。
 func (a *articleModel) SearchArticle(ctx context.Context, word string, limit, offset int) ([]SearchArticle, int64, error) {
-	total := int64(0)
 	list := make([]SearchArticle, 0)
+	total := int64(0)
+	like := "%" + utils.EscapeLike(word) + "%"
+
+	// 第一次查询：统计命中总数（不分页），用于前端分页
 	if err := a.mysql.WithContext(ctx).Model(&Article{}).
-		Select("`id`, `title`, `describe`, `view_num`, `create_time`").
-		Where("MATCH(content) AGAINST(? IN BOOLEAN MODE)", word+"*").
-		Count(&total).
+		Where("title LIKE ? COLLATE utf8mb4_general_ci OR content LIKE ?", like, like).
+		Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("failed to count articles: %w", err)
+	}
+	if total == 0 {
+		return list, 0, nil
+	}
+
+	// 第二次查询：取当前分页的数据，标题命中优先、再按浏览量排序
+	if err := a.mysql.WithContext(ctx).Model(&Article{}).
+		Select("`id`, `title`, `describe`, `view_num`, `create_time`, (`title` LIKE ? COLLATE utf8mb4_general_ci) AS title_hit", like).
+		Where("title LIKE ? COLLATE utf8mb4_general_ci OR content LIKE ?", like, like).
+		Order("title_hit DESC, view_num DESC").
 		Limit(limit).Offset(offset).
 		Find(&list).Error; err != nil {
 		return nil, 0, fmt.Errorf("failed to query articles: %w", err)

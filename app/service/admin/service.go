@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 
 	"meta-api/app/model/admin"
+	"meta-api/common/ratelimit"
 	"meta-api/common/types"
 	"meta-api/config"
 )
@@ -31,6 +32,7 @@ type adminService struct {
 	logger      *zap.Logger
 	idGenerator *sonyflake.Sonyflake
 	redis       *redis.Client
+	limiter     *ratelimit.Limiter
 	model       admin.Model
 }
 
@@ -41,6 +43,7 @@ func NewService(config *config.Config, logger *zap.Logger, idGenerator *sonyflak
 		logger:      logger,
 		idGenerator: idGenerator,
 		redis:       redis,
+		limiter:     ratelimit.NewRedisLimiter(redis),
 		model:       model,
 	}
 }

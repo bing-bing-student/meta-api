@@ -22,20 +22,24 @@ func initConfig() *config.Config {
 	}
 
 	// 将读取到的配置信息反序列化到 Config 中
-	var cfg config.Config
-	if err = viper.Unmarshal(&cfg); err != nil {
+	cfg := &config.Config{}
+	var initial config.Config
+	if err = viper.Unmarshal(&initial); err != nil {
 		log.Panicf("Viper unmarshal error: %v", err)
-		return &cfg
+		return cfg
 	}
+	cfg.Replace(&initial)
 
 	// 监视配置文件变化
 	viper.WatchConfig()
 	viper.OnConfigChange(func(e fsnotify.Event) {
-		if err = viper.Unmarshal(&cfg); err != nil {
-			log.Panicf("Viper unmarshal error: %v", err)
+		var next config.Config
+		if err = viper.Unmarshal(&next); err != nil {
+			log.Printf("Viper unmarshal error, keep old config: %v", err)
 			return
 		}
+		cfg.Replace(&next)
 	})
 
-	return &cfg
+	return cfg
 }

@@ -2,7 +2,22 @@ package cachekey
 
 const nsAdmin = "admin"
 
-// AdminTOTPSecret 管理员 TOTP 临时密钥（账号登录后绑定动态码前的中间态）
+// AdminRateLimit 管理员相关限流 Key。
+func AdminRateLimit(parts ...string) Key {
+	return build(append([]string{nsAdmin, "rate-limit"}, parts...)...)
+}
+
+// AdminLoginChallenge 账号密码校验通过后的二阶段登录挑战。
+func AdminLoginChallenge(challenge string) Key {
+	return build(nsAdmin, "login-challenge", challenge)
+}
+
+// AdminPendingTOTPSecret 管理员 TOTP 绑定前的临时密钥。
+func AdminPendingTOTPSecret(challenge string) Key {
+	return build(nsAdmin, "pending-totp-secret", challenge)
+}
+
+// AdminTOTPSecret 管理员 TOTP 临时密钥（历史缓存键，保留兼容旧调用方）
 func AdminTOTPSecret(adminID string) Key {
 	return build(nsAdmin, adminID, "secret")
 }

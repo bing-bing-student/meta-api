@@ -7,9 +7,24 @@ import (
 	"go.uber.org/zap"
 
 	"meta-api/common/codes"
+	"meta-api/common/ratelimit"
 	"meta-api/common/types"
 	"meta-api/common/utils"
 )
+
+// writeRateLimited 将限流错误写成统一业务响应。
+func writeRateLimited(c *gin.Context, err error) bool {
+	limited, ok := ratelimit.AsLimited(err)
+	if !ok {
+		return false
+	}
+	c.JSON(http.StatusOK, types.Response{
+		Code:    codes.TooManyRequests,
+		Message: limited.Error(),
+		Data:    types.RetryAfterResponse{RetryAfter: limited.RetryAfterSeconds()},
+	})
+	return true
+}
 
 // RefreshToken 刷新RefreshToken
 func (a *adminHandler) RefreshToken(c *gin.Context) {
@@ -98,9 +113,13 @@ func (a *adminHandler) AccountLogin(c *gin.Context) {
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}
+	request.ClientIP = c.ClientIP()
 
 	response, err := a.service.AccountLogin(ctx, request)
 	if err != nil {
+		if writeRateLimited(c, err) {
+			return
+		}
 		c.JSON(http.StatusOK, types.Response{Code: codes.AuthFailed, Message: err.Error(), Data: nil})
 		return
 	}
@@ -118,9 +137,13 @@ func (a *adminHandler) BindDynamicCode(c *gin.Context) {
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}
+	request.ClientIP = c.ClientIP()
 
 	response, err := a.service.BindDynamicCode(ctx, request)
 	if err != nil {
+		if writeRateLimited(c, err) {
+			return
+		}
 		c.JSON(http.StatusOK, types.Response{Code: codes.AuthFailed, Message: err.Error(), Data: nil})
 		return
 	}
@@ -140,9 +163,13 @@ func (a *adminHandler) VerifyDynamicCode(c *gin.Context) {
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
+	request.ClientIP = c.ClientIP()
 
 	response, err := a.service.VerifyDynamicCode(ctx, request)
 	if err != nil {
+		if writeRateLimited(c, err) {
+			return
+		}
 		c.JSON(http.StatusOK, types.Response{Code: codes.AuthFailed, Message: "非法的请求参数", Data: nil})
 		return
 	}
@@ -162,6 +189,17 @@ func (a *adminHandler) AdminUpdateAboutMe(c *gin.Context) {
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}
+
+	currentUserID := c.GetString("userID")
+	if currentUserID == "" {
+		c.JSON(http.StatusOK, types.Response{Code: codes.Unauthorized, Message: "需要授权令牌", Data: nil})
+		return
+	}
+	if request.UserID != "" && request.UserID != currentUserID {
+		c.JSON(http.StatusOK, types.Response{Code: codes.Forbidden, Message: "禁止修改其他管理员信息", Data: nil})
+		return
+	}
+	request.UserID = currentUserID
 
 	if err := a.service.AdminUpdateAboutMe(ctx, request); err != nil {
 		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "更新失败", Data: nil})

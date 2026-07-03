@@ -2,6 +2,8 @@ package admin
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
 	"meta-api/app/model/admin"
@@ -19,6 +22,53 @@ import (
 	"meta-api/common/utils"
 	"meta-api/pkg/sms"
 )
+
+const loginChallengeTTL = 3 * time.Minute
+
+// generateLoginChallenge 生成二阶段登录用的一次性随机挑战值。
+func generateLoginChallenge() (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(buf), nil
+}
+
+// createLoginChallenge 保存账号密码校验后的短期登录挑战。
+func (a *adminService) createLoginChallenge(ctx context.Context, userID string) (string, error) {
+	challenge, err := generateLoginChallenge()
+	if err != nil {
+		return "", err
+	}
+	key := cachekey.AdminLoginChallenge(challenge).String()
+	if err = a.redis.Set(ctx, key, userID, loginChallengeTTL).Err(); err != nil {
+		return "", err
+	}
+	return challenge, nil
+}
+
+// getLoginChallengeUserID 根据登录挑战反查待验证用户。
+func (a *adminService) getLoginChallengeUserID(ctx context.Context, challenge string) (string, error) {
+	key := cachekey.AdminLoginChallenge(challenge).String()
+	userID, err := a.redis.Get(ctx, key).Result()
+	if errors.Is(err, redis.Nil) {
+		return "", errors.New("登录状态已过期，请重新输入账号密码")
+	}
+	if err != nil {
+		return "", err
+	}
+	return userID, nil
+}
+
+// clearLoginChallenge 清理未完成的登录挑战。
+func (a *adminService) clearLoginChallenge(ctx context.Context, challenge string) {
+	if challenge == "" {
+		return
+	}
+	if err := a.redis.Del(ctx, cachekey.AdminLoginChallenge(challenge).String()).Err(); err != nil {
+		a.logger.Warn("failed to clear login challenge", zap.Error(err))
+	}
+}
 
 // GenerateToken 生成AccessToken和RefreshToken
 func (a *adminService) GenerateToken(userClaims *types.UserClaims) (*types.TokenDetails, error) {
@@ -148,26 +198,44 @@ func (a *adminService) AccountLogin(ctx context.Context,
 
 	// 查询用户名和密码是否正确
 	response := &types.AccountLoginResponse{}
+	if err := a.checkAccountLoginLimit(ctx, request); err != nil {
+		a.logger.Warn("account login rate limited", zap.Error(err))
+		return nil, err
+	}
 	adminInfo, err := a.model.CheckAccount(ctx, request.Username, request.Password)
 	if err != nil {
 		a.logger.Error("incorrect account or password", zap.Error(err))
+		if limitErr := a.recordAccountLoginFailure(ctx, request.Username); limitErr != nil {
+			return nil, limitErr
+		}
 		return nil, err
 	}
-	response.UserID = strconv.Itoa(int(adminInfo.ID))
+	a.clearAccountLoginState(ctx, request.Username)
+
+	userID := strconv.FormatUint(adminInfo.ID, 10)
+	loginChallenge, err := a.createLoginChallenge(ctx, userID)
+	if err != nil {
+		a.logger.Error("failed to create login challenge", zap.Error(err))
+		return nil, errors.New("登录状态初始化失败")
+	}
+	response.LoginChallenge = loginChallenge
 
 	// 如果用户未绑定TOTP，则生成TOTP密钥和二维码URL
 	if adminInfo.BindStatus == 0 && adminInfo.SecretKey == "" {
-		issuer := a.config.AdminInfoConfig.Issuer
-		accountName := a.config.AdminInfoConfig.AccountName
+		adminInfoConfig := a.config.AdminInfoSnapshot()
+		issuer := adminInfoConfig.Issuer
+		accountName := adminInfoConfig.AccountName
 		secret, qrCodeURL, err := utils.GenerateTOTP(issuer, accountName)
 		if err != nil {
 			a.logger.Error("failed to generate TOTP", zap.Error(err))
+			a.clearLoginChallenge(ctx, loginChallenge)
 			return response, errors.New("生成 TOTP 密钥和二维码URL失败")
 		}
 
-		key := cachekey.AdminTOTPSecret(strconv.FormatUint(adminInfo.ID, 10)).String()
-		if err = a.redis.Set(ctx, key, secret, 1*time.Minute).Err(); err != nil {
+		key := cachekey.AdminPendingTOTPSecret(loginChallenge).String()
+		if err = a.redis.Set(ctx, key, secret, loginChallengeTTL).Err(); err != nil {
 			a.logger.Error("failed to store TOTP secret key in Redis", zap.Error(err))
+			a.clearLoginChallenge(ctx, loginChallenge)
 			return nil, errors.New("生成 TOTP 密钥和二维码 URL 失败")
 		}
 		response.QRCodeURL = qrCodeURL
@@ -183,8 +251,17 @@ func (a *adminService) BindDynamicCode(ctx context.Context,
 
 	// 检查密钥是否存在并验证
 	response := new(types.BindDynamicCodeResponse)
-	userID := request.UserID
-	key := cachekey.AdminTOTPSecret(userID).String()
+	if err := a.checkBindDynamicCodeLimit(ctx, request); err != nil {
+		a.logger.Warn("bind dynamic code rate limited", zap.Error(err))
+		return response, err
+	}
+	userID, err := a.getLoginChallengeUserID(ctx, request.LoginChallenge)
+	if err != nil {
+		a.logger.Error("invalid login challenge", zap.Error(err))
+		return response, err
+	}
+
+	key := cachekey.AdminPendingTOTPSecret(request.LoginChallenge).String()
 	secretKey, err := a.redis.Get(ctx, key).Result()
 	if err != nil {
 		a.logger.Error("failed to get secret key from Redis", zap.Error(err))
@@ -192,14 +269,12 @@ func (a *adminService) BindDynamicCode(ctx context.Context,
 	}
 	if !utils.VerifyTOTP(request.Code, secretKey) {
 		a.logger.Error("failed to verify TOTP", zap.Error(err))
+		if limitErr := a.recordBindDynamicCodeFailure(ctx, request.LoginChallenge); limitErr != nil {
+			return response, limitErr
+		}
 		return response, errors.New("无效的动态验证码")
 	}
 
-	// 验证成功，删除Redis中的密钥，并将密码存储到数据库
-	if err = a.redis.Del(ctx, key).Err(); err != nil {
-		a.logger.Error("failed to delete secret key from Redis", zap.Error(err))
-		return response, errors.New("failed to delete secret key from Redis")
-	}
 	id, err := idutil.ParseID("userID", userID)
 	if err != nil {
 		a.logger.Error("invalid userID", zap.Error(err))
@@ -208,6 +283,10 @@ func (a *adminService) BindDynamicCode(ctx context.Context,
 	if err = a.model.AddAdminSecretKey(ctx, id, secretKey); err != nil {
 		a.logger.Error("failed to add secret key to database", zap.Error(err))
 		return response, errors.New("failed to add secret key to database")
+	}
+	if err = a.clearDynamicCodeState(ctx, request.LoginChallenge, key); err != nil {
+		a.logger.Error("failed to clear TOTP login challenge", zap.Error(err))
+		return response, errors.New("failed to clear TOTP login challenge")
 	}
 
 	// 生成双 Token
@@ -231,7 +310,16 @@ func (a *adminService) VerifyDynamicCode(ctx context.Context,
 
 	// 从 mysql 当中获取 secretKey 并进行验证
 	response := &types.VerifyDynamicCodeResponse{}
-	userID := request.UserID
+	if err := a.checkVerifyDynamicCodeLimit(ctx, request); err != nil {
+		a.logger.Warn("verify dynamic code rate limited", zap.Error(err))
+		return response, err
+	}
+	userID, err := a.getLoginChallengeUserID(ctx, request.LoginChallenge)
+	if err != nil {
+		a.logger.Error("invalid login challenge", zap.Error(err))
+		return response, err
+	}
+
 	id, err := idutil.ParseID("userID", userID)
 	if err != nil {
 		a.logger.Error("invalid userID", zap.Error(err))
@@ -244,7 +332,14 @@ func (a *adminService) VerifyDynamicCode(ctx context.Context,
 	}
 	if !utils.VerifyTOTP(request.Code, secretKey) {
 		a.logger.Error("failed to verify TOTP", zap.Error(err))
+		if limitErr := a.recordVerifyDynamicCodeFailure(ctx, request.LoginChallenge); limitErr != nil {
+			return response, limitErr
+		}
 		return response, errors.New("无效的动态验证码")
+	}
+	if err = a.clearDynamicCodeState(ctx, request.LoginChallenge); err != nil {
+		a.logger.Error("failed to clear TOTP login challenge", zap.Error(err))
+		return response, errors.New("failed to clear TOTP login challenge")
 	}
 
 	// 生成双 Token

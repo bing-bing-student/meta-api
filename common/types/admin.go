@@ -22,11 +22,12 @@ type TokenDetails struct {
 type AccountLoginRequest struct {
 	Username string `form:"username" binding:"required,max=16"`
 	Password string `form:"password" binding:"required,max=16"`
+	ClientIP string `json:"-" form:"-"`
 }
 
 type AccountLoginResponse struct {
-	UserID    string `json:"userID"`
-	QRCodeURL string `json:"qrCodeURL,omitempty"`
+	LoginChallenge string `json:"loginChallenge"`
+	QRCodeURL      string `json:"qrCodeURL,omitempty"`
 }
 
 // SendSMSCodeRequest 获取短信验证码请求
@@ -48,8 +49,9 @@ type SMSCodeLoginResponse struct {
 
 // BindDynamicCodeRequest 绑定动态码请求
 type BindDynamicCodeRequest struct {
-	UserID string `form:"userID" binding:"required,lte=19"`
-	Code   string `form:"code" binding:"required"`
+	LoginChallenge string `json:"loginChallenge" form:"loginChallenge" binding:"required,len=64"`
+	Code           string `json:"code" form:"code" binding:"required,len=6,numeric"`
+	ClientIP       string `json:"-" form:"-"`
 }
 
 type BindDynamicCodeResponse struct {
@@ -61,8 +63,9 @@ type BindDynamicCodeResponse struct {
 
 // VerifyDynamicCodeRequest 验证动态码请求
 type VerifyDynamicCodeRequest struct {
-	UserID string `form:"userID" binding:"required,lte=19"`
-	Code   string `form:"code" binding:"required"`
+	LoginChallenge string `json:"loginChallenge" form:"loginChallenge" binding:"required,len=64"`
+	Code           string `json:"code" form:"code" binding:"required,len=6,numeric"`
+	ClientIP       string `json:"-" form:"-"`
 }
 
 type VerifyDynamicCodeResponse struct {
@@ -74,7 +77,7 @@ type VerifyDynamicCodeResponse struct {
 
 // UpdateAboutMeRequest 修改关于我请求
 type UpdateAboutMeRequest struct {
-	UserID          string   `json:"userID" binding:"required,lte=19"`
+	UserID          string   `json:"userID,omitempty" binding:"omitempty,lte=19"`
 	Name            string   `json:"name"`
 	Job             string   `json:"job"`
 	WorkLife        string   `json:"workLife"`

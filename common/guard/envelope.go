@@ -86,7 +86,7 @@ const (
 // 同时低于 MaxBodyBytes=16KB，对单字段构成有意义的兜底约束。
 const tlvValueMaxLen = 8 * 1024
 
-// 错误集合（仅本包内使用）。
+// 错误集合
 var (
 	errEnvBodyEmpty       = errors.New("envelope body empty")
 	errEnvBodyTooLarge    = errors.New("envelope body too large")
@@ -118,7 +118,7 @@ type envelopeView struct {
 	PrefixForHmac []byte
 }
 
-// decodeEnvelope 仅做"格式与长度"层面的校验，不做密码学校验。
+// decodeEnvelope 仅做"格式与长度"层面的校验，不做密码学校验
 func decodeEnvelope(body []byte) (*envelopeView, error) {
 	if len(body) == 0 {
 		return nil, errEnvBodyEmpty

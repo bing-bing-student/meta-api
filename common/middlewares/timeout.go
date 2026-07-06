@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -18,19 +19,10 @@ func TimeoutMiddleware(timeout time.Duration) gin.HandlerFunc {
 		defer cancel()
 
 		c.Request = c.Request.WithContext(ctx)
+		c.Next()
 
-		// 等待请求处理完成或超时
-		done := make(chan bool)
-		go func() {
-			c.Next()
-			done <- true
-		}()
-
-		select {
-		case <-done:
-		case <-ctx.Done():
-			c.JSON(http.StatusOK, types.Response{Code: codes.RequestTimeout, Message: "请求超时", Data: nil})
-			c.Abort()
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) && !c.Writer.Written() {
+			c.AbortWithStatusJSON(http.StatusOK, types.Response{Code: codes.RequestTimeout, Message: "请求超时", Data: nil})
 		}
 	}
 }

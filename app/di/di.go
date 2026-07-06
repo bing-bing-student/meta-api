@@ -34,7 +34,7 @@ import (
 	"meta-api/config"
 	"meta-api/pkg/edgeone"
 	"meta-api/pkg/keymanager"
-	"meta-api/pkg/revalidator"
+	"meta-api/pkg/sitemap"
 )
 
 // BuildContainer 依赖注入容器
@@ -48,9 +48,9 @@ func BuildContainer(bs *bootstrap.Bootstrap) (*dig.Container, error) {
 		func() *sonyflake.Sonyflake { return bs.IDGenerator },
 		func() *gorm.DB { return bs.MySQL },
 		func() *redis.Client { return bs.Redis },
-		func(logger *zap.Logger) *revalidator.Client { return revalidator.New(logger) },
 		func(logger *zap.Logger) *edgeone.Client { return edgeone.New(logger) },
 		func(logger *zap.Logger) *keymanager.Manager { return keymanager.New(logger) },
+		func(logger *zap.Logger) *sitemap.Client { return sitemap.New(logger) },
 		// guard.Store：底层 Redis 抽象。同时被 guard.Engine 与 share.Service 复用，
 		// 单独 provide 是为了让 share.Service 也能拿到（共用同一份 store 实例）。
 		func(rdb *redis.Client, logger *zap.Logger) guard.Store {

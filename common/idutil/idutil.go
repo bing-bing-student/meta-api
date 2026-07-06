@@ -16,8 +16,3 @@ func ParseID(fieldName, s string) (uint64, error) {
 	}
 	return id, nil
 }
-
-// FormatID 将 uint64 形态的 ID 格式化为 string。
-func FormatID(id uint64) string {
-	return strconv.FormatUint(id, 10)
-}

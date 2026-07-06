@@ -251,9 +251,8 @@ func (a *articleService) AdminAddArticle(ctx context.Context, request *types.Adm
 		return err
 	}
 
-	// 新增文章不需要通知前端：前端只缓存了 /article-detail/<id>，
-	// 新文章详情页本身从未被访问过，懒加载首次访问会直接生成最新版本；
-	// 首页、标签页未走 ISR，每次请求都是 SSR 实时渲染。
+	// 刷新 sitemap 内部缓存，让新增文章 URL 尽快出现在 sitemap.xml。
+	a.sitemap.RefreshArticles(strconv.FormatUint(articleID, 10))
 
 	return nil
 }
@@ -350,14 +349,11 @@ func (a *articleService) AdminUpdateArticle(ctx context.Context, request *types.
 		}
 	}
 
-	// 通知前端 Nuxt 失效本文章详情页的 ISR 缓存。
-	// 前端只缓存 /article-detail/<id>，首页、标签页都不走 ISR，无需通知。
-	// 标签从旧改新（newTagName != oldTagName）也不影响：详情页缓存里只渲染当前 tagName，
-	// 失效详情页本身就够了；标签页本身就是 SSR，不需要清。
-	a.revalidator.RevalidateArticles(request.ID)
+	// 刷新 sitemap 内部缓存，让文章 lastmod 或标签变更尽快反映到 sitemap.xml。
+	a.sitemap.RefreshArticles(request.ID)
 
-	// 清理 EdgeOne CDN 上 /article-detail/<id>/ 前缀下的所有缓存（包含 _payload.json 及其带 hash 查询参数的变体）。
-	// Nuxt ISR 失效只清源站内部缓存，CDN 边缘节点的旧副本仍可能命中，所以两层缓存都要失效。
+	// 清理 EdgeOne CDN 上 /article-detail/<id> 的文章详情 HTML 缓存。
+	// 文章标题、正文、摘要或标签变化后，旧 HTML 命中边缘节点会继续展示旧内容。
 	a.edgeone.PurgeArticles(request.ID)
 
 	return nil
@@ -408,11 +404,10 @@ func (a *articleService) AdminDeleteArticle(ctx context.Context, request *types.
 		return err
 	}
 
-	// 通知前端 Nuxt 失效被删文章详情页的 ISR 缓存，避免旧 HTML 残留可访问。
-	// 前端只缓存 /article-detail/<id>，首页、标签页都不走 ISR，无需通知。
-	a.revalidator.RevalidateArticles(articleID)
+	// 刷新 sitemap 内部缓存，让被删文章 URL 尽快从 sitemap.xml 移除。
+	a.sitemap.RefreshArticles(articleID)
 
-	// 同时清理 EdgeOne CDN 上 /article-detail/<id>/ 前缀下的所有缓存。
+	// 清理 EdgeOne CDN 上 /article-detail/<id> 的文章详情 HTML 缓存，避免删除后旧页面残留。
 	a.edgeone.PurgeArticles(articleID)
 
 	return nil

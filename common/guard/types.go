@@ -91,7 +91,7 @@ type RiskRequest struct {
 
 	SecFetch SecFetchHeaders
 
-	// Referer 仅 view-log 场景使用（站内 _payload.json 直接拒）。
+	// Referer 仅作为 L2 同源弱信号使用，不参与硬拒绝判定。
 	Referer string
 
 	// 软指标（前端用 client_meta TLV 上报，JSON 容器化字段）。
@@ -167,7 +167,6 @@ const (
 	ReasonL1UA        = "L1_UA"
 	ReasonL1Prerender = "L1_PRERENDER"
 	ReasonL1Header    = "L1_HEADER"
-	ReasonL2Referer   = "L2_REFERER"
 	ReasonL2Score     = "L2_SCORE"
 	ReasonL3Dedup     = "L3_DEDUP"
 	ReasonL3RateIP    = "L3_RATE_IP"

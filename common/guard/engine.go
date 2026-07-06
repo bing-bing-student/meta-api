@@ -184,24 +184,19 @@ func (e *engine) Evaluate(ctx context.Context, req *RiskRequest) (*Outcome, erro
 		return e.rejectWithTS(req, out, DecisionSilent, reason, scoreStart, clientTSMs, serverNowMs), nil
 	}
 
-	// ---- 8. L2 referer 直接拒（仅 view-log） ----
-	if hit, reason := e.rules.checkL2Referer(req); hit {
-		return e.rejectWithTS(req, out, DecisionSilent, reason, scoreStart, clientTSMs, serverNowMs), nil
-	}
-
-	// ---- 9. L2 软评分 ----
+	// ---- 8. L2 软评分 ----
 	score := e.rules.checkL2Score(req)
 	out.Score = score
 	if score < L2ScoreThreshold {
 		return e.rejectWithTS(req, out, DecisionSilent, ReasonL2Score, score, clientTSMs, serverNowMs), nil
 	}
 
-	// ---- 10. L3 频控（仅计数维度，每次请求都要累加） ----
+	// ---- 9. L3 频控（仅计数维度，每次请求都要累加） ----
 	if reason, decision, ok := e.checkRate(ctx, req, fpHex); !ok {
 		return e.rejectWithTS(req, out, decision, reason, score, clientTSMs, serverNowMs), nil
 	}
 
-	// ---- 11. L4 行为评分 ----
+	// ---- 10. L4 行为评分 ----
 	// 与 L3 dedup 同：列表 / 统计这类占位 targetID 场景豁免行为评分：
 	// 这些查询通常是用户点"刷新"瞬时触发，recorder 几乎没有采集窗口
 	// （SampleCount < 5），行为分必然偏低，但这并非 bot 信号。

@@ -58,14 +58,3 @@ func (m *Manager) DecryptOAEP(ciphertext []byte) ([]byte, error) {
 	}
 	return nil, err
 }
-
-// NewForTest 用现成的 RSA 私钥构造一个不依赖文件 IO / fsnotify 的 Manager。
-//
-// 仅用于测试场景：guard 包的 roundtrip 互通测试需要把动态生成的 RSA 密钥
-// 注入 engine（engine.km 字段类型为 *keymanager.Manager 不是 interface），
-// 不便引入 mock。这里提供一个轻量构造，logger 允许 nil（给业务环境用）。
-//
-// 生产代码必须使用 New()。
-func NewForTest(cur *rsa.PrivateKey) *Manager {
-	return &Manager{current: cur}
-}

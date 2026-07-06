@@ -52,7 +52,7 @@ func initRedis(cfg *RedisConfig) *redis.Client {
 	var err error
 	if err = utils.WithBackoff(ctx, cfg.RetryConfig, func() error {
 		client, err = ConnectRedisClient(ctx, cfg)
-		return nil
+		return err
 	}); err != nil {
 		panic("Redis connection failed: " + err.Error())
 	}

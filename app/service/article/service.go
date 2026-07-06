@@ -13,7 +13,7 @@ import (
 	"meta-api/common/types"
 	"meta-api/config"
 	"meta-api/pkg/edgeone"
-	"meta-api/pkg/revalidator"
+	"meta-api/pkg/sitemap"
 )
 
 // Service 文章服务接口
@@ -43,15 +43,15 @@ type articleService struct {
 	redis        *redis.Client
 	articleModel article.Model
 	tagModel     tag.Model
-	revalidator  *revalidator.Client
 	edgeone      *edgeone.Client
+	sitemap      *sitemap.Client
 }
 
 // NewService 创建服务实例
 func NewService(config *config.Config, logger *zap.Logger,
 	idGenerator *sonyflake.Sonyflake, redis *redis.Client,
 	articleModel article.Model, tagModel tag.Model,
-	rev *revalidator.Client, eo *edgeone.Client) Service {
+	eo *edgeone.Client, sm *sitemap.Client) Service {
 
 	return &articleService{
 		config:       config,
@@ -60,7 +60,7 @@ func NewService(config *config.Config, logger *zap.Logger,
 		redis:        redis,
 		articleModel: articleModel,
 		tagModel:     tagModel,
-		revalidator:  rev,
 		edgeone:      eo,
+		sitemap:      sm,
 	}
 }

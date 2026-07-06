@@ -17,14 +17,7 @@ func AdminPendingTOTPSecret(challenge string) Key {
 	return build(nsAdmin, "pending-totp-secret", challenge)
 }
 
-// AdminTOTPSecret 管理员 TOTP 临时密钥（历史缓存键，保留兼容旧调用方）
-func AdminTOTPSecret(adminID string) Key {
-	return build(nsAdmin, adminID, "secret")
-}
-
 // AboutMeHash 前台 "关于我" 信息缓存
-//
-// 历史 Key 是 "aboutMeInfo:Hash"（无 admin 前缀），保持原格式以避免存量缓存失效。
 func AboutMeHash() Key { return "aboutMeInfo:Hash" }
 
 // SMSCode 短信验证码缓存（按手机号隔离）

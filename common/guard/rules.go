@@ -38,10 +38,10 @@ const (
 	screenMinHeight    = 480
 
 	// 正向信号加分项（命中即加，不命中则不影响）。
-	scoreSameOriginNav = 5  // sec-fetch-mode=navigate && site=same-origin 或 referer 兜底
-	scoreLangMatch     = 3  // navigator.language 与 Accept-Language 主语种一致
-	scoreKnownBrowser  = 3  // UA 命中已知主流浏览器关键字
-	scorePerfNavigate  = 5  // PerformanceNavigationTiming.type == "navigate"
+	scoreSameOriginNav = 5 // sec-fetch-mode=navigate && site=same-origin 或 referer 兜底
+	scoreLangMatch     = 3 // navigator.language 与 Accept-Language 主语种一致
+	scoreKnownBrowser  = 3 // UA 命中已知主流浏览器关键字
+	scorePerfNavigate  = 5 // PerformanceNavigationTiming.type == "navigate"
 
 	scoreL2Max = 100
 )
@@ -79,16 +79,6 @@ func (rules) checkL1(req *RiskRequest) (bool, string) {
 		}
 	}
 
-	return false, ""
-}
-
-// checkL2Referer 站内 _payload.json 来源直接拒（爬虫预取常见）。
-//
-// 仅 view-log 场景使用。share-create 由前端按钮触发，不带可信 referer。
-func (rules) checkL2Referer(req *RiskRequest) (bool, string) {
-	if req.Scene == SceneViewLog && strings.Contains(req.Referer, "_payload.json") {
-		return true, ReasonL2Referer
-	}
 	return false, ""
 }
 

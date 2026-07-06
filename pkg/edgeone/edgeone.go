@@ -23,8 +23,8 @@ const purgeMethod = "delete"
 // PurgeArticles 异步清理 EdgeOne 上指定文章详情页的 CDN 缓存，永不阻塞调用方。
 //
 // 入参为文章主键 ID 列表（即雪花 ID 的字符串形式），包内部按
-// `<domain>/article-detail/<id>/` 拼成前缀清理 target，
-// 一次提交可覆盖详情页 HTML、_payload.json 及任意附属资源（含带 build-hash 的 query）。
+// `<domain>/article-detail/<id>` 拼成前缀清理 target，
+// 一次提交可覆盖无尾斜杠 HTML、尾斜杠变体及任意 query string。
 //
 // 重复 ID 不做去重（接口幂等，且每日配额对个人版足够）。
 // 空切片或 client 未启用时直接返回，调用方无需自行判空。

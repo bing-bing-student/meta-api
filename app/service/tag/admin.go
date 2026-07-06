@@ -235,5 +235,11 @@ func (t *tagService) AdminUpdateTag(ctx context.Context, request *types.AdminUpd
 		return fmt.Errorf("failed to delete tag:articleNum:ZSet: %w", err)
 	}
 
+	// 刷新 sitemap 内部缓存，让标签 URL 和文章归属变更尽快反映到 sitemap.xml。
+	t.sitemap.RefreshArticles(request.ArticleIDList...)
+
+	// 清理 EdgeOne CDN 上受影响文章详情 HTML 缓存，避免页面继续展示旧标签。
+	t.edgeone.PurgeArticles(request.ArticleIDList...)
+
 	return nil
 }

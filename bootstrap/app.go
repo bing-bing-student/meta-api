@@ -16,10 +16,8 @@ import (
 
 // init 初始化环境变量
 func init() {
-	// 加载 .env 文件
-	if err := godotenv.Load(); err != nil {
-		return
-	}
+	// 加载本地 .env 文件；生产镜像允许不存在，不能阻断 Docker Secrets。
+	_ = godotenv.Load()
 
 	// 加载 Docker Secrets
 	files, err := os.ReadDir("/run/secrets")

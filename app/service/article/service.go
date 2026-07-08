@@ -20,8 +20,8 @@ import (
 type Service interface {
 	AdminGetArticleList(ctx context.Context, request *types.AdminGetArticleListRequest) (*types.AdminGetArticleListResponse, error)
 	AdminGetArticleDetail(ctx context.Context, request *types.AdminGetArticleDetailRequest) (*types.AdminGetArticleDetailResponse, error)
-	AdminAddArticle(ctx context.Context, request *types.AdminAddArticleRequest) error
-	AdminUpdateArticle(ctx context.Context, request *types.AdminUpdateArticleRequest) error
+	AdminAddArticle(ctx context.Context, request *types.AdminAddArticleRequest) (*types.AdminSaveArticleResponse, error)
+	AdminUpdateArticle(ctx context.Context, request *types.AdminUpdateArticleRequest) (*types.AdminSaveArticleResponse, error)
 	AdminDeleteArticle(ctx context.Context, request *types.AdminDeleteArticleRequest) error
 
 	UserGetArticleList(ctx context.Context, request *types.UserGetArticleListRequest) (*types.UserGetArticleListResponse, error)

@@ -64,12 +64,13 @@ func (a *articleHandler) AdminAddArticle(c *gin.Context) {
 		return
 	}
 
-	if err := a.service.AdminAddArticle(ctx, request); err != nil {
+	response, err := a.service.AdminAddArticle(ctx, request)
+	if err != nil {
 		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "添加文章失败", Data: nil})
 		return
 	}
 
-	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: nil})
+	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: response})
 }
 
 // AdminUpdateArticle 修改文章
@@ -87,12 +88,13 @@ func (a *articleHandler) AdminUpdateArticle(c *gin.Context) {
 		return
 	}
 
-	if err := a.service.AdminUpdateArticle(ctx, request); err != nil {
+	response, err := a.service.AdminUpdateArticle(ctx, request)
+	if err != nil {
 		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "更新文章失败", Data: nil})
 		return
 	}
 
-	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: nil})
+	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: response})
 }
 
 // AdminDeleteArticle 删除文章

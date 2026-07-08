@@ -39,6 +39,11 @@ type AdminAddArticleRequest struct {
 	Content  string `json:"content" binding:"required"`
 }
 
+// AdminSaveArticleResponse 返回新增或修改后的文章 ID。
+type AdminSaveArticleResponse struct {
+	ID string `json:"id"`
+}
+
 type AdminUpdateArticleRequest struct {
 	ID       string `json:"id" binding:"required,lte=19"`
 	Title    string `json:"title" binding:"required,max=30"`

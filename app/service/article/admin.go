@@ -156,19 +156,20 @@ func (a *articleService) AdminGetArticleDetail(ctx context.Context,
 }
 
 // AdminAddArticle 添加文章
-func (a *articleService) AdminAddArticle(ctx context.Context, request *types.AdminAddArticleRequest) error {
+func (a *articleService) AdminAddArticle(ctx context.Context,
+	request *types.AdminAddArticleRequest) (*types.AdminSaveArticleResponse, error) {
 
 	// 获取 tag
 	tagInfo, err := a.tagModel.FindTagByName(ctx, request.Tag)
 	if err != nil {
 		a.logger.Error("failed to find tag", zap.Error(err))
-		return fmt.Errorf("failed to find tag, error: %w", err)
+		return nil, fmt.Errorf("failed to find tag, error: %w", err)
 	}
 	if tagInfo == nil || tagInfo.ID == 0 {
 		tagID, err := a.idGenerator.NextID()
 		if err != nil {
 			a.logger.Error("generate tag id error", zap.Error(err))
-			return fmt.Errorf("generate tag id error: %w", err)
+			return nil, fmt.Errorf("generate tag id error: %w", err)
 		}
 		tagInfo = &tag.Tag{
 			ID:   tagID,
@@ -176,7 +177,7 @@ func (a *articleService) AdminAddArticle(ctx context.Context, request *types.Adm
 		}
 		if err = a.tagModel.CreateTag(ctx, tagInfo); err != nil {
 			a.logger.Error("failed to create tag", zap.Error(err))
-			return fmt.Errorf("failed to create tag: %w", err)
+			return nil, fmt.Errorf("failed to create tag: %w", err)
 		}
 	}
 
@@ -184,12 +185,12 @@ func (a *articleService) AdminAddArticle(ctx context.Context, request *types.Adm
 	articleID, err := a.idGenerator.NextID()
 	if err != nil {
 		a.logger.Error("generate article id error", zap.Error(err))
-		return fmt.Errorf("generate article id error: %w", err)
+		return nil, fmt.Errorf("generate article id error: %w", err)
 	}
 	loc, err := time.LoadLocation("Asia/Shanghai")
 	if err != nil {
 		a.logger.Error("failed to load location", zap.Error(err))
-		return fmt.Errorf("failed to load location, error: %w", err)
+		return nil, fmt.Errorf("failed to load location, error: %w", err)
 	}
 	articleInfo := &article.Article{
 		ID:         articleID,
@@ -203,7 +204,7 @@ func (a *articleService) AdminAddArticle(ctx context.Context, request *types.Adm
 	}
 	if err = a.articleModel.CreateArticle(ctx, articleInfo); err != nil {
 		a.logger.Error("failed to create article", zap.Error(err))
-		return fmt.Errorf("failed to create article, error: %w", err)
+		return nil, fmt.Errorf("failed to create article, error: %w", err)
 	}
 
 	// 有序集合：按时间排序
@@ -211,7 +212,7 @@ func (a *articleService) AdminAddArticle(ctx context.Context, request *types.Adm
 		{Score: cachekey.ArticleTimeScore(articleInfo.CreateTime), Member: articleInfo.ID},
 	}
 	if err = a.redis.ZAdd(ctx, cachekey.ArticleTimeZSet().String(), timeMember...).Err(); err != nil {
-		return err
+		return nil, err
 	}
 
 	// 有序集合：按浏览量排序
@@ -219,7 +220,7 @@ func (a *articleService) AdminAddArticle(ctx context.Context, request *types.Adm
 		{Score: cachekey.ArticleViewScore(articleInfo.ViewNum), Member: articleInfo.ID},
 	}
 	if err = a.redis.ZAdd(ctx, cachekey.ArticleViewZSet().String(), viewMember...).Err(); err != nil {
-		return err
+		return nil, err
 	}
 
 	// 有序集合：按标签对应的文章数量排序
@@ -230,15 +231,15 @@ func (a *articleService) AdminAddArticle(ctx context.Context, request *types.Adm
 	case errors.Is(err, redis.Nil):
 		if err = a.redis.ZAdd(ctx, tagArticleNumKey, redis.Z{Score: 1, Member: tagName}).Err(); err != nil {
 			a.logger.Error("failed to add tagIDArticleKey", zap.Error(err))
-			return err
+			return nil, err
 		}
 	case err != nil:
 		a.logger.Error("failed to query tagIDArticleKey", zap.Error(err))
-		return err
+		return nil, err
 	default:
 		if err = a.redis.ZIncrBy(ctx, tagArticleNumKey, 1, tagName).Err(); err != nil {
 			a.logger.Error("failed to add tagIDArticleKey", zap.Error(err))
-			return err
+			return nil, err
 		}
 	}
 
@@ -248,30 +249,33 @@ func (a *articleService) AdminAddArticle(ctx context.Context, request *types.Adm
 	}
 	if err = a.redis.ZAdd(ctx, cachekey.TagArticleListZSet(tagName).String(), timeMember...).Err(); err != nil {
 		a.logger.Error("failed to add tagIDArticleKey", zap.Error(err))
-		return err
+		return nil, err
 	}
 
-	// 刷新 sitemap 内部缓存，让新增文章 URL 尽快出现在 sitemap.xml。
-	a.sitemap.RefreshArticles(strconv.FormatUint(articleID, 10))
+	articleIDString := strconv.FormatUint(articleID, 10)
 
-	return nil
+	// 刷新 sitemap 内部缓存，让新增文章 URL 尽快出现在 sitemap.xml。
+	a.sitemap.RefreshArticles(articleIDString)
+
+	return &types.AdminSaveArticleResponse{ID: articleIDString}, nil
 }
 
 // AdminUpdateArticle 更新文章
-func (a *articleService) AdminUpdateArticle(ctx context.Context, request *types.AdminUpdateArticleRequest) error {
+func (a *articleService) AdminUpdateArticle(ctx context.Context,
+	request *types.AdminUpdateArticleRequest) (*types.AdminSaveArticleResponse, error) {
 
 	// 解析文章 ID
 	id, err := idutil.ParseID("articleID", request.ID)
 	if err != nil {
 		a.logger.Error("invalid article id", zap.Error(err))
-		return err
+		return nil, err
 	}
 
 	// 在更新之前先查出旧文章信息，主要是为了拿到旧 tagName
 	oldArticle, err := a.articleModel.GetArticleDetailByID(ctx, id)
 	if err != nil {
 		a.logger.Error("failed to get old article info", zap.Error(err))
-		return fmt.Errorf("failed to get old article info: %w", err)
+		return nil, fmt.Errorf("failed to get old article info: %w", err)
 	}
 	oldTagName := oldArticle.TagName
 
@@ -279,13 +283,13 @@ func (a *articleService) AdminUpdateArticle(ctx context.Context, request *types.
 	tagInfo, err := a.tagModel.FindTagByName(ctx, request.Tag)
 	if err != nil {
 		a.logger.Error("failed to find tag", zap.Error(err))
-		return fmt.Errorf("failed to find tag, error: %w", err)
+		return nil, fmt.Errorf("failed to find tag, error: %w", err)
 	}
 	if tagInfo == nil || tagInfo.ID == 0 {
 		tagID, err := a.idGenerator.NextID()
 		if err != nil {
 			a.logger.Error("generate tag id error", zap.Error(err))
-			return fmt.Errorf("generate tag id error: %w", err)
+			return nil, fmt.Errorf("generate tag id error: %w", err)
 		}
 		tagInfo = &tag.Tag{
 			ID:   tagID,
@@ -293,7 +297,7 @@ func (a *articleService) AdminUpdateArticle(ctx context.Context, request *types.
 		}
 		if err = a.tagModel.CreateTag(ctx, tagInfo); err != nil {
 			a.logger.Error("failed to create tag", zap.Error(err))
-			return fmt.Errorf("failed to create tag: %w", err)
+			return nil, fmt.Errorf("failed to create tag: %w", err)
 		}
 	}
 	newTagName := tagInfo.Name
@@ -302,12 +306,12 @@ func (a *articleService) AdminUpdateArticle(ctx context.Context, request *types.
 	viewNum, err := a.redis.ZScore(ctx, cachekey.ArticleViewZSet().String(), request.ID).Result()
 	if err != nil {
 		a.logger.Error("failed to query article:view:ZSet", zap.Error(err))
-		return fmt.Errorf("failed to query article:view:ZSet: %w", err)
+		return nil, fmt.Errorf("failed to query article:view:ZSet: %w", err)
 	}
 	loc, err := time.LoadLocation("Asia/Shanghai")
 	if err != nil {
 		a.logger.Error("failed to load location", zap.Error(err))
-		return fmt.Errorf("failed to load location: %w", err)
+		return nil, fmt.Errorf("failed to load location: %w", err)
 	}
 
 	// 更新文章
@@ -322,30 +326,30 @@ func (a *articleService) AdminUpdateArticle(ctx context.Context, request *types.
 	}
 	if err = a.articleModel.UpdateArticle(ctx, articleInfo); err != nil {
 		a.logger.Error("failed to update article", zap.Error(err))
-		return fmt.Errorf("failed to update article: %w", err)
+		return nil, fmt.Errorf("failed to update article: %w", err)
 	}
 
 	// 处理缓存数据
 	if err = a.redis.Del(ctx, cachekey.ArticleHash(request.ID).String()).Err(); err != nil {
 		a.logger.Error("failed to delete hash", zap.Error(err))
-		return fmt.Errorf("failed to delete hash: %w", err)
+		return nil, fmt.Errorf("failed to delete hash: %w", err)
 	}
 	if err = a.redis.Del(ctx, cachekey.TagArticleNumZSet().String()).Err(); err != nil {
 		a.logger.Error("failed to delete tag:articleNum:ZSet", zap.Error(err))
-		return fmt.Errorf("failed to delete tag:articleNum:ZSet: %w", err)
+		return nil, fmt.Errorf("failed to delete tag:articleNum:ZSet: %w", err)
 	}
 
 	// 清理「标签下的文章列表」ZSet 缓存：
 	if err = a.redis.Del(ctx, cachekey.TagArticleListZSet(oldTagName).String()).Err(); err != nil {
 		a.logger.Error("failed to delete oldTagName:article:ZSet",
 			zap.String("oldTagName", oldTagName), zap.Error(err))
-		return fmt.Errorf("failed to delete oldTagName:article:ZSet: %w", err)
+		return nil, fmt.Errorf("failed to delete oldTagName:article:ZSet: %w", err)
 	}
 	if newTagName != oldTagName {
 		if err = a.redis.Del(ctx, cachekey.TagArticleListZSet(newTagName).String()).Err(); err != nil {
 			a.logger.Error("failed to delete newTagName:article:ZSet",
 				zap.String("newTagName", newTagName), zap.Error(err))
-			return fmt.Errorf("failed to delete newTagName:article:ZSet: %w", err)
+			return nil, fmt.Errorf("failed to delete newTagName:article:ZSet: %w", err)
 		}
 	}
 
@@ -356,7 +360,7 @@ func (a *articleService) AdminUpdateArticle(ctx context.Context, request *types.
 	// 文章标题、正文、摘要或标签变化后，旧 HTML 命中边缘节点会继续展示旧内容。
 	a.edgeone.PurgeArticles(request.ID)
 
-	return nil
+	return &types.AdminSaveArticleResponse{ID: request.ID}, nil
 }
 
 // AdminDeleteArticle 删除文章

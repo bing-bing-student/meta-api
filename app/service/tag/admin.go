@@ -163,12 +163,19 @@ func (t *tagService) AdminGetArticleListByTag(ctx context.Context,
 			t.logger.Error("parse string to int error", zap.Error(err))
 			return nil, fmt.Errorf("parse string to int error, err: %w", err)
 		}
-		articleItem.CreateTime = data[2].(string)
-		articleItem.UpdateTime = data[3].(string)
+		articleItem.CreateTime = formatTimeToMinute(data[2].(string))
+		articleItem.UpdateTime = formatTimeToMinute(data[3].(string))
 		response.Rows = append(response.Rows, articleItem)
 	}
 	response.Total = int(t.redis.ZCard(ctx, key).Val())
 	return response, nil
+}
+
+func formatTimeToMinute(value string) string {
+	if len(value) <= len(constants.TimeLayoutToMinute) {
+		return value
+	}
+	return value[:len(constants.TimeLayoutToMinute)]
 }
 
 // AdminUpdateTag 更新标签

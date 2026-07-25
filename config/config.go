@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"sync"
 	"time"
 )
@@ -36,6 +37,18 @@ type MySQLConfig struct {
 // RedisConfig 定义 redis 配置文件结构体
 type RedisConfig struct {
 	DB int `mapstructure:"db"`
+}
+
+// OAuthProviderConfig 定义单个 OAuth Provider 的非敏感配置。
+type OAuthProviderConfig struct {
+	ClientID    string `mapstructure:"client_id"`
+	RedirectURI string `mapstructure:"redirect_uri"`
+}
+
+// OAuthConfig 定义前台用户登录 OAuth 配置。
+type OAuthConfig struct {
+	GitHub OAuthProviderConfig `mapstructure:"github"`
+	Google OAuthProviderConfig `mapstructure:"google"`
 }
 
 // AdminInfoConfig 定义管理员配置文件结构体
@@ -96,6 +109,7 @@ type Config struct {
 	RetryConfig     *RetryConfig     `mapstructure:"retry"`
 	MySQLConfig     *MySQLConfig     `mapstructure:"mysql"`
 	RedisConfig     *RedisConfig     `mapstructure:"redis"`
+	OAuthConfig     *OAuthConfig     `mapstructure:"oauth"`
 	AdminInfoConfig *AdminInfoConfig `mapstructure:"admin_info"`
 	GuardConfig     *GuardConfig     `mapstructure:"guard"`
 	RateLimitConfig *RateLimitConfig `mapstructure:"rate_limit"`
@@ -113,9 +127,30 @@ func (c *Config) Replace(next *Config) {
 	c.RetryConfig = next.RetryConfig
 	c.MySQLConfig = next.MySQLConfig
 	c.RedisConfig = next.RedisConfig
+	c.OAuthConfig = next.OAuthConfig
 	c.AdminInfoConfig = next.AdminInfoConfig
 	c.GuardConfig = next.GuardConfig
 	c.RateLimitConfig = next.RateLimitConfig
+}
+
+// OAuthProviderSnapshot 返回指定 OAuth Provider 的配置快照。
+func (c *Config) OAuthProviderSnapshot(provider string) OAuthProviderConfig {
+	if c == nil {
+		return OAuthProviderConfig{}
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.OAuthConfig == nil {
+		return OAuthProviderConfig{}
+	}
+	switch strings.ToLower(provider) {
+	case "github":
+		return c.OAuthConfig.GitHub
+	case "google":
+		return c.OAuthConfig.Google
+	default:
+		return OAuthProviderConfig{}
+	}
 }
 
 // AdminInfoSnapshot 返回管理员信息配置快照。

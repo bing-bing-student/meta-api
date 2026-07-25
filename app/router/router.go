@@ -9,9 +9,11 @@ import (
 
 	"meta-api/app/handler/admin"
 	"meta-api/app/handler/article"
+	"meta-api/app/handler/comment"
 	"meta-api/app/handler/link"
 	"meta-api/app/handler/share"
 	"meta-api/app/handler/tag"
+	"meta-api/app/handler/userauth"
 	"meta-api/app/handler/viewlog"
 	"meta-api/bootstrap"
 	"meta-api/common/middlewares"
@@ -32,7 +34,14 @@ func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) *gin.Engine 
 	r.TrustedPlatform = "X-Client-IP"
 
 	// 添加中间件
-	r.Use(middlewares.TimeoutMiddleware(3*time.Second), middlewares.GinLogger(logger), middlewares.GinRecovery(logger, true))
+	r.Use(
+		middlewares.TimeoutMiddleware(
+			3*time.Second,
+			middlewares.TimeoutOverride{Prefix: "/user/auth/oauth/", Timeout: 12 * time.Second},
+		),
+		middlewares.GinLogger(logger),
+		middlewares.GinRecovery(logger, true),
+	)
 
 	// 获取 adminHandler 实例
 	var adminHandler admin.Handler
@@ -55,6 +64,13 @@ func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) *gin.Engine 
 		return nil
 	}
 
+	// 获取 commentHandler 实例
+	var commentHandler comment.Handler
+	if err := container.Invoke(func(h comment.Handler) { commentHandler = h }); err != nil {
+		logger.Error("failed to get comment handler", zap.Error(err))
+		return nil
+	}
+
 	// 获取 linkHandler 实例
 	var linkHandler link.Handler
 	if err := container.Invoke(func(h link.Handler) { linkHandler = h }); err != nil {
@@ -73,6 +89,13 @@ func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) *gin.Engine 
 	var shareHandler share.Handler
 	if err := container.Invoke(func(h share.Handler) { shareHandler = h }); err != nil {
 		logger.Error("failed to get share handler", zap.Error(err))
+		return nil
+	}
+
+	// 获取 userAuthHandler 实例
+	var userAuthHandler userauth.Handler
+	if err := container.Invoke(func(h userauth.Handler) { userAuthHandler = h }); err != nil {
+		logger.Error("failed to get user auth handler", zap.Error(err))
 		return nil
 	}
 
@@ -109,6 +132,16 @@ func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) *gin.Engine 
 		authAdminGroup.PUT("/link/update", linkHandler.AdminUpdateLink)
 		authAdminGroup.DELETE("/link/delete", linkHandler.AdminDeleteLink)
 
+		// 评论管理
+		authAdminGroup.GET("/comment/list", commentHandler.AdminGetCommentList)
+		authAdminGroup.PUT("/comment/status", commentHandler.AdminUpdateCommentStatus)
+		authAdminGroup.DELETE("/comment/delete", commentHandler.AdminDeleteComment)
+
+		// 用户管理
+		authAdminGroup.GET("/user/list", adminHandler.AdminGetUserList)
+		authAdminGroup.PUT("/user/comment-permission", adminHandler.AdminUpdateUserCommentPermission)
+		authAdminGroup.PUT("/user/force-logout", adminHandler.AdminForceUserLogout)
+
 		// 管理员相关
 		authAdminGroup.PUT("/about-me", adminHandler.AdminUpdateAboutMe)
 	}
@@ -130,6 +163,17 @@ func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) *gin.Engine 
 
 		// 友链相关
 		userGroup.GET("/link", linkHandler.UserGetLinkList)
+
+		// 评论相关
+		userGroup.GET("/comment/list", commentHandler.UserGetCommentList)
+		userGroup.GET("/comment/reply-list", commentHandler.UserGetCommentReplyList)
+		userGroup.POST("/comment/add", middlewares.CommentUserJWT(), commentHandler.UserAddComment)
+
+		// 前台登录相关
+		userGroup.GET("/auth/oauth/:provider/login", userAuthHandler.OAuthLogin)
+		userGroup.GET("/auth/oauth/:provider/callback", userAuthHandler.OAuthCallback)
+		userGroup.GET("/auth/me", userAuthHandler.Me)
+		userGroup.POST("/auth/logout", userAuthHandler.Logout)
 
 		// 管理员相关
 		userGroup.GET("/about-me", adminHandler.UserGetAboutMe)

@@ -12,21 +12,27 @@ import (
 
 	adminHandler "meta-api/app/handler/admin"
 	articleHandler "meta-api/app/handler/article"
+	commentHandler "meta-api/app/handler/comment"
 	linkHandler "meta-api/app/handler/link"
 	shareHandler "meta-api/app/handler/share"
 	tagHandler "meta-api/app/handler/tag"
+	userAuthHandler "meta-api/app/handler/userauth"
 	viewLogHandler "meta-api/app/handler/viewlog"
 
 	adminModel "meta-api/app/model/admin"
 	articleModel "meta-api/app/model/article"
+	commentModel "meta-api/app/model/comment"
 	linkModel "meta-api/app/model/link"
 	tagModel "meta-api/app/model/tag"
+	userModel "meta-api/app/model/user"
 
 	adminService "meta-api/app/service/admin"
 	articleService "meta-api/app/service/article"
+	commentService "meta-api/app/service/comment"
 	linkService "meta-api/app/service/link"
 	shareService "meta-api/app/service/share"
 	tagService "meta-api/app/service/tag"
+	userAuthService "meta-api/app/service/userauth"
 	viewLogService "meta-api/app/service/viewlog"
 
 	"meta-api/bootstrap"
@@ -89,9 +95,11 @@ func BuildContainer(bs *bootstrap.Bootstrap) (*dig.Container, error) {
 	handlerProviders := []interface{}{
 		adminHandler.NewHandler,
 		articleHandler.NewHandler,
+		commentHandler.NewHandler,
 		linkHandler.NewHandler,
 		shareHandler.NewHandler,
 		tagHandler.NewHandler,
+		userAuthHandler.NewHandler,
 		viewLogHandler.NewHandler,
 	}
 	for _, provider := range handlerProviders {
@@ -104,8 +112,10 @@ func BuildContainer(bs *bootstrap.Bootstrap) (*dig.Container, error) {
 	modelProviders := []interface{}{
 		adminModel.NewModel,
 		articleModel.NewModel,
+		commentModel.NewModel,
 		linkModel.NewModel,
 		tagModel.NewModel,
+		userModel.NewModel,
 	}
 	for _, provider := range modelProviders {
 		if err := container.Provide(provider); err != nil {
@@ -117,9 +127,11 @@ func BuildContainer(bs *bootstrap.Bootstrap) (*dig.Container, error) {
 	serviceProviders := []interface{}{
 		adminService.NewService,
 		articleService.NewService,
+		commentService.NewService,
 		linkService.NewService,
 		shareService.NewService,
 		tagService.NewService,
+		userAuthService.NewService,
 		viewLogService.NewService,
 	}
 	for _, provider := range serviceProviders {

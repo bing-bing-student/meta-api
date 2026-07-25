@@ -17,6 +17,9 @@ type Handler interface {
 	VerifyDynamicCode(c *gin.Context)
 
 	AdminUpdateAboutMe(c *gin.Context)
+	AdminGetUserList(c *gin.Context)
+	AdminUpdateUserCommentPermission(c *gin.Context)
+	AdminForceUserLogout(c *gin.Context)
 	UserGetAboutMe(c *gin.Context)
 }
 

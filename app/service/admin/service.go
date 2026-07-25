@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 
 	"meta-api/app/model/admin"
+	userModel "meta-api/app/model/user"
 	"meta-api/common/ratelimit"
 	"meta-api/common/types"
 	"meta-api/config"
@@ -22,6 +23,9 @@ type Service interface {
 	BindDynamicCode(ctx context.Context, request *types.BindDynamicCodeRequest) (*types.BindDynamicCodeResponse, error)
 	VerifyDynamicCode(ctx context.Context, request *types.VerifyDynamicCodeRequest) (*types.VerifyDynamicCodeResponse, error)
 	AdminUpdateAboutMe(ctx context.Context, request *types.UpdateAboutMeRequest) error
+	AdminGetUserList(ctx context.Context, request *types.AdminGetUserListRequest) (*types.AdminGetUserListResponse, error)
+	AdminUpdateUserCommentPermission(ctx context.Context, request *types.AdminUpdateUserCommentPermissionRequest) error
+	AdminForceUserLogout(ctx context.Context, request *types.AdminForceUserLogoutRequest) error
 
 	UserGetAboutMe(ctx context.Context) (*types.GetAboutMeResponse, error)
 }
@@ -34,10 +38,12 @@ type adminService struct {
 	redis       *redis.Client
 	limiter     *ratelimit.Limiter
 	model       admin.Model
+	userModel   userModel.Model
 }
 
 // NewService 创建服务实例
-func NewService(config *config.Config, logger *zap.Logger, idGenerator *sonyflake.Sonyflake, redis *redis.Client, model admin.Model) Service {
+func NewService(config *config.Config, logger *zap.Logger, idGenerator *sonyflake.Sonyflake, redis *redis.Client,
+	model admin.Model, userModel userModel.Model) Service {
 	return &adminService{
 		config:      config,
 		logger:      logger,
@@ -45,5 +51,6 @@ func NewService(config *config.Config, logger *zap.Logger, idGenerator *sonyflak
 		redis:       redis,
 		limiter:     ratelimit.NewRedisLimiter(redis),
 		model:       model,
+		userModel:   userModel,
 	}
 }

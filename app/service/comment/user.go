@@ -148,6 +148,9 @@ func (s *commentService) UserAddComment(ctx context.Context,
 		s.logger.Error("invalid article id", zap.Error(err))
 		return nil, ErrInvalidComment
 	}
+	if err = s.checkCommentSubmitLimit(ctx, userID, articleID, request.ClientIP); err != nil {
+		return nil, err
+	}
 	if _, err = s.articleModel.GetArticleDetailByID(ctx, articleID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrCommentNotFound

@@ -6,3 +6,8 @@ const nsComment = "comment"
 func CommentArticleApprovedList(articleID string) Key {
 	return build(nsComment, "article", articleID, "approved", "list")
 }
+
+// CommentRateLimit 前台评论相关限流 Key。
+func CommentRateLimit(parts ...string) Key {
+	return build(append([]string{nsComment, "rate-limit"}, parts...)...)
+}

@@ -10,6 +10,7 @@ import (
 	commentService "meta-api/app/service/comment"
 	"meta-api/common/codes"
 	"meta-api/common/middlewares"
+	"meta-api/common/ratelimit"
 	"meta-api/common/types"
 	"meta-api/common/utils"
 )
@@ -78,6 +79,8 @@ func (h *commentHandler) UserAddComment(c *gin.Context) {
 	response, err := h.service.UserAddComment(ctx, request)
 	if err != nil {
 		switch {
+		case isCommentRateLimited(c, err):
+			return
 		case errors.Is(err, commentService.ErrCommentSessionInvalid):
 			utils.ClearCommentAuthCookie(c)
 			c.JSON(http.StatusOK, types.Response{Code: codes.Unauthorized, Message: "登录状态已失效，请重新登录", Data: nil})
@@ -95,4 +98,18 @@ func (h *commentHandler) UserAddComment(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: response})
+}
+
+// isCommentRateLimited 将评论提交限流错误写成统一业务响应。
+func isCommentRateLimited(c *gin.Context, err error) bool {
+	limited, ok := ratelimit.AsLimited(err)
+	if !ok {
+		return false
+	}
+	c.JSON(http.StatusOK, types.Response{
+		Code:    codes.TooManyRequests,
+		Message: limited.Error(),
+		Data:    types.RetryAfterResponse{RetryAfter: limited.RetryAfterSeconds()},
+	})
+	return true
 }

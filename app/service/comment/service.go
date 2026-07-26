@@ -11,7 +11,9 @@ import (
 	articleModel "meta-api/app/model/article"
 	commentModel "meta-api/app/model/comment"
 	userModel "meta-api/app/model/user"
+	"meta-api/common/ratelimit"
 	"meta-api/common/types"
+	"meta-api/config"
 )
 
 var (
@@ -33,20 +35,24 @@ type Service interface {
 }
 
 type commentService struct {
+	config       *config.Config
 	logger       *zap.Logger
 	idGenerator  *sonyflake.Sonyflake
 	redis        *redis.Client
+	limiter      *ratelimit.Limiter
 	commentModel commentModel.Model
 	articleModel articleModel.Model
 	userModel    userModel.Model
 }
 
-func NewService(logger *zap.Logger, idGenerator *sonyflake.Sonyflake, redis *redis.Client,
+func NewService(config *config.Config, logger *zap.Logger, idGenerator *sonyflake.Sonyflake, redis *redis.Client,
 	commentModel commentModel.Model, articleModel articleModel.Model, userModel userModel.Model) Service {
 	return &commentService{
+		config:       config,
 		logger:       logger,
 		idGenerator:  idGenerator,
 		redis:        redis,
+		limiter:      ratelimit.NewRedisLimiter(redis),
 		commentModel: commentModel,
 		articleModel: articleModel,
 		userModel:    userModel,

@@ -21,10 +21,15 @@ import (
 func (s *commentService) AdminGetCommentList(ctx context.Context,
 	request *types.AdminGetCommentListRequest) (*types.AdminGetCommentListResponse, error) {
 
+	status := strings.TrimSpace(request.Status)
+	if status != "" && !commentModel.IsValidStatus(status) {
+		return nil, ErrInvalidComment
+	}
+
 	filter := commentModel.AdminListFilter{
 		ArticleTitle: strings.TrimSpace(request.ArticleTitle),
 		AuthorHandle: normalizeAdminAuthorHandle(request.AuthorHandle),
-		Status:       request.Status,
+		Status:       status,
 		Offset:       (request.Page - 1) * request.PageSize,
 		Limit:        request.PageSize,
 	}
@@ -66,6 +71,11 @@ func (s *commentService) AdminGetCommentList(ctx context.Context,
 func (s *commentService) AdminUpdateCommentStatus(ctx context.Context,
 	request *types.AdminUpdateCommentStatusRequest) error {
 
+	status := strings.TrimSpace(request.Status)
+	if !commentModel.IsValidStatus(status) {
+		return ErrInvalidComment
+	}
+
 	id, err := idutil.ParseID("commentID", request.ID)
 	if err != nil {
 		s.logger.Error("invalid comment id", zap.Error(err))
@@ -86,7 +96,7 @@ func (s *commentService) AdminUpdateCommentStatus(ctx context.Context,
 		s.logger.Error("failed to load location", zap.Error(err))
 		return fmt.Errorf("failed to load location: %w", err)
 	}
-	if err = s.commentModel.UpdateCommentStatus(ctx, id, request.Status, time.Now().In(loc)); err != nil {
+	if err = s.commentModel.UpdateCommentStatus(ctx, id, status, time.Now().In(loc)); err != nil {
 		s.logger.Error("failed to update comment status", zap.Error(err))
 		return err
 	}

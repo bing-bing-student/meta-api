@@ -55,7 +55,7 @@ type AdminListItem struct {
 	LastCommentTime       *time.Time
 }
 
-func (User) TableName() string {
+func (*User) TableName() string {
 	return "user"
 }
 

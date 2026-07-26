@@ -15,6 +15,15 @@ const (
 	StatusRejected = "rejected"
 )
 
+func IsValidStatus(status string) bool {
+	switch status {
+	case StatusPending, StatusApproved, StatusRejected:
+		return true
+	default:
+		return false
+	}
+}
+
 type Comment struct {
 	ID               uint64          `gorm:"primary_key;NOT NULL"`
 	ArticleID        uint64          `gorm:"column:article_id;NOT NULL;index:idx_comment_article_status_time,priority:1"`

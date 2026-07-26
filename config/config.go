@@ -96,9 +96,18 @@ type AdminLoginRateLimitConfig struct {
 	VerifyDynamicCode DynamicCodeRateLimitConfig  `mapstructure:"verify_dynamic_code"`
 }
 
+// CommentSubmitRateLimitConfig 描述前台评论提交限流策略。
+type CommentSubmitRateLimitConfig struct {
+	Disabled    bool                  `mapstructure:"disabled"`
+	IP          RateLimitWindowConfig `mapstructure:"ip"`
+	User        RateLimitWindowConfig `mapstructure:"user"`
+	UserArticle RateLimitWindowConfig `mapstructure:"user_article"`
+}
+
 // RateLimitConfig 描述后端应用级限流配置。
 type RateLimitConfig struct {
-	AdminLogin AdminLoginRateLimitConfig `mapstructure:"admin_login"`
+	AdminLogin    AdminLoginRateLimitConfig    `mapstructure:"admin_login"`
+	CommentSubmit CommentSubmitRateLimitConfig `mapstructure:"comment_submit"`
 }
 
 // Config 定义项目配置文件结构体

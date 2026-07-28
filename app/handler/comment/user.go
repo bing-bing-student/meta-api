@@ -19,7 +19,7 @@ func (h *commentHandler) UserGetCommentList(c *gin.Context) {
 	ctx := c.Request.Context()
 	request := new(types.UserGetCommentListRequest)
 	if err := c.ShouldBind(request); err != nil {
-		h.logger.Error("parameter binding error", zap.Error(err))
+		h.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}
@@ -40,7 +40,7 @@ func (h *commentHandler) UserGetCommentReplyList(c *gin.Context) {
 	ctx := c.Request.Context()
 	request := new(types.UserGetCommentReplyListRequest)
 	if err := c.ShouldBind(request); err != nil {
-		h.logger.Error("parameter binding error", zap.Error(err))
+		h.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}
@@ -64,7 +64,7 @@ func (h *commentHandler) UserAddComment(c *gin.Context) {
 	ctx := c.Request.Context()
 	request := new(types.UserAddCommentRequest)
 	if err := c.ShouldBind(request); err != nil {
-		h.logger.Error("parameter binding error", zap.Error(err))
+		h.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}

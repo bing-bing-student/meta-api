@@ -37,7 +37,10 @@ func NewApp(bs *bootstrap.Bootstrap) *Application {
 		bs.Logger.Fatal("failed to resolve article service", zap.Error(err))
 	}
 
-	r := router.SetUpRouter(bs, container)
+	r, err := router.SetUpRouter(bs, container)
+	if err != nil {
+		bs.Logger.Fatal("failed to setup router", zap.Error(err))
+	}
 	httpServer := bootstrap.NewHTTPServer(os.Getenv("HTTP_HOST"), os.Getenv("HTTP_PORT"), r, bs.Logger)
 
 	return &Application{

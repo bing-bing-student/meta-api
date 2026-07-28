@@ -16,7 +16,7 @@ func (h *commentHandler) AdminGetCommentList(c *gin.Context) {
 	ctx := c.Request.Context()
 	request := new(types.AdminGetCommentListRequest)
 	if err := c.ShouldBind(request); err != nil {
-		h.logger.Error("parameter binding error", zap.Error(err))
+		h.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}
@@ -37,7 +37,7 @@ func (h *commentHandler) AdminUpdateCommentStatus(c *gin.Context) {
 	ctx := c.Request.Context()
 	request := new(types.AdminUpdateCommentStatusRequest)
 	if err := c.ShouldBind(request); err != nil {
-		h.logger.Error("parameter binding error", zap.Error(err))
+		h.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}
@@ -61,7 +61,7 @@ func (h *commentHandler) AdminDeleteComment(c *gin.Context) {
 	ctx := c.Request.Context()
 	request := new(types.AdminDeleteCommentRequest)
 	if err := c.ShouldBind(request); err != nil {
-		h.logger.Error("parameter binding error", zap.Error(err))
+		h.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}

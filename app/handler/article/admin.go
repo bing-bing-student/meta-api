@@ -16,7 +16,7 @@ func (a *articleHandler) AdminGetArticleList(c *gin.Context) {
 	ctx := c.Request.Context()
 	request := new(types.AdminGetArticleListRequest)
 	if err := c.ShouldBind(request); err != nil {
-		a.logger.Error("parameter binding error", zap.Error(err))
+		a.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}
@@ -35,7 +35,7 @@ func (a *articleHandler) AdminGetArticleDetail(c *gin.Context) {
 	ctx := c.Request.Context()
 	request := new(types.AdminGetArticleDetailRequest)
 	if err := c.ShouldBind(request); err != nil {
-		a.logger.Error("parameter binding error", zap.Error(err))
+		a.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}
@@ -54,12 +54,12 @@ func (a *articleHandler) AdminAddArticle(c *gin.Context) {
 	ctx := c.Request.Context()
 	request := new(types.AdminAddArticleRequest)
 	if err := c.ShouldBind(request); err != nil {
-		a.logger.Error("parameter binding error", zap.Error(err))
+		a.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}
 	if int64(len(request.Content)) > constants.MaxFileSize {
-		a.logger.Error("Article content exceeds 64KB")
+		a.logger.Warn("article content exceeds 64KB")
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "文章内容超过64KB", Data: nil})
 		return
 	}
@@ -78,12 +78,12 @@ func (a *articleHandler) AdminUpdateArticle(c *gin.Context) {
 	ctx := c.Request.Context()
 	request := new(types.AdminUpdateArticleRequest)
 	if err := c.ShouldBind(request); err != nil {
-		a.logger.Error("parameter binding error", zap.Error(err))
+		a.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}
 	if int64(len(request.Content)) > constants.MaxFileSize {
-		a.logger.Error("Article content exceeds 64KB")
+		a.logger.Warn("article content exceeds 64KB")
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "文章内容超过64KB", Data: nil})
 		return
 	}
@@ -102,7 +102,7 @@ func (a *articleHandler) AdminDeleteArticle(c *gin.Context) {
 	ctx := c.Request.Context()
 	request := new(types.AdminDeleteArticleRequest)
 	if err := c.ShouldBind(request); err != nil {
-		a.logger.Error("parameter binding error", zap.Error(err))
+		a.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}

@@ -13,12 +13,6 @@ import (
 	"gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
 
-	"meta-api/app/model/admin"
-	"meta-api/app/model/article"
-	"meta-api/app/model/comment"
-	"meta-api/app/model/link"
-	"meta-api/app/model/tag"
-	"meta-api/app/model/user"
 	"meta-api/common/loggers"
 	"meta-api/common/utils"
 	"meta-api/config"
@@ -124,111 +118,5 @@ func initMySQL(cfg *MySQLConfig) (db *gorm.DB) {
 		panic("MySQL connection failed: " + err.Error())
 	}
 
-	renameLegacyUserAccountTable(db)
-	renameLegacyUserIndexes(db)
-	prepareUserHandleMigration(db)
-
-	models := []any{
-		&article.Article{},
-		&tag.Tag{},
-		&link.Link{},
-		&admin.Admin{},
-		&user.User{},
-		&comment.Comment{},
-	}
-
-	// 自动生成对应的数据库表(表级别的字符排序默认使用utf8mb4_general_ci)
-	if err = db.Set("gorm:table_options", "ENGINE=InnoDB CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci").
-		AutoMigrate(models...); err != nil {
-		panic("failed to auto migrate tables: " + err.Error())
-	}
-	dropLegacyCommentColumns(db)
-
-	// 根据特定的业务场景修改特定字段的字符排序规则
-	db.Exec("ALTER TABLE tag MODIFY COLUMN name VARCHAR(30) COLLATE utf8mb4_bin NOT NULL;")
-	db.Exec("ALTER TABLE link MODIFY COLUMN name VARCHAR(20) COLLATE utf8mb4_bin NOT NULL;")
-	db.Exec("ALTER TABLE article MODIFY COLUMN title VARCHAR(30) COLLATE utf8mb4_bin NOT NULL;")
-
 	return db
-}
-
-func dropLegacyCommentColumns(db *gorm.DB) {
-	for _, column := range []string{"author_email", "author_website", "user_agent"} {
-		if db.Migrator().HasColumn(&comment.Comment{}, column) {
-			_ = db.Migrator().DropColumn(&comment.Comment{}, column)
-		}
-	}
-}
-
-func renameLegacyUserAccountTable(db *gorm.DB) {
-	if !db.Migrator().HasTable("user_account") || db.Migrator().HasTable("user") {
-		return
-	}
-	if err := db.Migrator().RenameTable("user_account", "user"); err != nil {
-		panic("failed to rename user_account table: " + err.Error())
-	}
-}
-
-func renameLegacyUserIndexes(db *gorm.DB) {
-	const (
-		legacyProviderUIDIndex = "idx_user_account_provider_uid"
-		providerUIDIndex       = "idx_user_provider_uid"
-	)
-
-	if !db.Migrator().HasIndex(&user.User{}, legacyProviderUIDIndex) ||
-		db.Migrator().HasIndex(&user.User{}, providerUIDIndex) {
-		return
-	}
-	if err := db.Migrator().RenameIndex(&user.User{}, legacyProviderUIDIndex, providerUIDIndex); err != nil {
-		panic("failed to rename user provider index: " + err.Error())
-	}
-}
-
-func prepareUserHandleMigration(db *gorm.DB) {
-	if !db.Migrator().HasTable(&user.User{}) {
-		return
-	}
-	if !db.Migrator().HasColumn(&user.User{}, "handle") {
-		if err := db.Exec("ALTER TABLE `user` ADD COLUMN `handle` VARCHAR(32) NULL AFTER `display_name`;").Error; err != nil {
-			panic("failed to add user handle column: " + err.Error())
-		}
-	}
-
-	if err := db.Exec("UPDATE `user` SET `handle` = CONCAT('tmp-', `id`) WHERE `handle` IS NULL OR `handle` = '';").Error; err != nil {
-		panic("failed to prepare user handle column: " + err.Error())
-	}
-	if err := db.Exec(`
-		UPDATE ` + "`user`" + ` u
-		JOIN (
-			SELECT ordered.id,
-				IF(ordered.seq < 100000, LPAD(CAST(ordered.seq AS CHAR), 5, '0'), CAST(ordered.seq AS CHAR)) AS next_handle
-			FROM (
-				SELECT source.id, @next_user_handle := @next_user_handle + 1 AS seq
-				FROM (
-					SELECT id
-					FROM ` + "`user`" + `
-					WHERE ` + "`handle`" + ` NOT REGEXP '^[0-9]+$' OR CAST(` + "`handle`" + ` AS UNSIGNED) = 0
-					ORDER BY ` + "`create_time`" + `, ` + "`id`" + `
-				) source
-				JOIN (
-					SELECT @next_user_handle := (
-						SELECT COALESCE(MAX(CAST(` + "`handle`" + ` AS UNSIGNED)), 0)
-						FROM ` + "`user`" + `
-						WHERE ` + "`handle`" + ` REGEXP '^[0-9]+$' AND CAST(` + "`handle`" + ` AS UNSIGNED) > 0
-					)
-				) vars
-			) ordered
-		) mapped ON mapped.id = u.id
-		SET u.handle = mapped.next_handle;
-	`).Error; err != nil {
-		panic("failed to backfill numeric user handles: " + err.Error())
-	}
-	if err := db.Exec("ALTER TABLE `user` MODIFY COLUMN `handle` VARCHAR(32) NOT NULL;").Error; err != nil {
-		panic("failed to require user handle column: " + err.Error())
-	}
-	if !db.Migrator().HasIndex(&user.User{}, "idx_user_handle") {
-		if err := db.Exec("CREATE UNIQUE INDEX `idx_user_handle` ON `user` (`handle`);").Error; err != nil {
-			panic("failed to create user handle index: " + err.Error())
-		}
-	}
 }

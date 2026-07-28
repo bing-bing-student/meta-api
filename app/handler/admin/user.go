@@ -28,7 +28,7 @@ func (a *adminHandler) AdminGetUserList(c *gin.Context) {
 	ctx := c.Request.Context()
 	request := new(types.AdminGetUserListRequest)
 	if err := c.ShouldBindQuery(request); err != nil {
-		a.logger.Error("parameter binding error", zap.Error(err))
+		a.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}
@@ -45,7 +45,7 @@ func (a *adminHandler) AdminUpdateUserCommentPermission(c *gin.Context) {
 	ctx := c.Request.Context()
 	request := new(types.AdminUpdateUserCommentPermissionRequest)
 	if err := c.ShouldBindJSON(request); err != nil {
-		a.logger.Error("parameter binding error", zap.Error(err))
+		a.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}
@@ -65,7 +65,7 @@ func (a *adminHandler) AdminForceUserLogout(c *gin.Context) {
 	ctx := c.Request.Context()
 	request := new(types.AdminForceUserLogoutRequest)
 	if err := c.ShouldBindJSON(request); err != nil {
-		a.logger.Error("parameter binding error", zap.Error(err))
+		a.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}

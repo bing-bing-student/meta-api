@@ -17,13 +17,13 @@ func (h *userAuthHandler) OAuthLogin(c *gin.Context) {
 	ctx := c.Request.Context()
 	uriRequest := new(types.OAuthProviderURIRequest)
 	if err := c.ShouldBindUri(uriRequest); err != nil {
-		h.logger.Error("parameter binding error", zap.Error(err))
+		h.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的登录渠道", Data: nil})
 		return
 	}
 	queryRequest := new(types.OAuthLoginQueryRequest)
 	if err := c.ShouldBindQuery(queryRequest); err != nil {
-		h.logger.Error("parameter binding error", zap.Error(err))
+		h.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的登录参数", Data: nil})
 		return
 	}
@@ -52,13 +52,13 @@ func (h *userAuthHandler) OAuthCallback(c *gin.Context) {
 	ctx := c.Request.Context()
 	uriRequest := new(types.OAuthProviderURIRequest)
 	if err := c.ShouldBindUri(uriRequest); err != nil {
-		h.logger.Error("parameter binding error", zap.Error(err))
+		h.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的登录渠道", Data: nil})
 		return
 	}
 	queryRequest := new(types.OAuthCallbackQueryRequest)
 	if err := c.ShouldBindQuery(queryRequest); err != nil {
-		h.logger.Error("parameter binding error", zap.Error(err))
+		h.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的登录回调参数", Data: nil})
 		return
 	}

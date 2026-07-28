@@ -71,7 +71,7 @@ func (a *adminHandler) SendSMSCode(c *gin.Context) {
 
 	//request := new(types.SendSMSCodeRequest)
 	//if err := c.ShouldBind(request); err != nil {
-	//	a.logger.Error("parameter binding error", zap.Error(err))
+	//	a.logger.Warn("parameter binding error", zap.Error(err))
 	//	c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 	//	return
 	//}
@@ -89,7 +89,7 @@ func (a *adminHandler) SMSCodeLogin(c *gin.Context) {
 
 	request := new(types.SMSCodeLoginRequest)
 	if err := c.ShouldBind(request); err != nil {
-		a.logger.Error("parameter binding error", zap.Error(err))
+		a.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}
@@ -109,7 +109,7 @@ func (a *adminHandler) AccountLogin(c *gin.Context) {
 
 	request := new(types.AccountLoginRequest)
 	if err := c.ShouldBind(request); err != nil {
-		a.logger.Error("parameter binding error", zap.Error(err))
+		a.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}
@@ -133,7 +133,7 @@ func (a *adminHandler) BindDynamicCode(c *gin.Context) {
 
 	request := new(types.BindDynamicCodeRequest)
 	if err := c.ShouldBind(request); err != nil {
-		a.logger.Error("parameter binding error", zap.Error(err))
+		a.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}
@@ -159,7 +159,7 @@ func (a *adminHandler) VerifyDynamicCode(c *gin.Context) {
 
 	request := new(types.VerifyDynamicCodeRequest)
 	if err := c.ShouldBind(request); err != nil {
-		a.logger.Error("parameter binding error", zap.Error(err))
+		a.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: err.Error(), Data: nil})
 		return
 	}
@@ -185,7 +185,7 @@ func (a *adminHandler) AdminUpdateAboutMe(c *gin.Context) {
 
 	request := new(types.UpdateAboutMeRequest)
 	if err := c.ShouldBind(request); err != nil {
-		a.logger.Error("parameter binding error", zap.Error(err))
+		a.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}

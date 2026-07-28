@@ -16,7 +16,7 @@ func (a *articleHandler) UserGetArticleList(c *gin.Context) {
 	ctx := c.Request.Context()
 	request := new(types.UserGetArticleListRequest)
 	if err := c.ShouldBind(request); err != nil {
-		a.logger.Error("parameter binding error", zap.Error(err))
+		a.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}
@@ -34,7 +34,7 @@ func (a *articleHandler) UserGetArticleDetail(c *gin.Context) { // ignore_securi
 	ctx := c.Request.Context()
 	request := new(types.UserGetArticleDetailRequest)
 	if err := c.ShouldBind(request); err != nil {
-		a.logger.Error("parameter binding error", zap.Error(err))
+		a.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}
@@ -57,7 +57,7 @@ func (a *articleHandler) UserSearchArticle(c *gin.Context) {
 
 	request := &types.UserSearchArticleRequest{}
 	if err := c.ShouldBind(request); err != nil {
-		a.logger.Error("parameter binding error", zap.Error(err))
+		a.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}

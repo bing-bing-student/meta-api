@@ -1,11 +1,11 @@
 package router
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/dig"
-	"go.uber.org/zap"
 
 	"meta-api/app/handler/admin"
 	"meta-api/app/handler/article"
@@ -21,15 +21,14 @@ import (
 
 // SetUpRouter 启动路由
 // container 由调用方（app 层）统一构建并传入，避免重复创建容器导致依赖实例发散
-func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) *gin.Engine {
+func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) (*gin.Engine, error) {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	logger := bs.Logger
 
 	// 信任 Nginx 代理所在网段的请求
 	if err := r.SetTrustedProxies([]string{"172.16.0.0/12"}); err != nil {
-		logger.Error("error set trusted proxy", zap.Error(err))
-		return nil
+		return nil, fmt.Errorf("set trusted proxies: %w", err)
 	}
 	r.TrustedPlatform = "X-Client-IP"
 
@@ -46,57 +45,49 @@ func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) *gin.Engine 
 	// 获取 adminHandler 实例
 	var adminHandler admin.Handler
 	if err := container.Invoke(func(h admin.Handler) { adminHandler = h }); err != nil {
-		logger.Error("failed to get admin handler", zap.Error(err))
-		return nil
+		return nil, fmt.Errorf("resolve admin handler: %w", err)
 	}
 
 	// 获取 articleHandler 实例
 	var articleHandler article.Handler
 	if err := container.Invoke(func(h article.Handler) { articleHandler = h }); err != nil {
-		logger.Error("failed to get article handler", zap.Error(err))
-		return nil
+		return nil, fmt.Errorf("resolve article handler: %w", err)
 	}
 
 	// 获取 tagHandler 实例
 	var tagHandler tag.Handler
 	if err := container.Invoke(func(h tag.Handler) { tagHandler = h }); err != nil {
-		logger.Error("failed to get tag handler", zap.Error(err))
-		return nil
+		return nil, fmt.Errorf("resolve tag handler: %w", err)
 	}
 
 	// 获取 commentHandler 实例
 	var commentHandler comment.Handler
 	if err := container.Invoke(func(h comment.Handler) { commentHandler = h }); err != nil {
-		logger.Error("failed to get comment handler", zap.Error(err))
-		return nil
+		return nil, fmt.Errorf("resolve comment handler: %w", err)
 	}
 
 	// 获取 linkHandler 实例
 	var linkHandler link.Handler
 	if err := container.Invoke(func(h link.Handler) { linkHandler = h }); err != nil {
-		logger.Error("failed to get link handler", zap.Error(err))
-		return nil
+		return nil, fmt.Errorf("resolve link handler: %w", err)
 	}
 
 	// 获取 viewLogHandler 实例
 	var viewLogHandler viewlog.Handler
 	if err := container.Invoke(func(h viewlog.Handler) { viewLogHandler = h }); err != nil {
-		logger.Error("failed to get view-log handler", zap.Error(err))
-		return nil
+		return nil, fmt.Errorf("resolve view-log handler: %w", err)
 	}
 
 	// 获取 shareHandler 实例
 	var shareHandler share.Handler
 	if err := container.Invoke(func(h share.Handler) { shareHandler = h }); err != nil {
-		logger.Error("failed to get share handler", zap.Error(err))
-		return nil
+		return nil, fmt.Errorf("resolve share handler: %w", err)
 	}
 
 	// 获取 userAuthHandler 实例
 	var userAuthHandler userauth.Handler
 	if err := container.Invoke(func(h userauth.Handler) { userAuthHandler = h }); err != nil {
-		logger.Error("failed to get user auth handler", zap.Error(err))
-		return nil
+		return nil, fmt.Errorf("resolve user auth handler: %w", err)
 	}
 
 	// 后台管理路由(不需要JWT验证)
@@ -178,11 +169,11 @@ func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) *gin.Engine 
 		// 管理员相关
 		userGroup.GET("/about-me", adminHandler.UserGetAboutMe)
 
-		// 分享风控守卫（v1）：浏览器→precheck（信封风控签发 token）；
+		// 分享风控守卫（v1）：浏览器→precheck（信封风控签发 token）
 		// Nuxt SSR→consume（一次性消费 token，拿到 fingerprint 继续走文件存储）
 		userGroup.POST("/share/precheck", shareHandler.Precheck)
 		userGroup.POST("/share/consume", shareHandler.Consume)
 	}
 
-	return r
+	return r, nil
 }

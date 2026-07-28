@@ -28,7 +28,7 @@ func (l *linkHandler) AdminAddLink(c *gin.Context) {
 
 	request := &types.AdminAddLinkRequest{}
 	if err := c.ShouldBind(request); err != nil {
-		l.logger.Error("parameter binding error", zap.Error(err))
+		l.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}
@@ -46,7 +46,7 @@ func (l *linkHandler) AdminUpdateLink(c *gin.Context) {
 
 	request := &types.AdminUpdateLinkRequest{}
 	if err := c.ShouldBind(request); err != nil {
-		l.logger.Error("parameter binding error", zap.Error(err))
+		l.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}
@@ -64,7 +64,7 @@ func (l *linkHandler) AdminDeleteLink(c *gin.Context) {
 
 	request := &types.AdminDeleteLinkRequest{}
 	if err := c.ShouldBind(request); err != nil {
-		l.logger.Error("parameter binding error", zap.Error(err))
+		l.logger.Warn("parameter binding error", zap.Error(err))
 		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
 		return
 	}

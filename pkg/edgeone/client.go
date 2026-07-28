@@ -42,7 +42,7 @@ const (
 type Client struct {
 	purger  purgeAPI
 	zoneID  string
-	domain  string // 形如 https://liubing.xyz，末尾不带斜杠
+	domain  string
 	timeout time.Duration
 	logger  *zap.Logger
 	ctx     context.Context

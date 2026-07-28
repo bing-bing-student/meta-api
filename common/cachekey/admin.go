@@ -17,6 +17,11 @@ func AdminPendingTOTPSecret(challenge string) Key {
 	return build(nsAdmin, "pending-totp-secret", challenge)
 }
 
+// AdminSession 管理员 refresh token 服务端会话。
+func AdminSession(sessionID string) Key {
+	return build(nsAdmin, "session", sessionID)
+}
+
 // AboutMeHash 前台 "关于我" 信息缓存
 func AboutMeHash() Key { return "aboutMeInfo:Hash" }
 

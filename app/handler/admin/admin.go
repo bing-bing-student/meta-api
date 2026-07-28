@@ -28,6 +28,8 @@ func writeRateLimited(c *gin.Context, err error) bool {
 
 // RefreshToken 刷新RefreshToken
 func (a *adminHandler) RefreshToken(c *gin.Context) {
+	ctx := c.Request.Context()
+
 	// 从 Cookie 读取 refresh_token，不再从 Authorization 头读取
 	refreshToken, err := c.Cookie(utils.RefreshTokenCookie)
 	if err != nil || refreshToken == "" {
@@ -35,32 +37,30 @@ func (a *adminHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	// 解析 refreshToken
-	userClaims, err := utils.ParseToken(refreshToken)
+	// 校验 refresh token 服务端会话状态并滚动刷新
+	doubleToken, err := a.service.RefreshToken(ctx, refreshToken)
 	if err != nil {
-		a.logger.Error("parse refreshToken failed", zap.Error(err))
+		a.logger.Error("refreshToken failed", zap.Error(err))
 		// refresh token 无效 / 过期，清除 Cookie 并返回 4010，前端跳转登录页
 		utils.ClearAuthCookies(c)
 		c.JSON(http.StatusOK, types.Response{Code: codes.Unauthorized, Message: "无效的 Token", Data: nil})
 		return
 	}
 
-	// 生成新访问令牌和刷新令牌（滚动刷新）
-	doubleToken, err := a.service.GenerateToken(userClaims)
-	if err != nil {
-		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "生成 Token 失败", Data: nil})
-		return
-	}
-
 	// 通过 Set-Cookie 下发新的 access_token 和 refresh_token，响应体不再返回 token
 	utils.SetAuthCookies(c, doubleToken.AccessToken, doubleToken.RefreshToken)
 	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "",
-		Data: map[string]string{"userID": userClaims.UserID},
+		Data: nil,
 	})
 }
 
-// Logout 登出，清除 access_token 和 refresh_token Cookie
+// Logout 登出，撤销 refresh token 服务端会话并清除 Cookie
 func (a *adminHandler) Logout(c *gin.Context) {
+	if refreshToken, err := c.Cookie(utils.RefreshTokenCookie); err == nil && refreshToken != "" {
+		if err = a.service.RevokeRefreshToken(c.Request.Context(), refreshToken); err != nil {
+			a.logger.Warn("revoke refresh token failed during logout", zap.Error(err))
+		}
+	}
 	utils.ClearAuthCookies(c)
 	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: nil})
 }

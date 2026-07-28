@@ -13,7 +13,8 @@ const (
 	// RefreshTokenCookie refresh_token 的 Cookie 名
 	RefreshTokenCookie = "refresh_token"
 
-	authCookieMaxAge = 7 * 24 * 60 * 60
+	accessCookieMaxAge  = 15 * 60
+	refreshCookieMaxAge = 7 * 24 * 60 * 60
 
 	// accessCookiePath access_token 在所有路径下携带
 	accessCookiePath = "/"
@@ -34,9 +35,9 @@ func SetAuthCookies(c *gin.Context, accessToken, refreshToken string) {
 	sameSite := sameSiteMode()
 	// gin 的 SetCookie 第 6 个参数 secure、第 7 个 httpOnly；SameSite 需用 SetSameSite 设置
 	c.SetSameSite(sameSite)
-	c.SetCookie(AccessTokenCookie, accessToken, authCookieMaxAge, accessCookiePath, "", secure, true)
+	c.SetCookie(AccessTokenCookie, accessToken, accessCookieMaxAge, accessCookiePath, "", secure, true)
 	c.SetSameSite(sameSite)
-	c.SetCookie(RefreshTokenCookie, refreshToken, authCookieMaxAge, refreshCookiePath, "", secure, true)
+	c.SetCookie(RefreshTokenCookie, refreshToken, refreshCookieMaxAge, refreshCookiePath, "", secure, true)
 }
 
 // ClearAuthCookies 登出/刷新失败时清除两个 Cookie，Path 必须与下发时一致，否则无法删除

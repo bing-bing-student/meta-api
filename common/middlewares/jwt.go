@@ -26,7 +26,7 @@ func JWT() gin.HandlerFunc {
 			return
 		}
 
-		claims, err := utils.ParseToken(token)
+		claims, err := utils.ParseAccessToken(token)
 		if err != nil {
 			if strings.Contains(err.Error(), "TokenExpired") {
 				// 过期但格式合法 -> 4012，让前端去 /refresh-token 接口刷新

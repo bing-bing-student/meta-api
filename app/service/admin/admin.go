@@ -2,7 +2,9 @@ package admin
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -24,6 +26,21 @@ import (
 )
 
 const loginChallengeTTL = 3 * time.Minute
+
+const (
+	adminAccessTokenTTL  = 15 * time.Minute
+	adminRefreshTokenTTL = 7 * 24 * time.Hour
+
+	adminSessionUserIDField      = "user_id"
+	adminSessionRefreshHashField = "refresh_hash"
+	adminSessionRefreshJTIField  = "refresh_jti"
+)
+
+var (
+	errAdminSessionNotFound = errors.New("admin session not found")
+	errAdminSessionMismatch = errors.New("admin session mismatch")
+	errRefreshTokenRotated  = errors.New("refresh token has been rotated")
+)
 
 // generateLoginChallenge 生成二阶段登录用的一次性随机挑战值。
 func generateLoginChallenge() (string, error) {
@@ -70,22 +87,70 @@ func (a *adminService) clearLoginChallenge(ctx context.Context, challenge string
 	}
 }
 
-// GenerateToken 生成AccessToken和RefreshToken
-func (a *adminService) GenerateToken(userClaims *types.UserClaims) (*types.TokenDetails, error) {
+// GenerateToken 生成AccessToken和RefreshToken，并把当前 refresh token 状态写入 Redis。
+func (a *adminService) GenerateToken(ctx context.Context, userClaims *types.UserClaims) (*types.TokenDetails, error) {
+	if userClaims == nil || userClaims.UserID == "" {
+		return nil, errors.New("invalid user claims")
+	}
+	return a.issueTokenPair(ctx, userClaims.UserID, "", "")
+}
+
+func (a *adminService) RefreshToken(ctx context.Context, refreshToken string) (*types.TokenDetails, error) {
+	claims, err := utils.ParseRefreshToken(refreshToken)
+	if err != nil {
+		return nil, err
+	}
+
+	doubleToken, err := a.issueTokenPair(ctx, claims.UserID, claims.SessionID, hashRefreshToken(refreshToken))
+	if err != nil {
+		if errors.Is(err, errAdminSessionMismatch) || errors.Is(err, errRefreshTokenRotated) {
+			if delErr := a.redis.Del(ctx, cachekey.AdminSession(claims.SessionID).String()).Err(); delErr != nil {
+				a.logger.Warn("failed to revoke invalid admin session", zap.Error(delErr))
+			}
+		}
+		if errors.Is(err, redis.TxFailedErr) {
+			a.logger.Warn("admin refresh token rotation conflict", zap.Error(err))
+		}
+		return nil, err
+	}
+
+	return doubleToken, nil
+}
+
+func (a *adminService) RevokeRefreshToken(ctx context.Context, refreshToken string) error {
+	claims, err := utils.ParseRefreshToken(refreshToken)
+	if err != nil {
+		return err
+	}
+	if err = a.redis.Del(ctx, cachekey.AdminSession(claims.SessionID).String()).Err(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (a *adminService) issueTokenPair(ctx context.Context, userID string, sessionID string,
+	expectedRefreshHash string) (*types.TokenDetails, error) {
 	tokenDetails := &types.TokenDetails{}
 	mySigningKey := []byte(os.Getenv("JWT_SIGNING_KEY"))
+	now := time.Now()
+	if sessionID == "" {
+		sessionID = uuid.New().String()
+	}
 
 	// 访问令牌15分钟后过期
-	tokenDetails.AtExpires = time.Now().Add(time.Minute * 15).Unix()
+	tokenDetails.AtExpires = now.Add(adminAccessTokenTTL).Unix()
 	tokenDetails.AccessUUID = uuid.New().String()
 
 	// 创建访问令牌的声明
 	accessTokenClaims := &types.UserClaims{
-		UserID: userClaims.UserID,
+		UserID:    userID,
+		TokenUse:  utils.AdminAccessTokenUse,
+		SessionID: sessionID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Unix(tokenDetails.AtExpires, 0)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			NotBefore: jwt.NewNumericDate(time.Now()),
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
+			ID:        tokenDetails.AccessUUID,
 		},
 	}
 
@@ -99,16 +164,19 @@ func (a *adminService) GenerateToken(userClaims *types.UserClaims) (*types.Token
 	tokenDetails.AccessToken = accessTokenString
 
 	// 刷新令牌7天后过期
-	tokenDetails.RtExpires = time.Now().Add(time.Hour * 24 * 7).Unix()
+	tokenDetails.RtExpires = now.Add(adminRefreshTokenTTL).Unix()
 	tokenDetails.RefreshUUID = uuid.New().String()
 
 	// 创建刷新令牌的声明
 	refreshTokenClaims := &types.UserClaims{
-		UserID: userClaims.UserID,
+		UserID:    userID,
+		TokenUse:  utils.AdminRefreshTokenUse,
+		SessionID: sessionID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Unix(tokenDetails.RtExpires, 0)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			NotBefore: jwt.NewNumericDate(time.Now()),
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
+			ID:        tokenDetails.RefreshUUID,
 		},
 	}
 
@@ -121,7 +189,58 @@ func (a *adminService) GenerateToken(userClaims *types.UserClaims) (*types.Token
 	}
 	tokenDetails.RefreshToken = refreshTokenString
 
+	if err = a.storeAdminSession(ctx, sessionID, userID, tokenDetails.RefreshUUID,
+		hashRefreshToken(refreshTokenString), expectedRefreshHash); err != nil {
+		return nil, err
+	}
+
 	return tokenDetails, nil
+}
+
+func (a *adminService) storeAdminSession(ctx context.Context, sessionID string, userID string, refreshJTI string,
+	refreshHash string, expectedRefreshHash string) error {
+	sessionKey := cachekey.AdminSession(sessionID).String()
+	sessionFields := map[string]any{
+		adminSessionUserIDField:      userID,
+		adminSessionRefreshHashField: refreshHash,
+		adminSessionRefreshJTIField:  refreshJTI,
+	}
+	if expectedRefreshHash == "" {
+		if err := a.redis.HSet(ctx, sessionKey, sessionFields).Err(); err != nil {
+			return err
+		}
+		return a.redis.Expire(ctx, sessionKey, adminRefreshTokenTTL).Err()
+	}
+
+	return a.redis.Watch(ctx, func(tx *redis.Tx) error {
+		values, err := tx.HMGet(ctx, sessionKey, adminSessionUserIDField, adminSessionRefreshHashField).Result()
+		if err != nil {
+			return err
+		}
+		currentUserID, _ := values[0].(string)
+		currentHash, _ := values[1].(string)
+		if currentUserID == "" || currentHash == "" {
+			return errAdminSessionNotFound
+		}
+		if currentUserID != userID {
+			return errAdminSessionMismatch
+		}
+		if !hmac.Equal([]byte(currentHash), []byte(expectedRefreshHash)) {
+			return errRefreshTokenRotated
+		}
+
+		_, err = tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+			pipe.HSet(ctx, sessionKey, sessionFields)
+			pipe.Expire(ctx, sessionKey, adminRefreshTokenTTL)
+			return nil
+		})
+		return err
+	}, sessionKey)
+}
+
+func hashRefreshToken(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
 }
 
 // SendSMSCode 发送短信验证码
@@ -180,7 +299,7 @@ func (a *adminService) SMSCodeLogin(ctx context.Context,
 	// 生成双 Token
 	claims := new(types.UserClaims)
 	claims.UserID = userID
-	doubleToken, err := a.GenerateToken(claims)
+	doubleToken, err := a.GenerateToken(ctx, claims)
 	if err != nil {
 		a.logger.Error("failed to generate new tokens", zap.Error(err))
 		return response, fmt.Errorf("failed to generate new tokens")
@@ -292,7 +411,7 @@ func (a *adminService) BindDynamicCode(ctx context.Context,
 	// 生成双 Token
 	claims := new(types.UserClaims)
 	claims.UserID = userID
-	doubleToken, err := a.GenerateToken(claims)
+	doubleToken, err := a.GenerateToken(ctx, claims)
 	if err != nil {
 		a.logger.Error("failed to generate new tokens", zap.Error(err))
 		return response, fmt.Errorf("failed to generate new tokens")
@@ -345,7 +464,7 @@ func (a *adminService) VerifyDynamicCode(ctx context.Context,
 	// 生成双 Token
 	claims := new(types.UserClaims)
 	claims.UserID = userID
-	doubleToken, err := a.GenerateToken(claims)
+	doubleToken, err := a.GenerateToken(ctx, claims)
 	if err != nil {
 		a.logger.Error("failed to generate new tokens", zap.Error(err))
 		return response, fmt.Errorf("failed to generate new tokens")

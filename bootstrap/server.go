@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -33,12 +34,18 @@ func NewHTTPServer(host, port string, handler *gin.Engine, logger *zap.Logger) *
 }
 
 // Start 启动HTTP服务
-func (s *HTTPServer) Start() {
+func (s *HTTPServer) Start() error {
+	listener, err := net.Listen("tcp", s.server.Addr)
+	if err != nil {
+		return fmt.Errorf("failed to listen on %s: %w", s.server.Addr, err)
+	}
+
 	go func() {
-		if err := s.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := s.server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.logger.Error("HTTP server listen error", zap.Error(err))
 		}
 	}()
+	return nil
 }
 
 // Stop 停止HTTP服务

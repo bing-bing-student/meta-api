@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 
 	"meta-api/app/di"
@@ -18,9 +19,29 @@ import (
 
 // Application 应用核心管理器
 type Application struct {
-	bootstrap      *bootstrap.Bootstrap
-	http           *bootstrap.HTTPServer
-	articleService articleService.Service
+	bootstrap     *bootstrap.Bootstrap
+	http          *bootstrap.HTTPServer
+	startupTasks  []startupTask
+	cronTasks     []cronTask
+	shutdownTasks []shutdownTask
+}
+
+// startupTask 应用启动时执行的任务
+type startupTask struct {
+	name string
+	run  func(context.Context) error
+}
+
+// cronTask 应用 cron 任务
+type cronTask struct {
+	name     string
+	register func(*cron.Cron) ([]cron.EntryID, error)
+}
+
+// shutdownTask 应用关闭时执行的任务
+type shutdownTask struct {
+	name string
+	run  func(context.Context) error
 }
 
 // NewApp 创建应用实例
@@ -44,31 +65,51 @@ func NewApp(bs *bootstrap.Bootstrap) *Application {
 	httpServer := bootstrap.NewHTTPServer(os.Getenv("HTTP_HOST"), os.Getenv("HTTP_PORT"), r, bs.Logger)
 
 	return &Application{
-		bootstrap:      bs,
-		http:           httpServer,
-		articleService: artSvc,
+		bootstrap: bs,
+		http:      httpServer,
+		startupTasks: []startupTask{
+			{name: "warm up article cache", run: artSvc.WarmUpCache},
+		},
+		cronTasks: []cronTask{
+			{name: "register article cron jobs", register: artSvc.RegisterCronJobs},
+		},
+		shutdownTasks: []shutdownTask{
+			{name: "persist article view count", run: artSvc.PersistViewCount},
+		},
 	}
 }
 
 // Run 启动应用核心服务
-func (a *Application) Run(ctx context.Context) {
-	// 启动基础组件（仅启动 cron 调度器，业务任务在下面统一注册）
+func (a *Application) Run(ctx context.Context) error {
+	for _, task := range a.startupTasks {
+		if err := task.run(ctx); err != nil {
+			a.bootstrap.Logger.Error("startup task failed",
+				zap.String("task", task.name), zap.Error(err))
+		}
+	}
+
+	var cronEntryIDs []cron.EntryID
+	for _, task := range a.cronTasks {
+		ids, err := task.register(a.bootstrap.Cron)
+		if err != nil {
+			a.bootstrap.Logger.Error("cron task registration failed",
+				zap.String("task", task.name), zap.Error(err))
+			continue
+		}
+		cronEntryIDs = append(cronEntryIDs, ids...)
+	}
+	if len(cronEntryIDs) > 0 {
+		a.bootstrap.CronEntryIDList = &cronEntryIDs
+	}
+
+	// cron 任务注册完成后再启动调度器，避免启动时序和注册时序交错
 	a.bootstrap.Start()
 
-	// 缓存预热（业务实现下沉到 service 层，app 层只负责调度与日志）
-	if err := a.articleService.WarmUpCache(ctx); err != nil {
-		a.bootstrap.Logger.Error("failed to warm up article cache", zap.Error(err))
+	if err := a.http.Start(); err != nil {
+		a.bootstrap.StopCron(ctx)
+		return err
 	}
-
-	// 注册定时任务：把 Redis 中的浏览量周期性回写 MySQL
-	if ids, err := a.articleService.RegisterCronJobs(a.bootstrap.Cron); err != nil {
-		a.bootstrap.Logger.Error("failed to register article cron jobs", zap.Error(err))
-	} else {
-		a.bootstrap.CronEntryIDList = &ids
-	}
-
-	// 启动 HTTP 服务器
-	a.http.Start()
+	return nil
 }
 
 // Stop 停止应用
@@ -76,14 +117,18 @@ func (a *Application) Stop(ctx context.Context) {
 	// 1. 停止 HTTP，确保不再有新请求产生浏览增量
 	a.http.Stop(ctx)
 
-	// 2. 关闭时兜底落盘：把 Redis 中最新浏览量同步至 MySQL
-	//    防止两次 cron 之间崩溃 / 关闭导致的增量丢失
-	if err := a.articleService.PersistViewCount(ctx); err != nil {
-		a.bootstrap.Logger.Error("failed to persist article view count", zap.Error(err))
+	// 2. 停止 cron，避免停机兜底任务和定时任务并发写入
+	a.bootstrap.StopCron(ctx)
+
+	// 3. 执行业务停机任务，例如把内存/缓存中的增量兜底落盘
+	for _, task := range a.shutdownTasks {
+		if err := task.run(ctx); err != nil {
+			a.bootstrap.Logger.Error("shutdown task failed", zap.String("task", task.name), zap.Error(err))
+		}
 	}
 
-	// 3. 停止基础组件（关闭 cron / MySQL / Redis 连接）
-	a.bootstrap.Stop()
+	// 4. 关闭基础资源连接
+	a.bootstrap.CloseResources()
 }
 
 // RunWithGracefulShutdown app启停生命周期管理
@@ -92,11 +137,13 @@ func (a *Application) RunWithGracefulShutdown() {
 	runCtx, runCancel := context.WithCancel(context.Background())
 	defer runCancel()
 
-	// 启动应用
-	go a.Run(runCtx)
-
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	// 启动应用
+	if err := a.Run(runCtx); err != nil {
+		a.bootstrap.Logger.Fatal("failed to run app", zap.Error(err))
+	}
 	<-quit
 
 	// 创建关闭上下文

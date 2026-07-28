@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"context"
 	"os"
 	"strings"
 
@@ -112,14 +113,27 @@ func (b *Bootstrap) Start() {
 
 // Stop 停止所有服务组件
 func (b *Bootstrap) Stop() {
-	// 关闭定时任务
+	b.StopCron(context.Background())
+	b.CloseResources()
+}
+
+// StopCron 停止定时任务调度器
+func (b *Bootstrap) StopCron(ctx context.Context) {
 	if b.CronEntryIDList != nil {
 		for _, entryID := range *b.CronEntryIDList {
 			b.Cron.Remove(entryID)
 		}
 	}
-	b.Cron.Stop()
+	stopCtx := b.Cron.Stop()
+	select {
+	case <-stopCtx.Done():
+	case <-ctx.Done():
+		b.Logger.Error("cron shutdown timed out", zap.Error(ctx.Err()))
+	}
+}
 
+// CloseResources 关闭基础资源连接
+func (b *Bootstrap) CloseResources() {
 	// 关闭 MySQL 数据库连接
 	if sqlDB, err := b.MySQL.DB(); err == nil {
 		if err = sqlDB.Close(); err != nil {

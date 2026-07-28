@@ -10,6 +10,11 @@ import (
 	"meta-api/common/types"
 )
 
+const (
+	AdminAccessTokenUse  = "admin_access"
+	AdminRefreshTokenUse = "admin_refresh"
+)
+
 // ParseToken 解析Token
 func ParseToken(tokenString string) (*types.UserClaims, error) {
 	mySigningKey := []byte(os.Getenv("JWT_SIGNING_KEY"))
@@ -33,11 +38,36 @@ func ParseToken(tokenString string) (*types.UserClaims, error) {
 	if token == nil {
 		return nil, errors.New("token is null")
 	}
+	if !token.Valid {
+		return nil, errors.New("token is invalid")
+	}
 
 	claims, ok := token.Claims.(*types.UserClaims)
 	if !ok {
 		return nil, fmt.Errorf("token claims are of incorrect type: %T", token.Claims)
 	}
 
+	return claims, nil
+}
+
+func ParseAccessToken(tokenString string) (*types.UserClaims, error) {
+	claims, err := ParseToken(tokenString)
+	if err != nil {
+		return nil, err
+	}
+	if claims.TokenUse != AdminAccessTokenUse {
+		return nil, errors.New("invalid token use")
+	}
+	return claims, nil
+}
+
+func ParseRefreshToken(tokenString string) (*types.UserClaims, error) {
+	claims, err := ParseToken(tokenString)
+	if err != nil {
+		return nil, err
+	}
+	if claims.TokenUse != AdminRefreshTokenUse || claims.SessionID == "" || claims.ID == "" {
+		return nil, errors.New("invalid token use")
+	}
 	return claims, nil
 }

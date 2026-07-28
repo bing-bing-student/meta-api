@@ -16,7 +16,9 @@ import (
 
 // Service 管理员服务接口
 type Service interface {
-	GenerateToken(userClaims *types.UserClaims) (*types.TokenDetails, error)
+	GenerateToken(ctx context.Context, userClaims *types.UserClaims) (*types.TokenDetails, error)
+	RefreshToken(ctx context.Context, refreshToken string) (*types.TokenDetails, error)
+	RevokeRefreshToken(ctx context.Context, refreshToken string) error
 	SendSMSCode(ctx context.Context, request *types.SendSMSCodeRequest) error
 	SMSCodeLogin(ctx context.Context, request *types.SMSCodeLoginRequest) (*types.SMSCodeLoginResponse, error)
 	AccountLogin(ctx context.Context, request *types.AccountLoginRequest) (*types.AccountLoginResponse, error)

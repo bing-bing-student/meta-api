@@ -30,7 +30,11 @@ func (c *Client) RefreshArticles(articleIDs ...string) {
 
 // do 实际发起 sitemap 刷新 HTTP 调用，失败只记录日志。
 func (c *Client) do(payload revalidatePayload) {
-	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	baseCtx := c.ctx
+	if baseCtx == nil {
+		baseCtx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(baseCtx, c.timeout)
 	defer cancel()
 
 	body, err := sonic.Marshal(payload)

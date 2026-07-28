@@ -48,7 +48,11 @@ func (c *Client) PurgeArticles(articleIDs ...string) {
 
 // do 实际发起清缓存调用。失败仅记录 Warn 日志。
 func (c *Client) do(targets []string) {
-	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	baseCtx := c.ctx
+	if baseCtx == nil {
+		baseCtx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(baseCtx, c.timeout)
 	defer cancel()
 
 	req := teo.NewCreatePurgeTaskRequest()

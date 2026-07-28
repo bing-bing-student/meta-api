@@ -34,7 +34,7 @@ type Service interface {
 	// Increment 执行计数 +1（HINCRBY + ZINCRBY，与原内部 increment 行为一致）。
 	//
 	// 对失败仅打日志，调用方无需感知错误（避免响应差异成为攻击信号）。
-	Increment(ctx context.Context, articleID string)
+	Increment(articleID string)
 }
 
 // viewLogService 浏览量打点服务实现。

@@ -1,6 +1,7 @@
 package sitemap
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"strings"
@@ -40,10 +41,15 @@ type Client struct {
 	timeout  time.Duration
 	http     *http.Client
 	logger   *zap.Logger
+	ctx      context.Context
 }
 
 // New 构造 sitemap 刷新客户端。
-func New(logger *zap.Logger) *Client {
+func New(logger *zap.Logger, ctx context.Context) *Client {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	endpoint := firstNonEmpty(os.Getenv(envEndpoint), os.Getenv(legacyEnvEndpoint))
 	secret := firstNonEmpty(
 		readSecretFile(os.Getenv(envSecretFile), logger),
@@ -57,6 +63,7 @@ func New(logger *zap.Logger) *Client {
 		timeout:  defaultTimeout,
 		http:     &http.Client{Timeout: defaultTimeout},
 		logger:   logger,
+		ctx:      ctx,
 	}
 	if !c.enabled() {
 		logger.Warn("sitemap revalidate disabled: endpoint or secret missing",

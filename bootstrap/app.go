@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
@@ -54,11 +55,25 @@ type Bootstrap struct {
 	MySQL           *gorm.DB             // MySQL 客户端
 	Redis           *redis.Client        // Redis 客户端
 	KeyManager      *keymanager.Manager  // 密钥管理器
+	lifecycleCtx    context.Context
+	lifecycleCancel context.CancelFunc
 }
 
 // New 创建应用程序
 func New() *Bootstrap {
-	return &Bootstrap{}
+	ctx, cancel := context.WithCancel(context.Background())
+	return &Bootstrap{
+		lifecycleCtx:    ctx,
+		lifecycleCancel: cancel,
+	}
+}
+
+// Context 返回进程级生命周期上下文。
+func (b *Bootstrap) Context() context.Context {
+	if b.lifecycleCtx == nil {
+		return context.Background()
+	}
+	return b.lifecycleCtx
 }
 
 // InitConfig 初始化配置
@@ -121,7 +136,10 @@ func (b *Bootstrap) Start() {
 
 // Stop 停止所有服务组件
 func (b *Bootstrap) Stop() {
-	b.StopCron(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	b.StopCron(ctx)
 	b.CloseResources()
 }
 
@@ -142,6 +160,10 @@ func (b *Bootstrap) StopCron(ctx context.Context) {
 
 // CloseResources 关闭基础资源连接
 func (b *Bootstrap) CloseResources() {
+	if b.lifecycleCancel != nil {
+		b.lifecycleCancel()
+	}
+
 	// 关闭 KeyManager 文件监听，释放 fsnotify fd
 	if b.KeyManager != nil {
 		if err := b.KeyManager.Close(); err != nil {

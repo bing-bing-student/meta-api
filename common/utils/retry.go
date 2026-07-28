@@ -32,10 +32,12 @@ func WithBackoff(ctx context.Context, cfg *config.RetryConfig, op Operation) err
 		delay := calculateDelay(cfg, currentDelay, retryCount)
 
 		// 等待或中断
+		timer := time.NewTimer(delay)
 		select {
 		case <-ctx.Done():
+			timer.Stop()
 			return ctx.Err() // 上下文取消
-		case <-time.After(delay): // 继续重试
+		case <-timer.C: // 继续重试
 		}
 
 		// 更新状态

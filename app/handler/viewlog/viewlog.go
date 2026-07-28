@@ -115,7 +115,7 @@ func (h *viewLogHandler) handleByGuard(c *gin.Context, articleID string, body []
 			respondViewlogOutcome(c, rej)
 			return
 		}
-		h.service.Increment(c.Request.Context(), articleID)
+		h.service.Increment(articleID)
 		c.Status(http.StatusNoContent)
 	case guard.DecisionSilent:
 		// 静默拒：返回 204 不暴露细节

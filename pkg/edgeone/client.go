@@ -1,6 +1,7 @@
 package edgeone
 
 import (
+	"context"
 	"os"
 	"strings"
 	"time"
@@ -44,10 +45,15 @@ type Client struct {
 	domain  string // 形如 https://liubing.xyz，末尾不带斜杠
 	timeout time.Duration
 	logger  *zap.Logger
+	ctx     context.Context
 }
 
 // New 构造一个 EdgeOne 清缓存客户端。
-func New(logger *zap.Logger) *Client {
+func New(logger *zap.Logger, ctx context.Context) *Client {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	secretID := os.Getenv(envSecretID)
 	secretKey := os.Getenv(envSecretKey)
 	zoneID := os.Getenv(envZoneID)
@@ -59,7 +65,7 @@ func New(logger *zap.Logger) *Client {
 			zap.Bool("secret_key_loaded", secretKey != ""),
 			zap.Bool("zone_id_loaded", zoneID != ""),
 			zap.Bool("domain_loaded", domain != ""))
-		return &Client{logger: logger, timeout: defaultTimeout}
+		return &Client{logger: logger, timeout: defaultTimeout, ctx: ctx}
 	}
 
 	cred := common.NewCredential(secretID, secretKey)
@@ -70,7 +76,7 @@ func New(logger *zap.Logger) *Client {
 	sdkClient, err := teo.NewClient(cred, "", cpf)
 	if err != nil {
 		logger.Warn("edgeOne sdk init failed", zap.Error(err))
-		return &Client{logger: logger, timeout: defaultTimeout}
+		return &Client{logger: logger, timeout: defaultTimeout, ctx: ctx}
 	}
 
 	return &Client{
@@ -79,6 +85,7 @@ func New(logger *zap.Logger) *Client {
 		domain:  domain,
 		timeout: defaultTimeout,
 		logger:  logger,
+		ctx:     ctx,
 	}
 }
 

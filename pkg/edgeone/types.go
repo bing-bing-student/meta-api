@@ -13,4 +13,6 @@ import (
 type purgeAPI interface {
 	CreatePurgeTaskWithContext(ctx context.Context, req *teo.CreatePurgeTaskRequest) (
 		*teo.CreatePurgeTaskResponse, error)
+	DescribePurgeTasksWithContext(ctx context.Context, req *teo.DescribePurgeTasksRequest) (
+		*teo.DescribePurgeTasksResponse, error)
 }

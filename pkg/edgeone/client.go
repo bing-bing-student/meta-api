@@ -14,9 +14,15 @@ import (
 
 // 默认配置常量。
 const (
-	// defaultTimeout 调 EdgeOne CreatePurgeTask 接口的整体超时。
+	// defaultTimeout 调 EdgeOne 单次 API 的超时。
 	// EdgeOne 接口通常 1s 内返回；留 5s 应对偶发链路抖动。
 	defaultTimeout = 5 * time.Second
+
+	// defaultPurgeWaitTimeout 等待 EdgeOne purge 任务到达终态的最长时间。
+	defaultPurgeWaitTimeout = 30 * time.Second
+
+	// defaultPurgePollInterval 查询 EdgeOne purge 任务状态的间隔。
+	defaultPurgePollInterval = time.Second
 
 	// sdkEndpoint EdgeOne 公网接入域名。
 	sdkEndpoint = "teo.tencentcloudapi.com"
@@ -35,25 +41,22 @@ const (
 	envPurgeDomain = "EDGEONE_PURGE_DOMAIN"
 )
 
-// Client 用来调用 EdgeOne CreatePurgeTask 接口。
+// Client 用来调用 EdgeOne 清缓存任务接口。
 //
 // 实例由 DI 容器构造，单例复用 SDK 内部 http 连接池。
 // 当任一必备 env 缺失或 SDK 初始化失败，所有调用立即返回，不发起任何 API 请求。
 type Client struct {
-	purger  purgeAPI
-	zoneID  string
-	domain  string
-	timeout time.Duration
-	logger  *zap.Logger
-	ctx     context.Context
+	purger       purgeAPI
+	zoneID       string
+	domain       string
+	waitTimeout  time.Duration
+	pollInterval time.Duration
+	logger       *zap.Logger
+	ctx          context.Context
 }
 
 // New 构造一个 EdgeOne 清缓存客户端。
 func New(logger *zap.Logger, ctx context.Context) *Client {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
 	secretID := os.Getenv(envSecretID)
 	secretKey := os.Getenv(envSecretKey)
 	zoneID := os.Getenv(envZoneID)
@@ -65,7 +68,7 @@ func New(logger *zap.Logger, ctx context.Context) *Client {
 			zap.Bool("secret_key_loaded", secretKey != ""),
 			zap.Bool("zone_id_loaded", zoneID != ""),
 			zap.Bool("domain_loaded", domain != ""))
-		return &Client{logger: logger, timeout: defaultTimeout, ctx: ctx}
+		return newDisabledClient(logger, ctx)
 	}
 
 	cred := common.NewCredential(secretID, secretKey)
@@ -76,16 +79,26 @@ func New(logger *zap.Logger, ctx context.Context) *Client {
 	sdkClient, err := teo.NewClient(cred, "", cpf)
 	if err != nil {
 		logger.Warn("edgeOne sdk init failed", zap.Error(err))
-		return &Client{logger: logger, timeout: defaultTimeout, ctx: ctx}
+		return newDisabledClient(logger, ctx)
 	}
 
 	return &Client{
-		purger:  sdkClient,
-		zoneID:  zoneID,
-		domain:  domain,
-		timeout: defaultTimeout,
-		logger:  logger,
-		ctx:     ctx,
+		purger:       sdkClient,
+		zoneID:       zoneID,
+		domain:       domain,
+		waitTimeout:  defaultPurgeWaitTimeout,
+		pollInterval: defaultPurgePollInterval,
+		logger:       logger,
+		ctx:          ctx,
+	}
+}
+
+func newDisabledClient(logger *zap.Logger, ctx context.Context) *Client {
+	return &Client{
+		logger:       logger,
+		waitTimeout:  defaultPurgeWaitTimeout,
+		pollInterval: defaultPurgePollInterval,
+		ctx:          ctx,
 	}
 }
 

@@ -13,7 +13,8 @@ type Model interface {
 	UpdateArticleViewNum(ctx context.Context, id string, viewNum float64) error
 	GetArticleDetailByID(ctx context.Context, id uint64) (*Detail, error)
 	GetArticleListByTagName(ctx context.Context, tagName string) ([]ListByTagName, error)
-	DelArticleAndReturnTagName(ctx context.Context, id uint64) (string, error)
+	GetArticleDeleteInfo(ctx context.Context, id uint64) (string, error)
+	DeleteArticleByID(ctx context.Context, id uint64) error
 	SearchArticle(ctx context.Context, word string, limit, offset int) ([]SearchArticle, int64, error)
 	GetArticleListByIDList(ctx context.Context, idList []uint64) ([]*Article, error)
 

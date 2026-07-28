@@ -18,9 +18,6 @@ import (
 // 缓存预热与持久化使用的批处理大小与超时配置
 const (
 	warmUpBatchSize = 1000
-
-	// cronJobTimeout 单次定时落盘任务的最大执行时长
-	cronJobTimeout = 30 * time.Second
 )
 
 // WarmUpCache 启动时预热文章 ZSet 缓存：清空旧数据并按时间/浏览量重新构建
@@ -134,7 +131,7 @@ func toIDString(member any) (string, bool) {
 func (a *articleService) RegisterCronJobs(c *cron.Cron) ([]cron.EntryID, error) {
 	entryID, err := c.AddFunc(constants.Spec, func() {
 		// 每次 cron 触发都使用独立的超时 ctx，避免长任务卡住调度器
-		ctx, cancel := context.WithTimeout(context.Background(), cronJobTimeout)
+		ctx, cancel := context.WithTimeout(context.Background(), 30 * time.Second)
 		defer cancel()
 
 		if err := a.PersistViewCount(ctx); err != nil {

@@ -46,10 +46,6 @@ type Client struct {
 
 // New 构造 sitemap 刷新客户端。
 func New(logger *zap.Logger, ctx context.Context) *Client {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
 	endpoint := firstNonEmpty(os.Getenv(envEndpoint), os.Getenv(legacyEnvEndpoint))
 	secret := firstNonEmpty(
 		readSecretFile(os.Getenv(envSecretFile), logger),

@@ -246,7 +246,11 @@ func (t *tagService) AdminUpdateTag(ctx context.Context, request *types.AdminUpd
 	t.sitemap.RefreshArticles(request.ArticleIDList...)
 
 	// 清理 EdgeOne CDN 上受影响文章详情 HTML 缓存，避免页面继续展示旧标签。
-	t.edgeone.PurgeArticles(request.ArticleIDList...)
+	if err = t.edgeone.PurgeArticles(request.ArticleIDList...); err != nil {
+		t.logger.Error("failed to purge article CDN cache",
+			zap.Strings("article_ids", request.ArticleIDList), zap.Error(err))
+		return fmt.Errorf("failed to purge article CDN cache: %w", err)
+	}
 
 	return nil
 }

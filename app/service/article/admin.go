@@ -358,7 +358,10 @@ func (a *articleService) AdminUpdateArticle(ctx context.Context,
 
 	// 清理 EdgeOne CDN 上 /article-detail/<id> 的文章详情 HTML 缓存。
 	// 文章标题、正文、摘要或标签变化后，旧 HTML 命中边缘节点会继续展示旧内容。
-	a.edgeone.PurgeArticles(request.ID)
+	if err = a.edgeone.PurgeArticles(request.ID); err != nil {
+		a.logger.Error("failed to purge article CDN cache", zap.String("article_id", request.ID), zap.Error(err))
+		return nil, fmt.Errorf("failed to purge article CDN cache: %w", err)
+	}
 
 	return &types.AdminSaveArticleResponse{ID: request.ID}, nil
 }
@@ -371,8 +374,20 @@ func (a *articleService) AdminDeleteArticle(ctx context.Context, request *types.
 		a.logger.Error("invalid article id", zap.Error(err))
 		return err
 	}
-	tagName, err := a.articleModel.DelArticleAndReturnTagName(ctx, id)
+	tagName, err := a.articleModel.GetArticleDeleteInfo(ctx, id)
 	if err != nil {
+		a.logger.Error("failed to get article delete info", zap.Error(err))
+		return fmt.Errorf("failed to get article delete info: %w", err)
+	}
+
+	// 删除文章前先清理 EdgeOne CDN 上 /article-detail/<id> 的文章详情 HTML 缓存。
+	// 若 CDN 清理失败，保留数据库记录，避免后台提示失败但文章已被删除。
+	if err = a.edgeone.PurgeArticles(articleID); err != nil {
+		a.logger.Error("failed to purge article CDN cache", zap.String("article_id", articleID), zap.Error(err))
+		return fmt.Errorf("failed to purge article CDN cache: %w", err)
+	}
+
+	if err = a.articleModel.DeleteArticleByID(ctx, id); err != nil {
 		a.logger.Error("failed to delete article", zap.Error(err))
 		return fmt.Errorf("failed to delete article: %w", err)
 	}
@@ -410,9 +425,6 @@ func (a *articleService) AdminDeleteArticle(ctx context.Context, request *types.
 
 	// 刷新 sitemap 内部缓存，让被删文章 URL 尽快从 sitemap.xml 移除。
 	a.sitemap.RefreshArticles(articleID)
-
-	// 清理 EdgeOne CDN 上 /article-detail/<id> 的文章详情 HTML 缓存，避免删除后旧页面残留。
-	a.edgeone.PurgeArticles(articleID)
 
 	return nil
 }

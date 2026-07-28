@@ -123,8 +123,8 @@ func (a *articleModel) GetArticleListByTagName(ctx context.Context, tagName stri
 	return list, nil
 }
 
-// DelArticleAndReturnTagName 删除文章并返回标签名
-func (a *articleModel) DelArticleAndReturnTagName(ctx context.Context, id uint64) (string, error) {
+// GetArticleDeleteInfo 获取删除文章需要的元信息。
+func (a *articleModel) GetArticleDeleteInfo(ctx context.Context, id uint64) (string, error) {
 	articleInfo := &DelArticle{}
 	if err := a.mysql.WithContext(ctx).Model(&Article{}).Table("article as a").
 		Select("a.id, a.tag_id, t.name as tag_name").
@@ -135,13 +135,18 @@ func (a *articleModel) DelArticleAndReturnTagName(ctx context.Context, id uint64
 	}
 
 	if articleInfo.ID != 0 && articleInfo.TagName != "" {
-		if err := a.mysql.WithContext(ctx).Model(&Article{}).Delete(&Article{}, id).Error; err != nil {
-			return "", err
-		}
 		return articleInfo.TagName, nil
 	}
 
 	return "", fmt.Errorf("article not exist")
+}
+
+// DeleteArticleByID 硬删除文章。
+func (a *articleModel) DeleteArticleByID(ctx context.Context, id uint64) error {
+	if err := a.mysql.WithContext(ctx).Model(&Article{}).Delete(&Article{}, id).Error; err != nil {
+		return fmt.Errorf("failed to delete article: %w", err)
+	}
+	return nil
 }
 
 // SearchArticle 搜索文章

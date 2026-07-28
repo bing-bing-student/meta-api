@@ -126,7 +126,7 @@ func (t *tagService) AdminGetArticleListByTag(ctx context.Context,
 				t.logger.Error("failed to get article from MySQL", zap.Error(mysqlErr))
 				return nil, mysqlErr
 			}
-			mapData := map[string]interface{}{
+			mapData := map[string]any{
 				"id":         articleInfo.ID,
 				"title":      articleInfo.Title,
 				"describe":   articleInfo.Describe,

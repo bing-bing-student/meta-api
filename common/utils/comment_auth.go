@@ -46,7 +46,7 @@ func GenerateCommentUserToken(user *types.PublicUserInfo) (string, error) {
 
 func ParseCommentUserToken(tokenString string) (*types.PublicUserClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &types.PublicUserClaims{},
-		func(token *jwt.Token) (interface{}, error) {
+		func(token *jwt.Token) (any, error) {
 			if token.Method.Alg() != jwt.SigningMethodHS256.Alg() {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Method.Alg())
 			}

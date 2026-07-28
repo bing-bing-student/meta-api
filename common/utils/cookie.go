@@ -13,8 +13,8 @@ const (
 	// RefreshTokenCookie refresh_token 的 Cookie 名
 	RefreshTokenCookie = "refresh_token"
 
-	accessCookieMaxAge  = 15 * 60
 	refreshCookieMaxAge = 7 * 24 * 60 * 60
+	accessCookieMaxAge = refreshCookieMaxAge
 
 	// accessCookiePath access_token 在所有路径下携带
 	accessCookiePath = "/"
@@ -27,6 +27,15 @@ const (
 // 通过环境变量 APP_ENV=production 开启。
 func isProd() bool {
 	return os.Getenv("APP_ENV") == "production"
+}
+
+// sameSiteMode 生产用 Strict（最强 CSRF 防护），本地 HTTP 调试用 Lax 兜底，
+// 避免在跨端口反代、HTTP localhost 等边界场景下 Cookie 被浏览器拦截。
+func sameSiteMode() http.SameSite {
+	if isProd() {
+		return http.SameSiteStrictMode
+	}
+	return http.SameSiteLaxMode
 }
 
 // SetAuthCookies 登录/刷新成功时下发 access_token 和 refresh_token 两个 HttpOnly Cookie
@@ -48,13 +57,4 @@ func ClearAuthCookies(c *gin.Context) {
 	c.SetCookie(AccessTokenCookie, "", -1, accessCookiePath, "", secure, true)
 	c.SetSameSite(sameSite)
 	c.SetCookie(RefreshTokenCookie, "", -1, refreshCookiePath, "", secure, true)
-}
-
-// sameSiteMode 生产用 Strict（最强 CSRF 防护），本地 HTTP 调试用 Lax 兜底，
-// 避免在跨端口反代、HTTP localhost 等边界场景下 Cookie 被浏览器拦截。
-func sameSiteMode() http.SameSite {
-	if isProd() {
-		return http.SameSiteStrictMode
-	}
-	return http.SameSiteLaxMode
 }

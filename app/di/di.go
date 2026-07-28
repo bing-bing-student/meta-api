@@ -48,7 +48,7 @@ func BuildContainer(bs *bootstrap.Bootstrap) (*dig.Container, error) {
 	container := dig.New()
 
 	// 注册基础依赖
-	baseProviders := []interface{}{
+	baseProviders := []any{
 		func() *config.Config { return bs.Config },
 		func() *zap.Logger { return bs.Logger },
 		func() *sonyflake.Sonyflake { return bs.IDGenerator },
@@ -92,7 +92,7 @@ func BuildContainer(bs *bootstrap.Bootstrap) (*dig.Container, error) {
 	}
 
 	// 注册 Handler 层依赖
-	handlerProviders := []interface{}{
+	handlerProviders := []any{
 		adminHandler.NewHandler,
 		articleHandler.NewHandler,
 		commentHandler.NewHandler,
@@ -109,7 +109,7 @@ func BuildContainer(bs *bootstrap.Bootstrap) (*dig.Container, error) {
 	}
 
 	// 注册 Model 层依赖
-	modelProviders := []interface{}{
+	modelProviders := []any{
 		adminModel.NewModel,
 		articleModel.NewModel,
 		commentModel.NewModel,
@@ -124,7 +124,7 @@ func BuildContainer(bs *bootstrap.Bootstrap) (*dig.Container, error) {
 	}
 
 	// 注册 Service 层依赖
-	serviceProviders := []interface{}{
+	serviceProviders := []any{
 		adminService.NewService,
 		articleService.NewService,
 		commentService.NewService,

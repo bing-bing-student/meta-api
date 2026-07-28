@@ -79,7 +79,7 @@ func (a *adminService) UserGetAboutMe(ctx context.Context) (*types.GetAboutMeRes
 		response.Email = contactMeInfo.Email
 
 		// 写入缓存
-		aboutMeMap := map[string]interface{}{
+		aboutMeMap := map[string]any{
 			"name":            response.Name,
 			"job":             response.Job,
 			"workLife":        response.WorkLife,

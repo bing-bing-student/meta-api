@@ -130,7 +130,7 @@ func (t *tagService) UserGetArticleListByTag(ctx context.Context,
 			articleItem.CreateTime = articleInfo.CreateTime.Format(constants.TimeLayoutToMinute)
 			articleItem.UpdateTime = articleInfo.UpdateTime.Format(constants.TimeLayoutToMinute)
 
-			mapData := map[string]interface{}{
+			mapData := map[string]any{
 				"id":         articleInfo.ID,
 				"title":      articleInfo.Title,
 				"describe":   articleInfo.Describe,

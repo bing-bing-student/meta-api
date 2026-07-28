@@ -52,7 +52,7 @@ func SendMessage(phone string) (code string, err error) {
 			e = t
 		}
 		// 诊断地址
-		var data interface{}
+		var data any
 		d := json.NewDecoder(strings.NewReader(tea.StringValue(e.Data)))
 		if err = d.Decode(&data); err != nil {
 			return code, err

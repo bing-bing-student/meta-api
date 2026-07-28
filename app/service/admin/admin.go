@@ -28,7 +28,7 @@ import (
 const loginChallengeTTL = 3 * time.Minute
 
 const (
-	adminAccessTokenTTL  = 15 * time.Minute
+	adminAccessTokenTTL  = 10 * time.Minute
 	adminRefreshTokenTTL = 7 * 24 * time.Hour
 
 	adminSessionUserIDField      = "user_id"

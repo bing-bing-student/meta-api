@@ -18,17 +18,17 @@ func (c *CompositeLogger) LogMode(level logger.LogLevel) logger.Interface {
 	return c
 }
 
-func (c *CompositeLogger) Info(ctx context.Context, msg string, data ...interface{}) {
+func (c *CompositeLogger) Info(ctx context.Context, msg string, data ...any) {
 	c.FullLogger.Info(ctx, msg, data...)
 	c.SlowLogger.Info(ctx, msg, data...)
 }
 
-func (c *CompositeLogger) Warn(ctx context.Context, msg string, data ...interface{}) {
+func (c *CompositeLogger) Warn(ctx context.Context, msg string, data ...any) {
 	c.FullLogger.Warn(ctx, msg, data...)
 	c.SlowLogger.Warn(ctx, msg, data...)
 }
 
-func (c *CompositeLogger) Error(ctx context.Context, msg string, data ...interface{}) {
+func (c *CompositeLogger) Error(ctx context.Context, msg string, data ...any) {
 	c.FullLogger.Error(ctx, msg, data...)
 	c.SlowLogger.Error(ctx, msg, data...)
 }

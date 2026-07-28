@@ -71,7 +71,7 @@ func (a *articleService) UserGetArticleList(ctx context.Context,
 			}
 
 			// 设置缓存
-			mapData := map[string]interface{}{
+			mapData := map[string]any{
 				"id":         articleInfo.ID,
 				"title":      articleInfo.Title,
 				"describe":   articleInfo.Describe,
@@ -140,7 +140,7 @@ func (a *articleService) UserGetArticleDetail(ctx context.Context,
 		}
 
 		// 设置缓存
-		mapData := map[string]interface{}{
+		mapData := map[string]any{
 			"id":         articleInfo.ID,
 			"title":      articleInfo.Title,
 			"describe":   articleInfo.Describe,
@@ -275,7 +275,7 @@ func (a *articleService) UserGetHotArticle(ctx context.Context) (*types.UserGetH
 			}
 
 			// 设置缓存
-			mapData := map[string]interface{}{
+			mapData := map[string]any{
 				"id":         articleInfo.ID,
 				"title":      articleInfo.Title,
 				"describe":   articleInfo.Describe,
@@ -343,7 +343,7 @@ func (a *articleService) UserGetTimeline(ctx context.Context) (*types.GetTimelin
 			}
 
 			// 设置缓存
-			mapData := map[string]interface{}{
+			mapData := map[string]any{
 				"id":         articleInfo.ID,
 				"title":      articleInfo.Title,
 				"describe":   articleInfo.Describe,

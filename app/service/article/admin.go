@@ -75,7 +75,7 @@ func (a *articleService) AdminGetArticleList(ctx context.Context,
 			articleItem.CreateTime = articleModel.CreateTime.Format(constants.TimeLayoutToMinute)
 			articleItem.UpdateTime = articleModel.UpdateTime.Format(constants.TimeLayoutToMinute)
 
-			mapData := map[string]interface{}{
+			mapData := map[string]any{
 				"id":         articleModel.ID,
 				"title":      articleModel.Title,
 				"describe":   articleModel.Describe,
@@ -130,7 +130,7 @@ func (a *articleService) AdminGetArticleDetail(ctx context.Context,
 		}
 
 		// 缓存文章信息
-		mapData := map[string]interface{}{
+		mapData := map[string]any{
 			"id":         articleInfo.ID,
 			"title":      articleInfo.Title,
 			"describe":   articleInfo.Describe,

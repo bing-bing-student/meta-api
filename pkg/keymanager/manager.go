@@ -105,6 +105,7 @@ func (m *Manager) startWatcher() error {
 		return fmt.Errorf("watch %s: %w", m.keyDir, err)
 	}
 
+	m.watcher = watcher
 	go m.watchLoop(watcher)
 	m.logger.Info("keyManager watcher started", zap.String("key_dir", m.keyDir))
 	return nil
@@ -113,15 +114,18 @@ func (m *Manager) startWatcher() error {
 // watchLoop 消费 fsnotify 事件，对 private_key.pem 的修改触发防抖重载。
 func (m *Manager) watchLoop(watcher *fsnotify.Watcher) {
 	defer func() {
-		if err := watcher.Close(); err != nil {
-			m.logger.Warn("keyManager watcher close failed", zap.Error(err))
-		}
+		_ = m.Close()
 	}()
 
 	var (
 		timer  *time.Timer
 		timerC <-chan time.Time
 	)
+	defer func() {
+		if timer != nil {
+			timer.Stop()
+		}
+	}()
 
 	for {
 		select {

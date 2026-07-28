@@ -14,6 +14,7 @@ func main() {
 	bootstrapApp.InitCron()        // 初始化定时任务
 	bootstrapApp.InitMySQL()       // 创建 MySQL 客户端
 	bootstrapApp.InitRedis()       // 创建 Redis 客户端
+	bootstrapApp.InitKeyManager()  // 创建密钥管理器
 
 	// 创建应用实例
 	application := app.NewApp(bootstrapApp)

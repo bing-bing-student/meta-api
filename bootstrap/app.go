@@ -13,6 +13,7 @@ import (
 	"gorm.io/gorm"
 
 	"meta-api/config"
+	"meta-api/pkg/keymanager"
 )
 
 // init 初始化环境变量
@@ -52,6 +53,7 @@ type Bootstrap struct {
 	CronEntryIDList *[]cron.EntryID      // 定时任务 ID 列表
 	MySQL           *gorm.DB             // MySQL 客户端
 	Redis           *redis.Client        // Redis 客户端
+	KeyManager      *keymanager.Manager  // 密钥管理器
 }
 
 // New 创建应用程序
@@ -105,6 +107,12 @@ func (b *Bootstrap) InitRedis() *Bootstrap {
 	return b
 }
 
+// InitKeyManager 创建密钥管理器
+func (b *Bootstrap) InitKeyManager() *Bootstrap {
+	b.KeyManager = keymanager.New(b.Logger)
+	return b
+}
+
 // Start 启动所有服务组件
 // 业务定时任务由 app 层 / service 层各自注册到 b.Cron 后再调用本方法启动调度器
 func (b *Bootstrap) Start() {
@@ -134,6 +142,13 @@ func (b *Bootstrap) StopCron(ctx context.Context) {
 
 // CloseResources 关闭基础资源连接
 func (b *Bootstrap) CloseResources() {
+	// 关闭 KeyManager 文件监听，释放 fsnotify fd
+	if b.KeyManager != nil {
+		if err := b.KeyManager.Close(); err != nil {
+			b.Logger.Error("failed to close keyManager", zap.Error(err))
+		}
+	}
+
 	// 关闭 MySQL 数据库连接
 	if sqlDB, err := b.MySQL.DB(); err == nil {
 		if err = sqlDB.Close(); err != nil {

@@ -54,36 +54,11 @@ func BuildContainer(bs *bootstrap.Bootstrap) (*dig.Container, error) {
 		func() *sonyflake.Sonyflake { return bs.IDGenerator },
 		func() *gorm.DB { return bs.MySQL },
 		func() *redis.Client { return bs.Redis },
+		func() *keymanager.Manager { return bs.KeyManager },
 		func(logger *zap.Logger) *edgeone.Client { return edgeone.New(logger) },
-		func(logger *zap.Logger) *keymanager.Manager { return keymanager.New(logger) },
 		func(logger *zap.Logger) *sitemap.Client { return sitemap.New(logger) },
-		// guard.Store：底层 Redis 抽象。同时被 guard.Engine 与 share.Service 复用，
-		// 单独 provide 是为了让 share.Service 也能拿到（共用同一份 store 实例）。
-		func(rdb *redis.Client, logger *zap.Logger) guard.Store {
-			return guard.NewRedisStore(rdb, logger)
-		},
-		// guard.Engine：风控守卫新引擎。
-		// 缺省 BuildHashes 为空 + SkipHMACWhenEmpty=true 即可平滑灰度（仍校验 RSA/AES/TLV）；
-		// 上线全量后通过 config.guard.build_hashes 注入白名单并把 skip_hmac_when_empty 切回 false。
-		func(cfg *config.Config, logger *zap.Logger, store guard.Store,
-			km *keymanager.Manager) (guard.Engine, error) {
-			gc := cfg.GuardConfig
-			registry := guard.NewBuildHashRegistry()
-			skipHMAC := true
-			if gc != nil {
-				if err := registerBuildHashes(registry, gc.BuildHashes); err != nil {
-					return nil, fmt.Errorf("guard build_hashes invalid: %w", err)
-				}
-				skipHMAC = gc.SkipHMACWhenEmpty
-			}
-			return guard.NewEngine(guard.EngineConfig{
-				KeyManager:        km,
-				Store:             store,
-				Logger:            logger,
-				BuildHashes:       registry,
-				SkipHMACWhenEmpty: skipHMAC,
-			})
-		},
+		func(rdb *redis.Client, logger *zap.Logger) guard.Store {return guard.NewRedisStore(rdb, logger)},
+		newGuardEngine,
 	}
 	for _, provider := range baseProviders {
 		if err := container.Provide(provider); err != nil {
@@ -141,6 +116,30 @@ func BuildContainer(bs *bootstrap.Bootstrap) (*dig.Container, error) {
 	}
 
 	return container, nil
+}
+
+// newGuardEngine 构造风控守卫引擎。
+//
+// 缺省 BuildHashes 为空 + SkipHMACWhenEmpty=true 即可平滑灰度（仍校验 RSA/AES/TLV）；
+// 上线全量后通过 config.guard.build_hashes 注入白名单并把 skip_hmac_when_empty 切回 false。
+func newGuardEngine(cfg *config.Config, logger *zap.Logger, store guard.Store,
+	km *keymanager.Manager) (guard.Engine, error) {
+	gc := cfg.GuardConfig
+	registry := guard.NewBuildHashRegistry()
+	skipHMAC := true
+	if gc != nil {
+		if err := registerBuildHashes(registry, gc.BuildHashes); err != nil {
+			return nil, fmt.Errorf("guard build_hashes invalid: %w", err)
+		}
+		skipHMAC = gc.SkipHMACWhenEmpty
+	}
+	return guard.NewEngine(guard.EngineConfig{
+		KeyManager:        km,
+		Store:             store,
+		Logger:            logger,
+		BuildHashes:       registry,
+		SkipHMACWhenEmpty: skipHMAC,
+	})
 }
 
 // registerBuildHashes 把配置中的 hex 字符串数组依次注册到 BuildHashRegistry。

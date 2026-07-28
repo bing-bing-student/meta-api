@@ -26,6 +26,28 @@ type Manager struct {
 	keyDir   string // 监听目录，e.g. ./keys 或 /root/blog-website/keys
 	logger   *zap.Logger
 	debounce sync.Mutex // 串行化 reload 调用，避免并发 parse
+
+	watcher   watcherCloser
+	closeOnce sync.Once
+}
+
+type watcherCloser interface {
+	Close() error
+}
+
+// Close 停止 fsnotify watcher，释放底层 fd，并使 watchLoop 退出。
+func (m *Manager) Close() error {
+	var err error
+	m.closeOnce.Do(func() {
+		if m.watcher == nil {
+			return
+		}
+		err = m.watcher.Close()
+		if err != nil {
+			m.logger.Warn("keyManager watcher close failed", zap.Error(err))
+		}
+	})
+	return err
 }
 
 // DecryptOAEP 用 current 私钥尝试 RSA-OAEP(SHA-256) 解密，失败时回退到 previous（如果存在）。

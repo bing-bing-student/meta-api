@@ -105,26 +105,18 @@ func normalizeLevel(value string) string {
 }
 
 func pendingScore(cfg appconfig.CommentModerationConfig) int {
-	switch {
-	case cfg.Decision.Score.Pending > 0:
+	if cfg.Decision.Score.Pending > 0 {
 		return cfg.Decision.Score.Pending
-	case cfg.Score.Pending > 0:
-		return cfg.Score.Pending
-	default:
-		return defaultPendingScore
 	}
+	return defaultPendingScore
 }
 
 func rejectScore(cfg appconfig.CommentModerationConfig) int {
 	pending := pendingScore(cfg)
-	switch {
-	case cfg.Decision.Score.Reject > pending:
+	if cfg.Decision.Score.Reject > pending {
 		return cfg.Decision.Score.Reject
-	case cfg.Score.Reject > pending:
-		return cfg.Score.Reject
-	default:
-		return defaultRejectScore
 	}
+	return defaultRejectScore
 }
 
 func formatReason(source, category, level, evidence string) string {

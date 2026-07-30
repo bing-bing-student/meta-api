@@ -96,17 +96,18 @@ type AdminGetCommentListRequest struct {
 }
 
 type AdminCommentItem struct {
-	ID                  string `json:"id"`
-	ArticleTitle        string `json:"articleTitle"`
-	ParentID            string `json:"parentID,omitempty"`
-	ReplyToAuthorName   string `json:"replyToAuthorName,omitempty"`
-	ReplyToAuthorHandle string `json:"replyToAuthorHandle,omitempty"`
-	AuthorHandle        string `json:"authorHandle,omitempty"`
-	Content             string `json:"content"`
-	Status              string `json:"status"`
-	IP                  string `json:"ip,omitempty"`
-	CreateTime          string `json:"createTime"`
-	UpdateTime          string `json:"updateTime"`
+	ID                  string   `json:"id"`
+	ArticleTitle        string   `json:"articleTitle"`
+	ParentID            string   `json:"parentID,omitempty"`
+	ReplyToAuthorName   string   `json:"replyToAuthorName,omitempty"`
+	ReplyToAuthorHandle string   `json:"replyToAuthorHandle,omitempty"`
+	AuthorHandle        string   `json:"authorHandle,omitempty"`
+	Content             string   `json:"content"`
+	Status              string   `json:"status"`
+	ModerationReasons   []string `json:"moderationReasons,omitempty"`
+	IP                  string   `json:"ip,omitempty"`
+	CreateTime          string   `json:"createTime"`
+	UpdateTime          string   `json:"updateTime"`
 }
 
 type AdminGetCommentListResponse struct {

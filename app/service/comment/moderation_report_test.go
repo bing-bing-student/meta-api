@@ -4,15 +4,18 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
 	commentModel "meta-api/app/model/comment"
+	commentModeration "meta-api/app/service/comment/moderation"
 	appconfig "meta-api/config"
 )
 
@@ -23,6 +26,16 @@ const (
 	commentModerationExtraViolationReportPath = "testdata/comment_moderation_extra_violations_report.txt"
 	commentModerationNormalCorpusPath         = "testdata/comment_moderation_normal_comments.txt"
 	commentModerationNormalReportPath         = "testdata/comment_moderation_normal_report.txt"
+)
+
+const (
+	defaultCommentModerationPendingScore  = 40
+	defaultCommentModerationRejectScore   = 80
+	commentModerationKeywordScore         = 40
+	commentModerationRegexScore           = 40
+	commentModerationUserRiskScore        = 40
+	commentModerationDuplicateRiskScore   = 40
+	commentModerationTextQualityRiskScore = 40
 )
 
 type commentModerationReportCase struct {
@@ -55,6 +68,26 @@ func TestCommentModerationExtraViolationCorpus(t *testing.T) {
 func TestCommentModerationNormalCorpus(t *testing.T) {
 	cases := loadCommentModerationReportCasesWithCategory(t, commentModerationNormalCorpusPath, "normal")
 	writeCommentModerationReport(t, cases, commentModerationNormalReportPath)
+}
+
+func newTestCommentModerationConfig(t testing.TB) *appconfig.CommentModerationConfig {
+	t.Helper()
+
+	reader := viper.New()
+	reader.SetConfigType("yaml")
+	reader.SetConfigFile(filepath.Join("..", "..", "..", "config", "comment_moderation.yml"))
+	if err := reader.ReadInConfig(); err != nil {
+		t.Fatalf("read comment moderation config: %v", err)
+	}
+
+	var cfg appconfig.Config
+	if err := reader.Unmarshal(&cfg); err != nil {
+		t.Fatalf("unmarshal comment moderation config: %v", err)
+	}
+	if cfg.CommentModerationConfig == nil {
+		t.Fatal("missing comment moderation config")
+	}
+	return cfg.CommentModerationConfig
 }
 
 func writeCommentModerationReport(t *testing.T, cases []commentModerationReportCase, outputPath string) {
@@ -103,16 +136,11 @@ func buildCommentModerationReportLines(cases []commentModerationReportCase, stat
 			defaultCommentModerationRejectScore,
 			defaultCommentModerationRejectScore,
 		),
-		fmt.Sprintf("扣分项：关键词/AC=%d；正则=%d；编码链接=%d；涉政上下文=%d；安全上下文=%d；相似召回=%d；用户频率=%d；IP 频率=%d；重复内容=%d；重复内容强风险或硬拒=%d。",
+		fmt.Sprintf("扣分项：敏感词库=%d；结构规则=%d；上下文规则=%d；行为风险=%d；硬拒信号=%d。",
 			commentModerationKeywordScore,
 			commentModerationRegexScore,
-			commentModerationEncodedURLRiskScore,
-			commentModerationPoliticalContextScore,
-			commentModerationSafetyContextScore,
-			defaultCommentModerationSimilarityScore,
-			commentModerationUserRiskScore,
-			commentModerationIPRiskScore,
 			commentModerationDuplicateRiskScore,
+			commentModerationUserRiskScore,
 			defaultCommentModerationRejectScore,
 		),
 		fmt.Sprintf("低质内容扣分：纯符号/空内容=%d；纯数字=%d；长重复字符=%d。",
@@ -120,7 +148,7 @@ func buildCommentModerationReportLines(cases []commentModerationReportCase, stat
 			commentModerationTextQualityRiskScore,
 			commentModerationTextQualityRiskScore,
 		),
-		"说明：同一类命中多个明细时只扣一次，例如命中多个关键词仍按关键词/AC 扣一次。",
+		"说明：同一类命中多个明细时只扣一次，例如命中多个敏感词仍按敏感词库扣一次。",
 		"",
 		fmt.Sprintf("TOTAL cases=%d approved=%d pending=%d rejected=%d",
 			len(cases),
@@ -166,13 +194,21 @@ func (r *commentModerationReportRunner) run(ctx context.Context, commentID uint6
 	result := r.service.moderateCommentWithBehavior(ctx, input,
 		func(_ context.Context, input commentModerationInput, view commentModerationTextView,
 			cfg appconfig.CommentModerationConfig) []commentModerationSignal {
-			keys := buildCommentModerationBehaviorKeys(input.UserID, input.ArticleID, input.ClientIP, view.Normalized)
-			state := commentModerationBehaviorState{
-				UserCount:      int64(len(recentModerationReportEvents(r.userEvents[keys.user], input.Now, commentModerationSecondsToDuration(cfg.Behavior.UserWindowSeconds)))),
-				IPCount:        int64(len(recentModerationReportEvents(r.ipEvents[keys.ip], input.Now, commentModerationSecondsToDuration(cfg.Behavior.IPWindowSeconds)))),
-				DuplicateCount: r.duplicateEvents[keys.duplicate],
+			keys := commentModeration.BuildBehaviorKeys(input.UserID, input.ArticleID, input.ClientIP, view.Normalized)
+			state := commentModeration.BehaviorState{
+				UserCount: int64(len(recentModerationReportEvents(
+					r.userEvents[keys.User],
+					input.Now,
+					moderationReportRuleWindow(cfg.BehaviorRules.UserFrequency),
+				))),
+				IPCount: int64(len(recentModerationReportEvents(
+					r.ipEvents[keys.IP],
+					input.Now,
+					moderationReportRuleWindow(cfg.BehaviorRules.IPFrequency),
+				))),
+				DuplicateCount: r.duplicateEvents[keys.Duplicate],
 			}
-			return []commentModerationSignal{commentModerationBehaviorSignal(state, cfg)}
+			return commentModeration.BehaviorSignals(state, cfg)
 		},
 	)
 	r.record(input)
@@ -180,11 +216,11 @@ func (r *commentModerationReportRunner) run(ctx context.Context, commentID uint6
 }
 
 func (r *commentModerationReportRunner) record(input commentModerationInput) {
-	normalized := normalizeCommentModerationText(input.Content)
-	keys := buildCommentModerationBehaviorKeys(input.UserID, input.ArticleID, input.ClientIP, normalized)
-	r.userEvents[keys.user] = append(r.userEvents[keys.user], input.Now)
-	r.ipEvents[keys.ip] = append(r.ipEvents[keys.ip], input.Now)
-	r.duplicateEvents[keys.duplicate]++
+	normalized := commentModeration.Normalize(input.Content).Normalized
+	keys := commentModeration.BuildBehaviorKeys(input.UserID, input.ArticleID, input.ClientIP, normalized)
+	r.userEvents[keys.User] = append(r.userEvents[keys.User], input.Now)
+	r.ipEvents[keys.IP] = append(r.ipEvents[keys.IP], input.Now)
+	r.duplicateEvents[keys.Duplicate]++
 }
 
 func loadCommentModerationReportCases(t *testing.T, path string) []commentModerationReportCase {
@@ -337,46 +373,6 @@ func newCommentModerationReportCase(baseTime time.Time, globalIndex, categoryInd
 	return item
 }
 
-func decodeModerationReportEscapes(value string) (string, error) {
-	var builder strings.Builder
-	builder.Grow(len(value))
-	for i := 0; i < len(value); i++ {
-		if value[i] != '\\' {
-			builder.WriteByte(value[i])
-			continue
-		}
-		if i+1 >= len(value) {
-			builder.WriteByte(value[i])
-			continue
-		}
-		i++
-		switch value[i] {
-		case '\\':
-			builder.WriteByte('\\')
-		case 'n':
-			builder.WriteByte('\n')
-		case 'r':
-			builder.WriteByte('\r')
-		case 't':
-			builder.WriteByte('\t')
-		case 'u':
-			if i+4 >= len(value) {
-				return "", fmt.Errorf("incomplete unicode escape")
-			}
-			code, err := strconv.ParseInt(value[i+1:i+5], 16, 32)
-			if err != nil {
-				return "", fmt.Errorf("invalid unicode escape \\u%s", value[i+1:i+5])
-			}
-			builder.WriteRune(rune(code))
-			i += 4
-		default:
-			builder.WriteByte('\\')
-			builder.WriteByte(value[i])
-		}
-	}
-	return builder.String(), nil
-}
-
 func recentModerationReportEvents(values []time.Time, now time.Time, window time.Duration) []time.Time {
 	start := now.Add(-window)
 	recent := values[:0]
@@ -388,13 +384,11 @@ func recentModerationReportEvents(values []time.Time, now time.Time, window time
 	return recent
 }
 
-func sortedModerationReportKeys(values map[string]map[string]int) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
+func moderationReportRuleWindow(rule appconfig.CommentModerationBehaviorThresholdConfig) time.Duration {
+	if rule.WindowSeconds <= 0 {
+		return time.Second
 	}
-	sort.Strings(keys)
-	return keys
+	return time.Duration(rule.WindowSeconds) * time.Second
 }
 
 type moderationReportReasonCount struct {
@@ -454,48 +448,6 @@ func formatModerationReportDeductions(reasons []string) string {
 			groups["上下文规则"] = append(groups["上下文规则"], reason)
 		case strings.HasPrefix(reason, "behavior:"):
 			groups["行为风险"] = append(groups["行为风险"], reason)
-		case strings.HasPrefix(reason, "reject_keyword:"):
-			groups["硬规则关键词"] = append(groups["硬规则关键词"], strings.TrimPrefix(reason, "reject_keyword:"))
-		case strings.HasPrefix(reason, "reject_keyword_variant:"):
-			groups["硬规则近形/谐音"] = append(groups["硬规则近形/谐音"], strings.TrimPrefix(reason, "reject_keyword_variant:"))
-		case strings.HasPrefix(reason, "reject_abuse_keyword:"):
-			groups["英文辱骂"] = append(groups["英文辱骂"], strings.TrimPrefix(reason, "reject_abuse_keyword:"))
-		case strings.HasPrefix(reason, "reject_abuse_variant:"):
-			groups["英文辱骂"] = append(groups["英文辱骂"], strings.TrimPrefix(reason, "reject_abuse_variant:"))
-		case strings.HasPrefix(reason, "reject_regex:"):
-			groups["硬规则正则"] = append(groups["硬规则正则"], strings.TrimPrefix(reason, "reject_regex:"))
-		case strings.HasPrefix(reason, "reject_patch_rule:"):
-			groups["补洞规则拒绝"] = append(groups["补洞规则拒绝"], strings.TrimPrefix(reason, "reject_patch_rule:"))
-		case strings.HasPrefix(reason, "pending_keyword:"):
-			groups["关键词/AC"] = append(groups["关键词/AC"], strings.TrimPrefix(reason, "pending_keyword:"))
-		case strings.HasPrefix(reason, "pending_regex:"):
-			groups["正则"] = append(groups["正则"], strings.TrimPrefix(reason, "pending_regex:"))
-		case strings.HasPrefix(reason, "pending_patch_rule:"):
-			groups["补洞规则待审"] = append(groups["补洞规则待审"], strings.TrimPrefix(reason, "pending_patch_rule:"))
-		case strings.HasPrefix(reason, "pending_contact_shape:"):
-			groups["联系方式形态"] = append(groups["联系方式形态"], strings.TrimPrefix(reason, "pending_contact_shape:"))
-		case strings.HasPrefix(reason, "pending_encoded_url:"):
-			groups["编码链接"] = append(groups["编码链接"], strings.TrimPrefix(reason, "pending_encoded_url:"))
-		case strings.HasPrefix(reason, "pending_political_context:"):
-			groups["涉政上下文"] = append(groups["涉政上下文"], strings.TrimPrefix(reason, "pending_political_context:"))
-		case strings.HasPrefix(reason, "pending_safety_context:"):
-			groups["安全上下文"] = append(groups["安全上下文"], strings.TrimPrefix(reason, "pending_safety_context:"))
-		case strings.HasPrefix(reason, "similarity:"):
-			groups["相似召回"] = append(groups["相似召回"], strings.TrimPrefix(reason, "similarity:"))
-		case reason == "behavior_user_frequency":
-			groups["用户频率"] = append(groups["用户频率"], "窗口内用户提交次数达到阈值")
-		case reason == "behavior_ip_frequency":
-			groups["IP频率"] = append(groups["IP频率"], "窗口内 IP 提交次数达到阈值")
-		case reason == "behavior_duplicate":
-			groups["重复内容"] = append(groups["重复内容"], "重复次数达到待审核阈值")
-		case reason == "behavior_duplicate_reject":
-			groups["重复内容强风险"] = append(groups["重复内容强风险"], "重复次数达到拒绝阈值")
-		case reason == "text_quality_no_words":
-			groups["低质内容"] = append(groups["低质内容"], "空内容或纯符号")
-		case reason == "text_quality_numeric":
-			groups["低质内容"] = append(groups["低质内容"], "纯数字")
-		case reason == "text_quality_repeated":
-			groups["低质内容"] = append(groups["低质内容"], "长重复字符")
 		default:
 			groups["其他"] = append(groups["其他"], reason)
 		}
@@ -506,24 +458,6 @@ func formatModerationReportDeductions(reasons []string) string {
 		"结构规则",
 		"上下文规则",
 		"行为风险",
-		"硬规则关键词",
-		"硬规则近形/谐音",
-		"英文辱骂",
-		"硬规则正则",
-		"补洞规则拒绝",
-		"补洞规则待审",
-		"关键词/AC",
-		"正则",
-		"联系方式形态",
-		"编码链接",
-		"涉政上下文",
-		"安全上下文",
-		"相似召回",
-		"用户频率",
-		"IP频率",
-		"重复内容",
-		"重复内容强风险",
-		"低质内容",
 		"其他",
 	}
 	parts := make([]string, 0, len(groups))
@@ -532,37 +466,24 @@ func formatModerationReportDeductions(reasons []string) string {
 		if len(values) == 0 {
 			continue
 		}
-		parts = append(parts, fmt.Sprintf("扣%d:%s[%s]", moderationReportDeductionScore(name), name, strings.Join(values, ",")))
+		parts = append(parts, fmt.Sprintf("扣%d:%s[%s]",
+			moderationReportDeductionScore(name, values),
+			name,
+			strings.Join(values, ","),
+		))
 	}
 	return strings.Join(parts, "; ")
 }
 
-func moderationReportDeductionScore(name string) int {
+func moderationReportDeductionScore(name string, reasons []string) int {
 	switch name {
 	case "敏感词库", "结构规则", "上下文规则", "行为风险":
+		for _, reason := range reasons {
+			if strings.Contains(reason, ":block:") {
+				return defaultCommentModerationRejectScore
+			}
+		}
 		return defaultCommentModerationPendingScore
-	case "硬规则关键词", "硬规则近形/谐音", "英文辱骂", "硬规则正则", "补洞规则拒绝", "重复内容强风险":
-		return defaultCommentModerationRejectScore
-	case "关键词/AC", "补洞规则待审":
-		return commentModerationKeywordScore
-	case "正则", "联系方式形态":
-		return commentModerationRegexScore
-	case "编码链接":
-		return commentModerationEncodedURLRiskScore
-	case "涉政上下文":
-		return commentModerationPoliticalContextScore
-	case "安全上下文":
-		return commentModerationSafetyContextScore
-	case "相似召回":
-		return defaultCommentModerationSimilarityScore
-	case "用户频率":
-		return commentModerationUserRiskScore
-	case "IP频率":
-		return commentModerationIPRiskScore
-	case "重复内容":
-		return commentModerationDuplicateRiskScore
-	case "低质内容":
-		return commentModerationTextQualityRiskScore
 	default:
 		return 0
 	}

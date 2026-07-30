@@ -8,12 +8,6 @@ import (
 
 func contextSignals(text NormalizedComment, cfg appconfig.CommentModerationConfig) []Signal {
 	rules := cfg.ContextRules
-	if len(rules) == 0 {
-		rules = cfg.Rules.SafetyContextRules
-	}
-	if len(rules) == 0 {
-		rules = cfg.Rules.SafetyContext
-	}
 
 	views := []string{text.Compact}
 	if text.PinyinFolded != "" && text.PinyinFolded != text.Compact {

@@ -102,13 +102,7 @@ func ApplyDefaults(cfg *appconfig.CommentModerationConfig) {
 		cfg.Decision.DefaultOnError = "pending"
 	}
 	if cfg.Decision.Score.Pending <= 0 {
-		cfg.Decision.Score.Pending = cfg.Score.Pending
-	}
-	if cfg.Decision.Score.Pending <= 0 {
 		cfg.Decision.Score.Pending = defaultPendingScore
-	}
-	if cfg.Decision.Score.Reject <= cfg.Decision.Score.Pending {
-		cfg.Decision.Score.Reject = cfg.Score.Reject
 	}
 	if cfg.Decision.Score.Reject <= cfg.Decision.Score.Pending {
 		cfg.Decision.Score.Reject = defaultRejectScore

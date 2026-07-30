@@ -5,9 +5,9 @@
 审核引擎使用 risk_score（风险分）：从 0 开始，分数越高风险越高。
 报告里的 final_score 是便于查看的安全分：final_score = max(0, 100 - risk_score)。
 决策阈值：risk_score < 40 => approved；40 <= risk_score < 80 => pending；risk_score >= 80 => rejected。
-扣分项：关键词/AC=40；正则=40；编码链接=40；涉政上下文=40；安全上下文=40；相似召回=40；用户频率=40；IP 频率=40；重复内容=40；重复内容强风险或硬拒=80。
+扣分项：敏感词库=40；结构规则=40；上下文规则=40；行为风险=40；硬拒信号=80。
 低质内容扣分：纯符号/空内容=40；纯数字=40；长重复字符=40。
-说明：同一类命中多个明细时只扣一次，例如命中多个关键词仍按关键词/AC 扣一次。
+说明：同一类命中多个明细时只扣一次，例如命中多个敏感词仍按敏感词库扣一次。
 
 TOTAL cases=60 approved=0 pending=58 rejected=2
 
@@ -48,7 +48,7 @@ REASON context:illegal_privacy:review:illegal_privacy:内部系统权限+买卖 
 012 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:敏感词库[lexicon:sensitive:review:加v]                                                                                    | 原始评论=额外违规012：陪聊一晚，先加v看照片。
 013 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=额外违规013：成人资料合集，网盘口令私发。
 014 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:上下文规则[context:sexual:review:sexual_risk:擦边+下载]                                                                       | 原始评论=额外违规014：擦边直播录屏，群内下载。
-015 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣40:敏感词库[lexicon:sexual:block:裸聊]                                                                                        | 原始评论=额外违规015：裸聊暗号 yuepao，知道的私我。
+015 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣80:敏感词库[lexicon:sexual:block:裸聊]                                                                                        | 原始评论=额外违规015：裸聊暗号 yuepao，知道的私我。
 016 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=额外违规016：月包服务，附近可安排。
 017 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:结构规则[structure:contact:review:contact]; 扣40:上下文规则[context:minor:review:minor_risk:未成年+照片交换]                          | 原始评论=额外违规017：未成年照片交换，进群审核。
 018 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:上下文规则[context:minor:review:minor_risk:学生+押金,context:minor:review:minor_risk:学生妹+押金]                                  | 原始评论=额外违规018：学生妹资源包，押金后发。
@@ -79,7 +79,7 @@ REASON context:illegal_privacy:review:illegal_privacy:内部系统权限+买卖 
 043 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=额外违规043：虚拟币高收益保本群。
 044 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=额外违规044：彩票网站代理，返佣很高。
 045 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:敏感词库[lexicon:spam_fraud:review:刷单]; 扣40:结构规则[structure:risk_phrase:review:risk_phrase]; 扣40:上下文规则[context:spam_fraud:review:commercial_spam:兼职+刷单,context:spam_fraud:review:commercial_spam:返现+刷单] | 原始评论=额外违规045：刷单兼职，先垫付返现。
-046 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣40:敏感词库[lexicon:gambling:block:博彩]                                                                                      | 原始评论=额外违规046：博彩套利教程，稳赚不赔。
+046 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣80:敏感词库[lexicon:gambling:block:博彩]                                                                                      | 原始评论=额外违规046：博彩套利教程，稳赚不赔。
 047 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=额外违规047：贷款秒批，v联系。
 048 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=额外违规048：诈骗话术模板，免费领。
 049 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=额外违规049：黑客攻击服务，按小时计费。

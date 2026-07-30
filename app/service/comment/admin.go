@@ -166,6 +166,9 @@ func toAdminCommentItem(row commentModel.AdminListItem) types.AdminCommentItem {
 	if row.ParentID != 0 {
 		item.ParentID = strconv.FormatUint(row.ParentID, 10)
 	}
+	if row.Status == commentModel.StatusPending || row.Status == commentModel.StatusRejected {
+		item.ModerationReasons = formatCommentModerationReasons(decodeCommentModerationReasons(row.ModerationReasons))
+	}
 	return item
 }
 

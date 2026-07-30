@@ -56,6 +56,10 @@ func (s *commentService) UserReportComment(ctx context.Context,
 		return nil, fmt.Errorf("failed to get comment report: %w", err)
 	}
 
+	if err = s.checkCommentReportLimit(ctx, user.ID, commentID, request.ClientIP); err != nil {
+		return nil, err
+	}
+
 	reportID, err := s.idGenerator.NextID()
 	if err != nil {
 		s.logger.Error("generate comment report id error", zap.Error(err))

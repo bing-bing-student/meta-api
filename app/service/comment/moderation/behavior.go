@@ -136,13 +136,7 @@ func normalizeRateLimitValue(value string) string {
 func userRule(cfg appconfig.CommentModerationConfig) appconfig.CommentModerationBehaviorThresholdConfig {
 	rule := cfg.BehaviorRules.UserFrequency
 	if rule.WindowSeconds <= 0 {
-		rule.WindowSeconds = cfg.Behavior.UserWindowSeconds
-	}
-	if rule.WindowSeconds <= 0 {
 		rule.WindowSeconds = defaultUserWindowSeconds
-	}
-	if rule.ReviewThreshold <= 0 {
-		rule.ReviewThreshold = cfg.Behavior.UserPendingCount
 	}
 	if rule.ReviewThreshold <= 0 {
 		rule.ReviewThreshold = defaultUserReviewThreshold
@@ -153,13 +147,7 @@ func userRule(cfg appconfig.CommentModerationConfig) appconfig.CommentModeration
 func ipRule(cfg appconfig.CommentModerationConfig) appconfig.CommentModerationBehaviorThresholdConfig {
 	rule := cfg.BehaviorRules.IPFrequency
 	if rule.WindowSeconds <= 0 {
-		rule.WindowSeconds = cfg.Behavior.IPWindowSeconds
-	}
-	if rule.WindowSeconds <= 0 {
 		rule.WindowSeconds = defaultIPWindowSeconds
-	}
-	if rule.ReviewThreshold <= 0 {
-		rule.ReviewThreshold = cfg.Behavior.IPPendingCount
 	}
 	if rule.ReviewThreshold <= 0 {
 		rule.ReviewThreshold = defaultIPReviewThreshold
@@ -170,19 +158,10 @@ func ipRule(cfg appconfig.CommentModerationConfig) appconfig.CommentModerationBe
 func duplicateRule(cfg appconfig.CommentModerationConfig) appconfig.CommentModerationBehaviorThresholdConfig {
 	rule := cfg.BehaviorRules.DuplicateContent
 	if rule.WindowSeconds <= 0 {
-		rule.WindowSeconds = cfg.Behavior.DuplicateWindowSeconds
-	}
-	if rule.WindowSeconds <= 0 {
 		rule.WindowSeconds = defaultDuplicateWindowSeconds
 	}
 	if rule.ReviewThreshold <= 0 {
-		rule.ReviewThreshold = cfg.Behavior.DuplicatePendingCount
-	}
-	if rule.ReviewThreshold <= 0 {
 		rule.ReviewThreshold = defaultDuplicateReviewThreshold
-	}
-	if rule.BlockThreshold <= 0 {
-		rule.BlockThreshold = cfg.Behavior.DuplicateRejectCount
 	}
 	if rule.BlockThreshold <= rule.ReviewThreshold {
 		rule.BlockThreshold = defaultDuplicateBlockThreshold

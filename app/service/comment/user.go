@@ -244,18 +244,19 @@ func (s *commentService) UserAddComment(ctx context.Context,
 	}
 	moderation := s.moderateComment(ctx, moderationInput)
 	commentInfo := &commentModel.Comment{
-		ID:               commentID,
-		ArticleID:        articleID,
-		ParentID:         parentID,
-		UserID:           userID,
-		ReplyToUserID:    replyToUserID,
-		ReplyToCommentID: replyToCommentID,
-		AuthorName:       truncateString(user.DisplayName, 80),
-		Content:          content,
-		Status:           moderation.Status,
-		IP:               request.ClientIP,
-		CreateTime:       now,
-		UpdateTime:       now,
+		ID:                commentID,
+		ArticleID:         articleID,
+		ParentID:          parentID,
+		UserID:            userID,
+		ReplyToUserID:     replyToUserID,
+		ReplyToCommentID:  replyToCommentID,
+		AuthorName:        truncateString(user.DisplayName, 80),
+		Content:           content,
+		Status:            moderation.Status,
+		ModerationReasons: encodeCommentModerationReasons(moderation.Reasons),
+		IP:                request.ClientIP,
+		CreateTime:        now,
+		UpdateTime:        now,
 	}
 	if err = s.commentModel.CreateComment(ctx, commentInfo); err != nil {
 		s.logger.Error("failed to create comment", zap.Error(err))

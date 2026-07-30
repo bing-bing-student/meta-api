@@ -359,7 +359,7 @@ comment_moderation:
     default_on_error: pending
     score:
       pending: 40
-      rejected: 80
+      reject: 80
     category_overrides:
       sexual:
         level: block

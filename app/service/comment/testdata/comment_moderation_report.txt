@@ -5,15 +5,17 @@
 审核引擎使用 risk_score（风险分）：从 0 开始，分数越高风险越高。
 报告里的 final_score 是便于查看的安全分：final_score = max(0, 100 - risk_score)。
 决策阈值：risk_score < 40 => approved；40 <= risk_score < 80 => pending；risk_score >= 80 => rejected。
-扣分项：关键词/AC=40；正则=40；编码链接=40；涉政上下文=40；安全上下文=40；相似召回=40；用户频率=40；IP 频率=40；重复内容=40；重复内容强风险或硬拒=80。
+扣分项：敏感词库=40；结构规则=40；上下文规则=40；行为风险=40；硬拒信号=80。
 低质内容扣分：纯符号/空内容=40；纯数字=40；长重复字符=40。
-说明：同一类命中多个明细时只扣一次，例如命中多个关键词仍按关键词/AC 扣一次。
+说明：同一类命中多个明细时只扣一次，例如命中多个敏感词仍按敏感词库扣一次。
 
 TOTAL cases=300 approved=0 pending=278 rejected=22
 
 ## Top Reasons
 REASON structure:contact:review:contact                                 count=93
 REASON structure:risk_phrase:review:risk_phrase                         count=80
+REASON behavior:user_frequency:review:user_frequency                    count=11
+REASON behavior:ip_frequency:review:ip_frequency                        count=8
 REASON structure:url:review:url                                         count=7
 REASON lexicon:gambling:block:博彩                                        count=6
 REASON lexicon:sexual:block:裸聊                                          count=6
@@ -30,8 +32,6 @@ REASON context:minor:review:minor_risk:未成年+交友                         
 REASON context:spam_fraud:review:commercial_spam:扫码+进群                  count=3
 REASON context:spam_fraud:review:commercial_spam:进群+扫码                  count=3
 REASON lexicon:sensitive:review:加q                                      count=3
-REASON lexicon:sensitive:review:加扣                                      count=3
-REASON context:gore:review:gore:事故+群                                    count=2
 
 ## Details
 001 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]; 扣40:上下文规则[context:political:review:political_mobilization:政治+组织,context:political:review:political_mobilization:政治+号召,context:political:review:political_mobilization:政治+打倒] | 原始评论=涉政样例001：政治敏感话题，号召大家打倒某组织。
@@ -94,36 +94,36 @@ REASON context:gore:review:gore:事故+群                                    co
 058 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:结构规则[structure:contact:review:contact]; 扣40:上下文规则[context:minor:review:minor_risk:未成年+交友]                            | 原始评论=未成年样例028：未成年交友暗号，复制加群。
 059 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:结构规则[structure:contact:review:contact]; 扣40:上下文规则[context:minor:review:minor_risk:小朋友+隐私,context:minor:review:minor_risk:小朋友+交易] | 原始评论=未成年样例029：小朋友隐私信息交易，量大优惠。
 060 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:结构规则[structure:contact:review:contact]; 扣40:上下文规则[context:minor:review:minor_risk:学生+资源网站,context:minor:review:minor_risk:学生+地址私信] | 原始评论=未成年样例030：学生资源网站，地址私信。
-061 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣40:敏感词库[lexicon:sexual:block:约炮]                                                                                        | 原始评论=涉黄样例001：约炮同城，联系方式私聊。
-062 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣40:敏感词库[lexicon:sexual:block:裸聊]                                                                                        | 原始评论=涉黄样例002：裸聊服务，加微信了解。
+061 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣80:敏感词库[lexicon:sexual:block:约炮]                                                                                        | 原始评论=涉黄样例001：约炮同城，联系方式私聊。
+062 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣80:敏感词库[lexicon:sexual:block:裸聊]                                                                                        | 原始评论=涉黄样例002：裸聊服务，加微信了解。
 063 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:上下文规则[context:sexual:review:sexual_risk:成人影片+资源]                                                                     | 原始评论=涉黄样例003：成人影片资源，群内免费领。
 064 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:contact:review:contact]                                                                               | 原始评论=涉黄样例004：低俗色情直播间，扫码进入。
 065 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:敏感词库[lexicon:sensitive:review:上门服务]; 扣40:结构规则[structure:risk_phrase:review:risk_phrase]                              | 原始评论=涉黄样例005：同城上门服务，VX联系。
 066 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:敏感词库[lexicon:sensitive:review:约泡]                                                                                    | 原始评论=涉黄样例006：约泡暗号，懂的私聊。
-067 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣40:敏感词库[lexicon:sensitive:review:yue炮,lexicon:sexual:block:约炮]                                                          | 原始评论=涉黄样例007：yue炮资源群，群号888888。
-068 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣40:敏感词库[lexicon:sexual:block:裸聊]                                                                                        | 原始评论=涉黄样例008：裸聊一对一，先加QQ。
-069 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣40:敏感词库[lexicon:sexual:block:成人资源]                                                                                      | 原始评论=涉黄样例009：成人资源下载，链接私发。
+067 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣80:敏感词库[lexicon:sensitive:review:yue炮,lexicon:sexual:block:约炮]                                                          | 原始评论=涉黄样例007：yue炮资源群，群号888888。
+068 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣80:敏感词库[lexicon:sexual:block:裸聊]                                                                                        | 原始评论=涉黄样例008：裸聊一对一，先加QQ。
+069 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣80:敏感词库[lexicon:sexual:block:成人资源]                                                                                      | 原始评论=涉黄样例009：成人资源下载，链接私发。
 070 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:结构规则[structure:contact:review:contact]; 扣40:上下文规则[context:sexual:review:sexual_risk:低俗+内容,context:sexual:review:sexual_risk:低俗+合集,context:sexual:review:sexual_risk:低俗+进群,context:sexual:review:sexual_risk:低俗+领取,context:sexual:review:sexual_risk:擦边+内容,context:sexual:review:sexual_risk:擦边+合集,context:sexual:review:sexual_risk:擦边+进群,context:sexual:review:sexual_risk:擦边+领取,context:spam_fraud:review:commercial_spam:进群+领取] | 原始评论=涉黄样例010：低俗擦边内容合集，进群领取。
-071 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣40:敏感词库[lexicon:sexual:block:成人视频]                                                                                      | 原始评论=涉黄样例011：成人视频站，地址加我发。
+071 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣80:敏感词库[lexicon:sexual:block:成人视频]                                                                                      | 原始评论=涉黄样例011：成人视频站，地址加我发。
 072 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:敏感词库[lexicon:sensitive:review:特殊服务]; 扣40:结构规则[structure:contact:review:contact]; 扣40:上下文规则[context:sexual:review:sexual_risk:特殊服务+私信,context:sexual:review:sexual_risk:特殊服务+报价,context:sexual:review:sexual_risk:特殊服务+服务,context:sexual:review:sexual_risk:同城约会+私信,context:sexual:review:sexual_risk:同城约会+报价,context:sexual:review:sexual_risk:同城约会+服务] | 原始评论=涉黄样例012：同城约会特殊服务，私信报价。
-073 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣40:敏感词库[lexicon:sexual:block:裸聊]                                                                                        | 原始评论=涉黄样例013：裸聊房间号，扫码即可。
+073 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣80:敏感词库[lexicon:sexual:block:裸聊]                                                                                        | 原始评论=涉黄样例013：裸聊房间号，扫码即可。
 074 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=涉黄样例014：色情资源包，免费试看。
-075 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣40:敏感词库[lexicon:sexual:block:约炮]                                                                                        | 原始评论=涉黄样例015：约炮联系方式，v：test1234。
+075 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣80:敏感词库[lexicon:sexual:block:约炮]                                                                                        | 原始评论=涉黄样例015：约炮联系方式，v：test1234。
 076 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=涉黄样例016：成人交友推广，返现拉人。
 077 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:上下文规则[context:sexual:review:sexual_risk:暗示交易+服务,context:sexual:review:sexual_risk:暗示交易+交易,context:sexual:review:sexual_risk:暗示交易+价格] | 原始评论=涉黄样例017：暗示交易服务，价格私聊。
-078 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣40:敏感词库[lexicon:sexual:block:裸聊]                                                                                        | 原始评论=涉黄样例018：裸聊平台邀请码，联系我。
+078 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣80:敏感词库[lexicon:sexual:block:裸聊]                                                                                        | 原始评论=涉黄样例018：裸聊平台邀请码，联系我。
 079 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:上下文规则[context:sexual:review:sexual_risk:低俗+群聊,context:sexual:review:sexual_risk:低俗+未满勿入]                             | 原始评论=涉黄样例019：低俗群聊，未满勿入。
 080 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:结构规则[structure:url:review:url]; 扣40:上下文规则[context:sexual:review:sexual_risk:成人内容+内容]                                 | 原始评论=涉黄样例020：成人内容试看，www.example.xyz。
 081 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=涉黄样例021：特殊陪聊服务，VX:test8888。
 082 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:contact:review:contact]                                                                               | 原始评论=涉黄样例022：色情图片合集，加群下载。
-083 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣40:敏感词库[lexicon:sexual:block:约炮]                                                                                        | 原始评论=涉黄样例023：约炮教程，私信发链接。
-084 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣40:敏感词库[lexicon:sexual:block:裸聊]                                                                                        | 原始评论=涉黄样例024：裸聊邀请码，群内发放。
-085 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣40:敏感词库[lexicon:sexual:block:成人资源]                                                                                      | 原始评论=涉黄样例025：成人资源网站，base64地址私聊。
+083 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣80:敏感词库[lexicon:sexual:block:约炮]                                                                                        | 原始评论=涉黄样例023：约炮教程，私信发链接。
+084 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣80:敏感词库[lexicon:sexual:block:裸聊]                                                                                        | 原始评论=涉黄样例024：裸聊邀请码，群内发放。
+085 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣80:敏感词库[lexicon:sexual:block:成人资源]                                                                                      | 原始评论=涉黄样例025：成人资源网站，base64地址私聊。
 086 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=涉黄样例026：同城激情聊天，留微信。
 087 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:上下文规则[context:sexual:review:sexual_risk:擦边+资源,context:sexual:review:sexual_risk:擦边+视频]                               | 原始评论=涉黄样例027：擦边视频资源，免费领。
 088 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:敏感词库[lexicon:sensitive:review:约泡]; 扣40:结构规则[structure:contact:review:contact,structure:risk_phrase:review:risk_phrase]; 扣40:上下文规则[context:spam_fraud:review:commercial_spam:扫码+进群,context:spam_fraud:review:commercial_spam:进群+扫码] | 原始评论=涉黄样例028：约泡交友广告，扫码进群。
 089 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]; 扣40:上下文规则[context:sexual:review:sexual_risk:成人内容+内容]                 | 原始评论=涉黄样例029：成人内容推广员招募。
-090 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣40:敏感词库[lexicon:sexual:block:裸聊]                                                                                        | 原始评论=涉黄样例030：裸聊联系方式，📮：adulttest。
+090 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣80:敏感词库[lexicon:sexual:block:裸聊]                                                                                        | 原始评论=涉黄样例030：裸聊联系方式，📮：adulttest。
 091 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:上下文规则[context:violence:review:violence:打人+组队,context:violence:review:violence:打人+去,context:violence:review:violence:堵+组队,context:violence:review:violence:堵+去] | 原始评论=暴力样例001：想打人出气，组队去堵他。
 092 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]; 扣40:上下文规则[context:violence:review:violence:砸+明天,context:violence:review:violence:砸+去] | 原始评论=暴力样例002：明天带家伙去砸店。
 093 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=暴力样例003：谁不服就揍到服。
@@ -274,46 +274,46 @@ REASON context:gore:review:gore:事故+群                                    co
 238 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:contact:review:contact]                                                                               | 原始评论=引流样例028：📮：mailtest。
 239 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:contact:review:contact]                                                                               | 原始评论=引流样例029：🌍：globaltest。
 240 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:contact:review:contact]                                                                               | 原始评论=引流样例030：⭐：starlink。
-241 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣40:敏感词库[lexicon:gambling:block:博彩]                                                                                      | 原始评论=诈骗赌博样例001：赌博博彩快速赚钱。
+241 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣80:敏感词库[lexicon:gambling:block:博彩]                                                                                      | 原始评论=诈骗赌博样例001：赌博博彩快速赚钱。
 242 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=诈骗赌博样例002：投注平台稳赚不赔。
 243 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:敏感词库[lexicon:sensitive:review:时时彩]; 扣40:结构规则[structure:contact:review:contact]                                       | 原始评论=诈骗赌博样例003：时时彩内部资料，联系我。
 244 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=诈骗赌博样例004：贷款刷流水，秒到账。
 245 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=诈骗赌博样例005：中奖短信领奖，先交手续费。
-246 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:敏感词库[lexicon:spam_fraud:review:刷单]                                                                                   | 原始评论=诈骗赌博样例006：刷单返利，先垫付。
-247 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=诈骗赌博样例007：虚假投资群，高收益保本。
-248 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣40:敏感词库[lexicon:gambling:block:博彩]                                                                                      | 原始评论=诈骗赌博样例008：博彩邀请码，进群领取。
-249 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=诈骗赌博样例009：骗子项目包装，稳赚。
-250 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:结构规则[structure:contact:review:contact,structure:risk_phrase:review:risk_phrase]                                      | 原始评论=诈骗赌博样例010：诈骗话术资料包，私信。
-251 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=诈骗赌博样例011：赌博平台代理招募。
-252 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣40:敏感词库[lexicon:gambling:block:博彩]                                                                                      | 原始评论=诈骗赌博样例012：博彩软件，www.bet.xyz。
-253 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=诈骗赌博样例013：中奖链接，点击领奖。
-254 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=诈骗赌博样例014：贷款黑户也能下款。
-255 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:上下文规则[context:spam_fraud:review:commercial_spam:兼职+押金]                                                               | 原始评论=诈骗赌博样例015：兼职返利，押金后退。
-256 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=诈骗赌博样例016：虚假理财，月收益50%。
-257 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣40:敏感词库[lexicon:gambling:block:博彩]                                                                                      | 原始评论=诈骗赌博样例017：博彩群号456789。
-258 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=诈骗赌博样例018：诈骗剧本，免费领。
-259 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣40:敏感词库[lexicon:gambling:block:赌博投注]                                                                                    | 原始评论=诈骗赌博样例019：赌博投注技巧，私聊。
-260 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=诈骗赌博样例020：贷款快速到账，v联系。
+246 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:敏感词库[lexicon:spam_fraud:review:刷单]; 扣40:行为风险[behavior:user_frequency:review:user_frequency]                          | 原始评论=诈骗赌博样例006：刷单返利，先垫付。
+247 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]; 扣40:行为风险[behavior:user_frequency:review:user_frequency]              | 原始评论=诈骗赌博样例007：虚假投资群，高收益保本。
+248 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣80:敏感词库[lexicon:gambling:block:博彩]                                                                                      | 原始评论=诈骗赌博样例008：博彩邀请码，进群领取。
+249 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]; 扣40:行为风险[behavior:user_frequency:review:user_frequency]              | 原始评论=诈骗赌博样例009：骗子项目包装，稳赚。
+250 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:结构规则[structure:contact:review:contact,structure:risk_phrase:review:risk_phrase]; 扣40:行为风险[behavior:user_frequency:review:user_frequency] | 原始评论=诈骗赌博样例010：诈骗话术资料包，私信。
+251 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]; 扣40:行为风险[behavior:user_frequency:review:user_frequency]              | 原始评论=诈骗赌博样例011：赌博平台代理招募。
+252 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣80:敏感词库[lexicon:gambling:block:博彩]                                                                                      | 原始评论=诈骗赌博样例012：博彩软件，www.bet.xyz。
+253 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]; 扣40:行为风险[behavior:user_frequency:review:user_frequency]              | 原始评论=诈骗赌博样例013：中奖链接，点击领奖。
+254 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]; 扣40:行为风险[behavior:user_frequency:review:user_frequency]              | 原始评论=诈骗赌博样例014：贷款黑户也能下款。
+255 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:上下文规则[context:spam_fraud:review:commercial_spam:兼职+押金]; 扣40:行为风险[behavior:user_frequency:review:user_frequency]      | 原始评论=诈骗赌博样例015：兼职返利，押金后退。
+256 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]; 扣40:行为风险[behavior:user_frequency:review:user_frequency]              | 原始评论=诈骗赌博样例016：虚假理财，月收益50%。
+257 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣80:敏感词库[lexicon:gambling:block:博彩]                                                                                      | 原始评论=诈骗赌博样例017：博彩群号456789。
+258 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]; 扣40:行为风险[behavior:user_frequency:review:user_frequency]              | 原始评论=诈骗赌博样例018：诈骗剧本，免费领。
+259 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣80:敏感词库[lexicon:gambling:block:赌博投注]                                                                                    | 原始评论=诈骗赌博样例019：赌博投注技巧，私聊。
+260 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]; 扣40:行为风险[behavior:user_frequency:review:user_frequency]              | 原始评论=诈骗赌博样例020：贷款快速到账，v联系。
 261 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=诈骗赌博样例021：彩票网站推广，返佣高。
 262 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:敏感词库[lexicon:spam_fraud:review:刷单]; 扣40:结构规则[structure:contact:review:contact]                                       | 原始评论=诈骗赌博样例022：刷单群，加微信。
 263 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=诈骗赌博样例023：虚拟币骗局教学。
-264 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣40:敏感词库[lexicon:gambling:block:博彩]                                                                                      | 原始评论=诈骗赌博样例024：博彩导师一对一。
+264 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣80:敏感词库[lexicon:gambling:block:博彩]                                                                                      | 原始评论=诈骗赌博样例024：博彩导师一对一。
 265 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:敏感词库[lexicon:sensitive:review:加q]; 扣40:结构规则[structure:contact:review:contact,structure:risk_phrase:review:risk_phrase] | 原始评论=诈骗赌博样例025：中奖领奖码，加QQ。
 266 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:结构规则[structure:url:review:url,structure:risk_phrase:review:risk_phrase]; 扣40:上下文规则[context:spam_fraud:review:commercial_spam:贷款+链接] | 原始评论=诈骗赌博样例026：贷款广告链接 www.loan.top。
 267 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=诈骗赌博样例027：诈骗资源交流群。
 268 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=诈骗赌博样例028：赌博赚钱项目。
 269 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=诈骗赌博样例029：刷流水贷款教程。
-270 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣40:敏感词库[lexicon:gambling:block:博彩]                                                                                      | 原始评论=诈骗赌博样例030：博彩联系方式，📮：bettest。
+270 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣80:敏感词库[lexicon:gambling:block:博彩]                                                                                      | 原始评论=诈骗赌博样例030：博彩联系方式，📮：bettest。
 271 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:敏感词库[lexicon:sensitive:review:枪支]; 扣40:结构规则[structure:contact:review:contact]                                        | 原始评论=其他违规样例001：枪支交易，私信报价。
-272 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣40:敏感词库[lexicon:drugs:block:毒品]                                                                                         | 原始评论=其他违规样例002：毒品相关暗号，进群聊。
-273 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:上下文规则[context:illegal_privacy:review:illegal_privacy:身份证+出售]                                                         | 原始评论=其他违规样例003：出售个人身份证信息。
-274 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:上下文规则[context:illegal_privacy:review:illegal_privacy:开房记录+私聊]                                                        | 原始评论=其他违规样例004：查开房记录，价格私聊。
-275 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:上下文规则[context:illegal_privacy:review:illegal_privacy:银行卡+买卖]                                                         | 原始评论=其他违规样例005：买卖银行卡，量大优惠。
-276 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:结构规则[structure:contact:review:contact]; 扣40:上下文规则[context:spam_fraud:review:commercial_spam:私信+领取]                   | 原始评论=其他违规样例006：盗号教程，私信领取。
-277 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]                                                                       | 原始评论=其他违规样例007：黑客攻击服务，按次收费。
-278 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:敏感词库[lexicon:sensitive:review:代写论文]; 扣40:结构规则[structure:contact:review:contact]                                      | 原始评论=其他违规样例008：代写论文包过，联系我。
-279 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:上下文规则[context:illegal_privacy:review:illegal_privacy:账号密码+售卖]                                                        | 原始评论=其他违规样例009：售卖账号密码库。
-280 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:敏感词库[lexicon:sensitive:review:代办证件]; 扣40:上下文规则[context:illegal_privacy:review:illegal_privacy:证件+代办]                 | 原始评论=其他违规样例010：非法代办证件，快速出。
+272 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣80:敏感词库[lexicon:drugs:block:毒品]                                                                                         | 原始评论=其他违规样例002：毒品相关暗号，进群聊。
+273 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:上下文规则[context:illegal_privacy:review:illegal_privacy:身份证+出售]; 扣40:行为风险[behavior:ip_frequency:review:ip_frequency]    | 原始评论=其他违规样例003：出售个人身份证信息。
+274 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:上下文规则[context:illegal_privacy:review:illegal_privacy:开房记录+私聊]; 扣40:行为风险[behavior:ip_frequency:review:ip_frequency]   | 原始评论=其他违规样例004：查开房记录，价格私聊。
+275 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:上下文规则[context:illegal_privacy:review:illegal_privacy:银行卡+买卖]; 扣40:行为风险[behavior:ip_frequency:review:ip_frequency]    | 原始评论=其他违规样例005：买卖银行卡，量大优惠。
+276 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:结构规则[structure:contact:review:contact]; 扣40:上下文规则[context:spam_fraud:review:commercial_spam:私信+领取]; 扣40:行为风险[behavior:ip_frequency:review:ip_frequency] | 原始评论=其他违规样例006：盗号教程，私信领取。
+277 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:结构规则[structure:risk_phrase:review:risk_phrase]; 扣40:行为风险[behavior:ip_frequency:review:ip_frequency]                  | 原始评论=其他违规样例007：黑客攻击服务，按次收费。
+278 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:敏感词库[lexicon:sensitive:review:代写论文]; 扣40:结构规则[structure:contact:review:contact]; 扣40:行为风险[behavior:ip_frequency:review:ip_frequency] | 原始评论=其他违规样例008：代写论文包过，联系我。
+279 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:上下文规则[context:illegal_privacy:review:illegal_privacy:账号密码+售卖]; 扣40:行为风险[behavior:ip_frequency:review:ip_frequency]   | 原始评论=其他违规样例009：售卖账号密码库。
+280 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:敏感词库[lexicon:sensitive:review:代办证件]; 扣40:上下文规则[context:illegal_privacy:review:illegal_privacy:证件+代办]; 扣40:行为风险[behavior:ip_frequency:review:ip_frequency] | 原始评论=其他违规样例010：非法代办证件，快速出。
 281 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:上下文规则[context:illegal_privacy:review:illegal_privacy:人肉搜索+服务]                                                        | 原始评论=其他违规样例011：人肉搜索服务，提供资料。
 282 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:上下文规则[context:illegal_privacy:review:illegal_privacy:住址电话+泄露]                                                        | 原始评论=其他违规样例012：泄露他人住址电话。
 283 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:上下文规则[context:illegal_privacy:review:illegal_privacy:监控录像+出售]                                                        | 原始评论=其他违规样例013：出售监控录像资源。
@@ -332,5 +332,5 @@ REASON context:gore:review:gore:事故+群                                    co
 296 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:上下文规则[context:illegal_privacy:review:illegal_privacy:代删负面+收费]                                                        | 原始评论=其他违规样例026：代删负面信息，收费处理。
 297 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:contact:review:contact]                                                                               | 原始评论=其他违规样例027：黑灰产交流群，群号555555。
 298 | status=pending  | risk_score= 79 | final_score= 21 | deductions=扣40:结构规则[structure:contact:review:contact]; 扣40:上下文规则[context:illegal_privacy:review:illegal_privacy:非法账号+交易,context:illegal_privacy:review:illegal_privacy:非法账号+私信] | 原始评论=其他违规样例028：非法账号交易，私信。
-299 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣40:敏感词库[lexicon:sensitive:review:枪支,lexicon:drugs:block:毒品]                                                             | 原始评论=其他违规样例029：枪支毒品暗号合集。
+299 | status=rejected | risk_score= 80 | final_score= 20 | deductions=扣80:敏感词库[lexicon:sensitive:review:枪支,lexicon:drugs:block:毒品]                                                             | 原始评论=其他违规样例029：枪支毒品暗号合集。
 300 | status=pending  | risk_score= 40 | final_score= 60 | deductions=扣40:结构规则[structure:contact:review:contact]                                                                               | 原始评论=其他违规样例030：隐私查询服务，📮：darktest。

@@ -21,6 +21,12 @@ const (
 	defaultCommentSubmitUserWindow        = 5 * time.Minute
 	defaultCommentSubmitUserArticleLimit  = 5
 	defaultCommentSubmitUserArticleWindow = 5 * time.Minute
+	defaultCommentReportIPLimit           = 30
+	defaultCommentReportIPWindow          = 24 * time.Hour
+	defaultCommentReportUserLimit         = 10
+	defaultCommentReportUserWindow        = 24 * time.Hour
+	defaultCommentReportIPCommentLimit    = 2
+	defaultCommentReportIPCommentWindow   = 24 * time.Hour
 	unknownCommentRateLimitClientValue    = "unknown"
 )
 
@@ -28,6 +34,12 @@ type commentSubmitLimitKeys struct {
 	ip          string
 	user        string
 	userArticle string
+}
+
+type commentReportLimitKeys struct {
+	ip        string
+	user      string
+	ipComment string
 }
 
 // checkCommentSubmitLimit 检查前台评论提交限流。
@@ -45,6 +57,21 @@ func (s *commentService) checkCommentSubmitLimit(ctx context.Context, userID, ar
 	return s.normalizeCommentRateLimitError(err)
 }
 
+// checkCommentReportLimit 检查前台评论举报限流。
+func (s *commentService) checkCommentReportLimit(ctx context.Context, userID, commentID uint64, clientIP string) error {
+	cfg := s.commentReportRateLimitConfig()
+	if cfg.Disabled {
+		return nil
+	}
+	keys := buildCommentReportLimitKeys(userID, commentID, clientIP)
+	err := s.limiter.Check(ctx,
+		commentRateLimitRule(keys.ip, cfg.IP),
+		commentRateLimitRule(keys.user, cfg.User),
+		commentRateLimitRule(keys.ipComment, cfg.IPComment),
+	)
+	return s.normalizeCommentRateLimitError(err)
+}
+
 // buildCommentSubmitLimitKeys 构造评论提交相关 Redis 限流 Key。
 func buildCommentSubmitLimitKeys(userID, articleID uint64, clientIP string) commentSubmitLimitKeys {
 	userHash := ratelimit.HashPart(strconv.FormatUint(userID, 10))
@@ -57,7 +84,19 @@ func buildCommentSubmitLimitKeys(userID, articleID uint64, clientIP string) comm
 	}
 }
 
-// normalizeCommentRateLimitError 将存储层错误转换为评论提交错误。
+// buildCommentReportLimitKeys 构造评论举报相关 Redis 限流 Key。
+func buildCommentReportLimitKeys(userID, commentID uint64, clientIP string) commentReportLimitKeys {
+	userHash := ratelimit.HashPart(strconv.FormatUint(userID, 10))
+	commentHash := ratelimit.HashPart(strconv.FormatUint(commentID, 10))
+	ipHash := ratelimit.HashPart(normalizeCommentRateLimitValue(clientIP))
+	return commentReportLimitKeys{
+		ip:        cachekey.CommentRateLimit("report", "ip", ipHash).String(),
+		user:      cachekey.CommentRateLimit("report", "user", userHash).String(),
+		ipComment: cachekey.CommentRateLimit("report", "ip-comment", ipHash, commentHash).String(),
+	}
+}
+
+// normalizeCommentRateLimitError 将存储层错误转换为评论业务错误。
 func (s *commentService) normalizeCommentRateLimitError(err error) error {
 	if err == nil {
 		return nil
@@ -66,7 +105,7 @@ func (s *commentService) normalizeCommentRateLimitError(err error) error {
 		return err
 	}
 	if s != nil && s.logger != nil {
-		s.logger.Warn("comment submit rate-limit unavailable", zap.Error(err))
+		s.logger.Warn("comment rate-limit unavailable", zap.Error(err))
 	}
 	return errors.New("评论服务暂不可用，请稍后再试")
 }
@@ -81,11 +120,28 @@ func (s *commentService) commentSubmitRateLimitConfig() appconfig.CommentSubmitR
 	return cfg
 }
 
+// commentReportRateLimitConfig 获取当前评论举报限流配置并填充默认值。
+func (s *commentService) commentReportRateLimitConfig() appconfig.CommentReportRateLimitConfig {
+	cfg := appconfig.CommentReportRateLimitConfig{}
+	if s != nil && s.config != nil {
+		cfg = s.config.RateLimitSnapshot().CommentReport
+	}
+	fillCommentReportRateLimitDefaults(&cfg)
+	return cfg
+}
+
 // fillCommentSubmitRateLimitDefaults 填充评论提交限流默认配置。
 func fillCommentSubmitRateLimitDefaults(cfg *appconfig.CommentSubmitRateLimitConfig) {
 	fillCommentWindowConfig(&cfg.IP, defaultCommentSubmitIPLimit, defaultCommentSubmitIPWindow)
 	fillCommentWindowConfig(&cfg.User, defaultCommentSubmitUserLimit, defaultCommentSubmitUserWindow)
 	fillCommentWindowConfig(&cfg.UserArticle, defaultCommentSubmitUserArticleLimit, defaultCommentSubmitUserArticleWindow)
+}
+
+// fillCommentReportRateLimitDefaults 填充评论举报限流默认配置。
+func fillCommentReportRateLimitDefaults(cfg *appconfig.CommentReportRateLimitConfig) {
+	fillCommentWindowConfig(&cfg.IP, defaultCommentReportIPLimit, defaultCommentReportIPWindow)
+	fillCommentWindowConfig(&cfg.User, defaultCommentReportUserLimit, defaultCommentReportUserWindow)
+	fillCommentWindowConfig(&cfg.IPComment, defaultCommentReportIPCommentLimit, defaultCommentReportIPCommentWindow)
 }
 
 // fillCommentWindowConfig 填充单条窗口规则默认值。

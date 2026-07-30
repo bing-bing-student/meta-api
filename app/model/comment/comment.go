@@ -25,19 +25,20 @@ func IsValidStatus(status string) bool {
 }
 
 type Comment struct {
-	ID               uint64          `gorm:"primary_key;NOT NULL"`
-	ArticleID        uint64          `gorm:"column:article_id;NOT NULL;index:idx_comment_article_status_time,priority:1"`
-	ParentID         uint64          `gorm:"column:parent_id;NOT NULL;default:0;index"`
-	UserID           uint64          `gorm:"column:user_id;NOT NULL;default:0;index"`
-	ReplyToUserID    uint64          `gorm:"column:reply_to_user_id;NOT NULL;default:0;index"`
-	ReplyToCommentID uint64          `gorm:"column:reply_to_comment_id;NOT NULL;default:0;index"`
-	AuthorName       string          `gorm:"type:varchar(80);NOT NULL"`
-	Content          string          `gorm:"type:varchar(1000);NOT NULL"`
-	Status           string          `gorm:"type:varchar(20);NOT NULL;default:pending;index:idx_comment_article_status_time,priority:2"`
-	IP               string          `gorm:"type:varchar(64)"`
-	CreateTime       time.Time       `gorm:"column:create_time;NOT NULL;index:idx_comment_article_status_time,priority:3"`
-	UpdateTime       time.Time       `gorm:"column:update_time;NOT NULL"`
-	Article          article.Article `gorm:"foreignKey:ArticleID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	ID                uint64          `gorm:"primary_key;NOT NULL"`
+	ArticleID         uint64          `gorm:"column:article_id;NOT NULL;index:idx_comment_article_status_time,priority:1"`
+	ParentID          uint64          `gorm:"column:parent_id;NOT NULL;default:0;index"`
+	UserID            uint64          `gorm:"column:user_id;NOT NULL;default:0;index"`
+	ReplyToUserID     uint64          `gorm:"column:reply_to_user_id;NOT NULL;default:0;index"`
+	ReplyToCommentID  uint64          `gorm:"column:reply_to_comment_id;NOT NULL;default:0;index"`
+	AuthorName        string          `gorm:"type:varchar(80);NOT NULL"`
+	Content           string          `gorm:"type:varchar(1000);NOT NULL"`
+	Status            string          `gorm:"type:varchar(20);NOT NULL;default:pending;index:idx_comment_article_status_time,priority:2"`
+	ModerationReasons string          `gorm:"column:moderation_reasons;type:text"`
+	IP                string          `gorm:"type:varchar(64)"`
+	CreateTime        time.Time       `gorm:"column:create_time;NOT NULL;index:idx_comment_article_status_time,priority:3"`
+	UpdateTime        time.Time       `gorm:"column:update_time;NOT NULL"`
+	Article           article.Article `gorm:"foreignKey:ArticleID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }
 
 type AdminListFilter struct {
@@ -61,6 +62,7 @@ type AdminListItem struct {
 	AuthorHandle        string    `gorm:"column:author_handle"`
 	Content             string    `gorm:"column:content"`
 	Status              string    `gorm:"column:status"`
+	ModerationReasons   string    `gorm:"column:moderation_reasons"`
 	IP                  string    `gorm:"column:ip"`
 	CreateTime          time.Time `gorm:"column:create_time"`
 	UpdateTime          time.Time `gorm:"column:update_time"`
@@ -219,7 +221,7 @@ func (m *commentModel) ListComments(ctx context.Context, filter AdminListFilter)
 	}
 
 	if err := query.
-		Select("c.id, a.title as article_title, c.parent_id, ru.display_name as reply_to_author_name, ru.handle as reply_to_author_handle, u.handle as author_handle, c.content, c.status, c.ip, c.create_time, c.update_time").
+		Select("c.id, a.title as article_title, c.parent_id, ru.display_name as reply_to_author_name, ru.handle as reply_to_author_handle, u.handle as author_handle, c.content, c.status, c.moderation_reasons, c.ip, c.create_time, c.update_time").
 		Order("c.create_time DESC").
 		Offset(filter.Offset).
 		Limit(filter.Limit).

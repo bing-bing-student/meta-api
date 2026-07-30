@@ -104,15 +104,12 @@ type CommentSubmitRateLimitConfig struct {
 	UserArticle RateLimitWindowConfig `mapstructure:"user_article"`
 }
 
-// CommentModerationBehaviorConfig 描述评论审核行为风险策略。
-type CommentModerationBehaviorConfig struct {
-	UserWindowSeconds      int64 `mapstructure:"user_window_seconds"`
-	IPWindowSeconds        int64 `mapstructure:"ip_window_seconds"`
-	DuplicateWindowSeconds int64 `mapstructure:"duplicate_window_seconds"`
-	UserPendingCount       int64 `mapstructure:"user_pending_count"`
-	IPPendingCount         int64 `mapstructure:"ip_pending_count"`
-	DuplicatePendingCount  int64 `mapstructure:"duplicate_pending_count"`
-	DuplicateRejectCount   int64 `mapstructure:"duplicate_reject_count"`
+// CommentReportRateLimitConfig 描述前台评论举报限流策略。
+type CommentReportRateLimitConfig struct {
+	Disabled  bool                  `mapstructure:"disabled"`
+	IP        RateLimitWindowConfig `mapstructure:"ip"`
+	User      RateLimitWindowConfig `mapstructure:"user"`
+	IPComment RateLimitWindowConfig `mapstructure:"ip_comment"`
 }
 
 // CommentModerationScoreConfig 描述评论审核评分决策阈值。
@@ -166,51 +163,6 @@ type CommentModerationDecisionConfig struct {
 	CategoryOverrides map[string]CommentModerationCategoryDecisionConfig `mapstructure:"category_overrides"`
 }
 
-// CommentModerationPatchRuleConfig 描述线上快速补洞规则。
-type CommentModerationPatchRuleConfig struct {
-	ID         string   `mapstructure:"id"`
-	Decision   string   `mapstructure:"decision"`
-	Keywords   []string `mapstructure:"keywords"`
-	Regexps    []string `mapstructure:"regexps"`
-	Subjects   []string `mapstructure:"subjects"`
-	Predicates []string `mapstructure:"predicates"`
-}
-
-// CommentModerationRuntimeConfig 描述评论审核运行参数。
-type CommentModerationRuntimeConfig struct {
-	ReportThreshold int64                           `mapstructure:"report_threshold"`
-	Behavior        CommentModerationBehaviorConfig `mapstructure:"behavior"`
-	Score           CommentModerationScoreConfig    `mapstructure:"score"`
-}
-
-// CommentModerationKeywordVariantConfig 描述关键词规避变体。
-type CommentModerationKeywordVariantConfig struct {
-	Variant string `mapstructure:"variant"`
-	Keyword string `mapstructure:"keyword"`
-}
-
-// CommentModerationDecisionRulesConfig 描述按处置结果分组的规则。
-type CommentModerationDecisionRulesConfig struct {
-	Keywords             []string                                `mapstructure:"keywords"`
-	Regexps              []string                                `mapstructure:"regexps"`
-	KeywordVariants      []CommentModerationKeywordVariantConfig `mapstructure:"keyword_variants"`
-	AbuseKeywords        []string                                `mapstructure:"abuse_keywords"`
-	AbuseKeywordVariants []CommentModerationKeywordVariantConfig `mapstructure:"abuse_keyword_variants"`
-}
-
-// CommentModerationSimilarityRulesConfig 描述相似召回策略。
-type CommentModerationSimilarityRulesConfig struct {
-	Texts []string `mapstructure:"texts"`
-	Score int      `mapstructure:"score"`
-	Limit float64  `mapstructure:"limit"`
-}
-
-// CommentModerationPoliticalContextConfig 描述涉政组合上下文策略。
-type CommentModerationPoliticalContextConfig struct {
-	Entities []string `mapstructure:"entities"`
-	Actions  []string `mapstructure:"actions"`
-}
-
 // CommentModerationContextRuleConfig 描述“主体词 + 行为词”组合规则。
 type CommentModerationContextRuleConfig struct {
 	ID         string   `mapstructure:"id"`
@@ -219,21 +171,6 @@ type CommentModerationContextRuleConfig struct {
 	Level      string   `mapstructure:"level"`
 	Subjects   []string `mapstructure:"subjects"`
 	Predicates []string `mapstructure:"predicates"`
-}
-
-// CommentModerationRulesConfig 描述可配置的评论审核规则集。
-type CommentModerationRulesConfig struct {
-	Reject                     CommentModerationDecisionRulesConfig    `mapstructure:"reject"`
-	Pending                    CommentModerationDecisionRulesConfig    `mapstructure:"pending"`
-	Similarity                 CommentModerationSimilarityRulesConfig  `mapstructure:"similarity"`
-	PoliticalContext           CommentModerationPoliticalContextConfig `mapstructure:"political_context"`
-	SafetyContext              []CommentModerationContextRuleConfig    `mapstructure:"safety_context"`
-	RejectKeywordVariants      []CommentModerationKeywordVariantConfig `mapstructure:"reject_keyword_variants"`
-	RejectAbuseKeywords        []string                                `mapstructure:"reject_abuse_keywords"`
-	RejectAbuseKeywordVariants []CommentModerationKeywordVariantConfig `mapstructure:"reject_abuse_keyword_variants"`
-	PoliticalEntities          []string                                `mapstructure:"political_entities"`
-	PoliticalActions           []string                                `mapstructure:"political_actions"`
-	SafetyContextRules         []CommentModerationContextRuleConfig    `mapstructure:"safety_context_rules"`
 }
 
 // CommentModerationConfig 描述前台评论审核策略。
@@ -245,24 +182,13 @@ type CommentModerationConfig struct {
 	ContextRules    []CommentModerationContextRuleConfig        `mapstructure:"context_rules"`
 	BehaviorRules   CommentModerationBehaviorRulesConfig        `mapstructure:"behavior_rules"`
 	Decision        CommentModerationDecisionConfig             `mapstructure:"decision"`
-	Runtime         CommentModerationRuntimeConfig              `mapstructure:"runtime"`
-	PatchRules      []CommentModerationPatchRuleConfig          `mapstructure:"patch_rules"`
-	Rules           CommentModerationRulesConfig                `mapstructure:"rules"`
-	RejectKeywords  []string                                    `mapstructure:"reject_keywords"`
-	PendingKeywords []string                                    `mapstructure:"pending_keywords"`
-	RejectRegexps   []string                                    `mapstructure:"reject_regexps"`
-	PendingRegexps  []string                                    `mapstructure:"pending_regexps"`
-	SimilarTexts    []string                                    `mapstructure:"similar_texts"`
-	SimilarityScore int                                         `mapstructure:"similarity_score"`
-	SimilarityLimit float64                                     `mapstructure:"similarity_limit"`
-	Behavior        CommentModerationBehaviorConfig             `mapstructure:"behavior"`
-	Score           CommentModerationScoreConfig                `mapstructure:"score"`
 }
 
 // RateLimitConfig 描述后端应用级限流配置。
 type RateLimitConfig struct {
 	AdminLogin    AdminLoginRateLimitConfig    `mapstructure:"admin_login"`
 	CommentSubmit CommentSubmitRateLimitConfig `mapstructure:"comment_submit"`
+	CommentReport CommentReportRateLimitConfig `mapstructure:"comment_report"`
 }
 
 // Config 定义项目配置文件结构体
@@ -360,28 +286,10 @@ func (c *Config) CommentModerationSnapshot() CommentModerationConfig {
 		return CommentModerationConfig{}
 	}
 	snapshot := *c.CommentModerationConfig
-	snapshot.RejectKeywords = cloneStringSlice(snapshot.RejectKeywords)
-	snapshot.PendingKeywords = cloneStringSlice(snapshot.PendingKeywords)
-	snapshot.RejectRegexps = cloneStringSlice(snapshot.RejectRegexps)
-	snapshot.PendingRegexps = cloneStringSlice(snapshot.PendingRegexps)
-	snapshot.SimilarTexts = cloneStringSlice(snapshot.SimilarTexts)
 	snapshot.Lexicon.CustomWords = cloneCommentModerationCustomWordsConfig(snapshot.Lexicon.CustomWords)
 	snapshot.StructureRules = cloneCommentModerationLevelRuleConfigMap(snapshot.StructureRules)
 	snapshot.ContextRules = cloneCommentModerationContextRuleConfigSlice(snapshot.ContextRules)
 	snapshot.Decision.CategoryOverrides = cloneCommentModerationCategoryDecisionConfigMap(snapshot.Decision.CategoryOverrides)
-	snapshot.PatchRules = cloneCommentModerationPatchRuleConfigSlice(snapshot.PatchRules)
-	snapshot.Rules.Reject = cloneCommentModerationDecisionRulesConfig(snapshot.Rules.Reject)
-	snapshot.Rules.Pending = cloneCommentModerationDecisionRulesConfig(snapshot.Rules.Pending)
-	snapshot.Rules.Similarity.Texts = cloneStringSlice(snapshot.Rules.Similarity.Texts)
-	snapshot.Rules.PoliticalContext.Entities = cloneStringSlice(snapshot.Rules.PoliticalContext.Entities)
-	snapshot.Rules.PoliticalContext.Actions = cloneStringSlice(snapshot.Rules.PoliticalContext.Actions)
-	snapshot.Rules.SafetyContext = cloneCommentModerationContextRuleConfigSlice(snapshot.Rules.SafetyContext)
-	snapshot.Rules.RejectKeywordVariants = cloneCommentModerationKeywordVariantConfigSlice(snapshot.Rules.RejectKeywordVariants)
-	snapshot.Rules.RejectAbuseKeywords = cloneStringSlice(snapshot.Rules.RejectAbuseKeywords)
-	snapshot.Rules.RejectAbuseKeywordVariants = cloneCommentModerationKeywordVariantConfigSlice(snapshot.Rules.RejectAbuseKeywordVariants)
-	snapshot.Rules.PoliticalEntities = cloneStringSlice(snapshot.Rules.PoliticalEntities)
-	snapshot.Rules.PoliticalActions = cloneStringSlice(snapshot.Rules.PoliticalActions)
-	snapshot.Rules.SafetyContextRules = cloneCommentModerationContextRuleConfigSlice(snapshot.Rules.SafetyContextRules)
 	return snapshot
 }
 
@@ -417,46 +325,6 @@ func cloneCommentModerationCategoryDecisionConfigMap(
 	for key, value := range src {
 		dst[key] = value
 	}
-	return dst
-}
-
-func cloneCommentModerationDecisionRulesConfig(
-	src CommentModerationDecisionRulesConfig,
-) CommentModerationDecisionRulesConfig {
-	return CommentModerationDecisionRulesConfig{
-		Keywords:             cloneStringSlice(src.Keywords),
-		Regexps:              cloneStringSlice(src.Regexps),
-		KeywordVariants:      cloneCommentModerationKeywordVariantConfigSlice(src.KeywordVariants),
-		AbuseKeywords:        cloneStringSlice(src.AbuseKeywords),
-		AbuseKeywordVariants: cloneCommentModerationKeywordVariantConfigSlice(src.AbuseKeywordVariants),
-	}
-}
-
-func cloneCommentModerationPatchRuleConfigSlice(
-	src []CommentModerationPatchRuleConfig,
-) []CommentModerationPatchRuleConfig {
-	if len(src) == 0 {
-		return nil
-	}
-	dst := make([]CommentModerationPatchRuleConfig, len(src))
-	for i, item := range src {
-		dst[i] = item
-		dst[i].Keywords = cloneStringSlice(item.Keywords)
-		dst[i].Regexps = cloneStringSlice(item.Regexps)
-		dst[i].Subjects = cloneStringSlice(item.Subjects)
-		dst[i].Predicates = cloneStringSlice(item.Predicates)
-	}
-	return dst
-}
-
-func cloneCommentModerationKeywordVariantConfigSlice(
-	src []CommentModerationKeywordVariantConfig,
-) []CommentModerationKeywordVariantConfig {
-	if len(src) == 0 {
-		return nil
-	}
-	dst := make([]CommentModerationKeywordVariantConfig, len(src))
-	copy(dst, src)
 	return dst
 }
 

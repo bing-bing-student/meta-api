@@ -42,6 +42,7 @@ const (
 	bugFeedbackSMTPPortEnv          = "BUG_FEEDBACK_SMTP_PORT"
 	bugFeedbackSMTPUsernameEnv      = "BUG_FEEDBACK_SMTP_USERNAME"
 	bugFeedbackSMTPPasswordEnv      = "BUG_FEEDBACK_SMTP_PASSWORD"
+	bugFeedbackSMTPPasswordFileEnv  = "BUG_FEEDBACK_SMTP_PASSWORD_FILE"
 	bugFeedbackSMTPFromEnv          = "BUG_FEEDBACK_SMTP_FROM"
 	bugFeedbackSMTPFromNameEnv      = "BUG_FEEDBACK_SMTP_FROM_NAME"
 )
@@ -191,7 +192,7 @@ func (a *adminService) bugFeedbackSMTPConfig() (mailer.SMTPConfig, error) {
 	}
 	host := firstNonEmptyEnv(bugFeedbackSMTPHostEnv, cfg.Host)
 	username := firstNonEmptyEnv(bugFeedbackSMTPUsernameEnv, cfg.Username)
-	password := strings.TrimSpace(os.Getenv(bugFeedbackSMTPPasswordEnv))
+	password := firstNonEmptySecretFileEnv(bugFeedbackSMTPPasswordFileEnv, bugFeedbackSMTPPasswordEnv)
 	from := firstNonEmptyEnv(bugFeedbackSMTPFromEnv, cfg.From)
 	fromName := firstNonEmptyEnv(bugFeedbackSMTPFromNameEnv, cfg.FromName)
 
@@ -230,6 +231,17 @@ func firstNonEmptyEnv(envKey, fallback string) string {
 		return value
 	}
 	return strings.TrimSpace(fallback)
+}
+
+func firstNonEmptySecretFileEnv(fileEnvKey, envKey string) string {
+	if path := strings.TrimSpace(os.Getenv(fileEnvKey)); path != "" {
+		content, err := os.ReadFile(path)
+		if err == nil {
+			return strings.TrimSpace(string(content))
+		}
+		return ""
+	}
+	return strings.TrimSpace(os.Getenv(envKey))
 }
 
 func decodeBugFeedbackScreenshot(dataURL, rawName string) (*mailer.Attachment, error) {

@@ -127,6 +127,7 @@ func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) (*gin.Engine
 		authAdminGroup.GET("/comment/list", commentHandler.AdminGetCommentList)
 		authAdminGroup.PUT("/comment/status", commentHandler.AdminUpdateCommentStatus)
 		authAdminGroup.DELETE("/comment/delete", commentHandler.AdminDeleteComment)
+		authAdminGroup.POST("/comment/moderation-preview", commentHandler.AdminPreviewCommentModeration)
 		authAdminGroup.GET("/comment/report-list", commentHandler.AdminGetCommentReportList)
 		authAdminGroup.PUT("/comment/report", commentHandler.AdminHandleCommentReport)
 

@@ -125,6 +125,56 @@ type AdminDeleteCommentRequest struct {
 	IDList []string `json:"idList" binding:"omitempty,dive,lte=19"`
 }
 
+type AdminPreviewCommentModerationRequest struct {
+	Content   string   `json:"content" binding:"omitempty,max=1000"`
+	Comments  []string `json:"comments" binding:"omitempty,max=5000,dive,max=1000"`
+	UserID    string   `json:"userID" binding:"omitempty,lte=19"`
+	ArticleID string   `json:"articleID" binding:"omitempty,lte=19"`
+	ClientIP  string   `json:"clientIP" binding:"omitempty,lte=64"`
+}
+
+type AdminCommentModerationTextView struct {
+	Raw          string   `json:"raw"`
+	Normalized   string   `json:"normalized"`
+	Compact      string   `json:"compact"`
+	PinyinFolded string   `json:"pinyinFolded,omitempty"`
+	DecodedTexts []string `json:"decodedTexts,omitempty"`
+}
+
+type AdminCommentModerationSignal struct {
+	Source     string `json:"source"`
+	Category   string `json:"category,omitempty"`
+	Level      string `json:"level,omitempty"`
+	Score      int    `json:"score"`
+	Reason     string `json:"reason,omitempty"`
+	ReasonText string `json:"reasonText,omitempty"`
+	Evidence   string `json:"evidence,omitempty"`
+	RuleID     string `json:"ruleID,omitempty"`
+}
+
+type AdminPreviewCommentModerationItem struct {
+	Line           int                            `json:"line"`
+	Content        string                         `json:"content"`
+	Status         string                         `json:"status"`
+	RiskScore      int                            `json:"riskScore"`
+	FinalScore     int                            `json:"finalScore"`
+	Decision       string                         `json:"decision"`
+	Reasons        []string                       `json:"reasons,omitempty"`
+	RawReasons     []string                       `json:"rawReasons,omitempty"`
+	Signals        []AdminCommentModerationSignal `json:"signals,omitempty"`
+	Text           AdminCommentModerationTextView `json:"text"`
+	BehaviorDryRun bool                           `json:"behaviorDryRun"`
+}
+
+type AdminPreviewCommentModerationResponse struct {
+	Rows           []AdminPreviewCommentModerationItem `json:"rows"`
+	Total          int                                 `json:"total"`
+	Approved       int                                 `json:"approved"`
+	Pending        int                                 `json:"pending"`
+	Rejected       int                                 `json:"rejected"`
+	BehaviorDryRun bool                                `json:"behaviorDryRun"`
+}
+
 type AdminGetCommentReportListRequest struct {
 	Page           int    `form:"page" binding:"required,gte=1"`
 	PageSize       int    `form:"pageSize" binding:"required,gte=1,lte=50"`

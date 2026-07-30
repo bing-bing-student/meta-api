@@ -12,6 +12,7 @@ import (
 	"gorm.io/gorm"
 
 	commentModel "meta-api/app/model/comment"
+	commentModeration "meta-api/app/service/comment/moderation"
 	"meta-api/common/cachekey"
 	"meta-api/common/constants"
 	"meta-api/common/idutil"
@@ -138,6 +139,54 @@ func (s *commentService) AdminDeleteComment(ctx context.Context, request *types.
 	return nil
 }
 
+func (s *commentService) AdminPreviewCommentModeration(ctx context.Context,
+	request *types.AdminPreviewCommentModerationRequest) (*types.AdminPreviewCommentModerationResponse, error) {
+
+	comments, err := parseAdminPreviewComments(request)
+	if err != nil {
+		return nil, ErrInvalidComment
+	}
+
+	userID, err := parseOptionalAdminPreviewID("userID", request.UserID)
+	if err != nil {
+		s.logger.Error("invalid moderation preview user id", zap.Error(err))
+		return nil, ErrInvalidComment
+	}
+	articleID, err := parseOptionalAdminPreviewID("articleID", request.ArticleID)
+	if err != nil {
+		s.logger.Error("invalid moderation preview article id", zap.Error(err))
+		return nil, ErrInvalidComment
+	}
+
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		s.logger.Error("failed to load location", zap.Error(err))
+		return nil, fmt.Errorf("failed to load location: %w", err)
+	}
+
+	now := time.Now().In(loc)
+	clientIP := strings.TrimSpace(request.ClientIP)
+	response := &types.AdminPreviewCommentModerationResponse{
+		Rows:           make([]types.AdminPreviewCommentModerationItem, 0, len(comments)),
+		Total:          len(comments),
+		BehaviorDryRun: true,
+	}
+	for _, item := range comments {
+		input := commentModerationInput{
+			UserID:    userID,
+			ArticleID: articleID,
+			ClientIP:  clientIP,
+			Content:   item.content,
+			Now:       now,
+		}
+		result := s.moderateCommentWithBehavior(ctx, input, nil)
+		response.Rows = append(response.Rows, toAdminPreviewCommentModerationItem(item.line, item.content, result))
+		incrementAdminPreviewSummary(response, result.Status)
+	}
+
+	return response, nil
+}
+
 func (s *commentService) invalidateArticleCommentCache(ctx context.Context, articleID uint64) error {
 	if s == nil || s.redis == nil {
 		return nil
@@ -170,6 +219,129 @@ func toAdminCommentItem(row commentModel.AdminListItem) types.AdminCommentItem {
 		item.ModerationReasons = formatCommentModerationReasons(decodeCommentModerationReasons(row.ModerationReasons))
 	}
 	return item
+}
+
+func parseOptionalAdminPreviewID(name, value string) (uint64, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0, nil
+	}
+	return idutil.ParseID(name, value)
+}
+
+type adminPreviewCommentInput struct {
+	line    int
+	content string
+}
+
+func parseAdminPreviewComments(request *types.AdminPreviewCommentModerationRequest) ([]adminPreviewCommentInput, error) {
+	if request == nil {
+		return nil, errors.New("nil moderation preview request")
+	}
+
+	rawComments := request.Comments
+	if len(rawComments) == 0 && strings.TrimSpace(request.Content) != "" {
+		rawComments = []string{request.Content}
+	}
+	if len(rawComments) == 0 {
+		return nil, errors.New("empty moderation preview comments")
+	}
+
+	comments := make([]adminPreviewCommentInput, 0, len(rawComments))
+	for index, raw := range rawComments {
+		content := strings.TrimSpace(raw)
+		if content == "" {
+			continue
+		}
+		if len([]rune(content)) > 1000 {
+			return nil, errors.New("moderation preview comment too long")
+		}
+		comments = append(comments, adminPreviewCommentInput{
+			line:    index + 1,
+			content: content,
+		})
+		if len(comments) > 5000 {
+			return nil, errors.New("too many moderation preview comments")
+		}
+	}
+	if len(comments) == 0 {
+		return nil, errors.New("empty moderation preview comments")
+	}
+	return comments, nil
+}
+
+func commentModerationFinalScore(riskScore int) int {
+	score := 100 - riskScore
+	if score < 0 {
+		return 0
+	}
+	if score > 100 {
+		return 100
+	}
+	return score
+}
+
+func toAdminPreviewCommentModerationItem(line int, content string,
+	result commentModerationResult) types.AdminPreviewCommentModerationItem {
+
+	text := commentModeration.Normalize(content)
+	return types.AdminPreviewCommentModerationItem{
+		Line:           line,
+		Content:        content,
+		Status:         result.Status,
+		RiskScore:      result.Score,
+		FinalScore:     commentModerationFinalScore(result.Score),
+		Decision:       result.Decision,
+		Reasons:        formatCommentModerationReasons(result.Reasons),
+		RawReasons:     compactCommentModerationReasons(result.Reasons),
+		Signals:        toAdminCommentModerationSignals(result.Signals),
+		Text:           toAdminCommentModerationTextView(text),
+		BehaviorDryRun: true,
+	}
+}
+
+func incrementAdminPreviewSummary(response *types.AdminPreviewCommentModerationResponse, status string) {
+	if response == nil {
+		return
+	}
+	switch status {
+	case commentModel.StatusApproved:
+		response.Approved++
+	case commentModel.StatusRejected:
+		response.Rejected++
+	default:
+		response.Pending++
+	}
+}
+
+func toAdminCommentModerationTextView(text commentModerationTextView) types.AdminCommentModerationTextView {
+	return types.AdminCommentModerationTextView{
+		Raw:          text.Raw,
+		Normalized:   text.Normalized,
+		Compact:      text.Compact,
+		PinyinFolded: text.PinyinFolded,
+		DecodedTexts: append([]string{}, text.DecodedTexts...),
+	}
+}
+
+func toAdminCommentModerationSignals(signals []commentModerationSignal) []types.AdminCommentModerationSignal {
+	if len(signals) == 0 {
+		return nil
+	}
+	values := make([]types.AdminCommentModerationSignal, 0, len(signals))
+	for _, signal := range signals {
+		values = append(values, types.AdminCommentModerationSignal{
+			Source:     signal.Source,
+			Category:   signal.Category,
+			Level:      signal.Level,
+			Score:      signal.Score,
+			Reason:     signal.Reason,
+			ReasonText: formatCommentModerationReason(signal.Reason),
+			Evidence:   signal.Evidence,
+			RuleID:     signal.RuleID,
+		})
+	}
+	return values
 }
 
 func parseAdminCommentTimeRange(startValue string, endValue string) (*time.Time, *time.Time, error) {

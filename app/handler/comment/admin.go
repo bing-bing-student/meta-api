@@ -81,6 +81,27 @@ func (h *commentHandler) AdminDeleteComment(c *gin.Context) {
 	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: nil})
 }
 
+func (h *commentHandler) AdminPreviewCommentModeration(c *gin.Context) {
+	ctx := c.Request.Context()
+	request := new(types.AdminPreviewCommentModerationRequest)
+	if err := c.ShouldBind(request); err != nil {
+		h.logger.Warn("parameter binding error", zap.Error(err))
+		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
+		return
+	}
+
+	response, err := h.service.AdminPreviewCommentModeration(ctx, request)
+	if err != nil {
+		if errors.Is(err, commentService.ErrInvalidComment) {
+			c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
+			return
+		}
+		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "审核模拟失败", Data: nil})
+		return
+	}
+	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: response})
+}
+
 func (h *commentHandler) AdminGetCommentReportList(c *gin.Context) {
 	ctx := c.Request.Context()
 	request := new(types.AdminGetCommentReportListRequest)

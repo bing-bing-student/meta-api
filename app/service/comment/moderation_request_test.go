@@ -117,6 +117,51 @@ func TestAdminCommentModerationReasons(t *testing.T) {
 	}
 }
 
+func TestAdminPreviewCommentModerationDryRun(t *testing.T) {
+	commentStore := &moderationRequestCommentModel{}
+	service := newModerationRequestTestService(t, commentStore)
+
+	response, err := service.AdminPreviewCommentModeration(context.Background(), &types.AdminPreviewCommentModerationRequest{
+		Comments: []string{
+			"这篇文章写得很好",
+			"可以加微信继续交流吗",
+			"这里有赌博博彩项目",
+		},
+		ClientIP: "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("unexpected moderation preview error: %v", err)
+	}
+	if response.Total != 3 || len(response.Rows) != 3 {
+		t.Fatalf("expected 3 preview rows, got %+v", response)
+	}
+	if response.Approved != 1 || response.Pending != 1 || response.Rejected != 1 {
+		t.Fatalf("unexpected preview summary: %+v", response)
+	}
+	if !response.BehaviorDryRun {
+		t.Fatalf("expected behavior dry-run flag, got %+v", response)
+	}
+	pendingRow := response.Rows[1]
+	if pendingRow.Line != 2 || pendingRow.Status != commentModel.StatusPending {
+		t.Fatalf("expected line 2 pending preview row, got %+v", pendingRow)
+	}
+	if pendingRow.RiskScore <= 0 || pendingRow.FinalScore >= 100 {
+		t.Fatalf("expected non-zero risk score, got %+v", pendingRow)
+	}
+	if len(pendingRow.Reasons) == 0 || len(pendingRow.RawReasons) == 0 || len(pendingRow.Signals) == 0 {
+		t.Fatalf("expected moderation details, got %+v", pendingRow)
+	}
+	if !strings.Contains(strings.Join(pendingRow.Reasons, "\n"), "联系方式") {
+		t.Fatalf("expected formatted contact reason, got %v", pendingRow.Reasons)
+	}
+	if pendingRow.Text.Raw != "可以加微信继续交流吗" || pendingRow.Text.Normalized == "" || pendingRow.Text.Compact == "" {
+		t.Fatalf("expected normalized text view, got %+v", pendingRow.Text)
+	}
+	if commentStore.created != nil {
+		t.Fatalf("preview should not create comment, got %+v", commentStore.created)
+	}
+}
+
 func newModerationRequestTestService(t testing.TB, commentStore *moderationRequestCommentModel) *commentService {
 	t.Helper()
 	return &commentService{

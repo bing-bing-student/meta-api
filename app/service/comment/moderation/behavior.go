@@ -97,7 +97,7 @@ func behaviorSignal(category, level, evidence string, cfg appconfig.CommentModer
 		Source:   SourceBehavior,
 		Category: category,
 		Level:    level,
-		Score:    scoreForLevel(level, cfg),
+		Score:    scoreForSignal(SourceBehavior, category, category, level, cfg),
 		Reason:   formatReason(SourceBehavior, category, level, evidence),
 		Evidence: evidence,
 		RuleID:   category,

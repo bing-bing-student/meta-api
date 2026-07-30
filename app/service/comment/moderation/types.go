@@ -14,6 +14,7 @@ const (
 	SourceStructure = "structure"
 	SourceContext   = "context"
 	SourceBehavior  = "behavior"
+	SourceSemantic  = "semantic"
 )
 
 const (

@@ -72,3 +72,10 @@ rate_limit:
     ip_comment:
       limit: 2
       window_seconds: 86400
+  bug_feedback:
+    # 设置为 true 可临时关闭 JSON 工具 Bug 反馈限流；生产环境建议保持 false。
+    disabled: false
+    # 单客户端 IP 在指定窗口内允许提交的反馈次数。
+    ip:
+      limit: 3
+      window_seconds: 3600

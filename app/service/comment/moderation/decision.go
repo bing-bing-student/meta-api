@@ -17,9 +17,13 @@ func decide(signals []Signal, cfg appconfig.CommentModerationConfig) Result {
 		}
 		switch normalizeLevel(signal.Level) {
 		case LevelBlock:
+			blockScore := signal.Score
+			if blockScore < rejectScore(cfg) {
+				blockScore = rejectScore(cfg)
+			}
 			return Result{
 				Status:   commentModel.StatusRejected,
-				Score:    scoreForLevel(LevelBlock, cfg),
+				Score:    blockScore,
 				Signals:  signals,
 				Reasons:  reasons,
 				Decision: "block_signal",
@@ -87,6 +91,68 @@ func scoreForLevel(level string, cfg appconfig.CommentModerationConfig) int {
 	default:
 		return 0
 	}
+}
+
+func scoreForSignal(source, category, ruleID, level string, cfg appconfig.CommentModerationConfig) int {
+	if score, ok := configuredSignalScore(source, category, ruleID, level, cfg); ok {
+		return score
+	}
+	return scoreForLevel(level, cfg)
+}
+
+func configuredSignalScore(source, category, ruleID, level string, cfg appconfig.CommentModerationConfig) (int, bool) {
+	if len(cfg.Decision.RuleScores) == 0 {
+		return 0, false
+	}
+
+	source = scoreKeyPart(source)
+	category = scoreKeyPart(category)
+	ruleID = scoreKeyPart(ruleID)
+	level = scoreKeyPart(normalizeLevel(level))
+
+	candidates := make([]string, 0, 10)
+	if source != "" && category != "" && ruleID != "" && level != "" {
+		candidates = append(candidates, source+"."+category+"."+ruleID+"."+level)
+	}
+	if source != "" && category != "" && ruleID != "" {
+		candidates = append(candidates, source+"."+category+"."+ruleID)
+	}
+	if source != "" && category != "" && level != "" {
+		candidates = append(candidates, source+"."+category+"."+level)
+	}
+	if source != "" && category != "" {
+		candidates = append(candidates, source+"."+category)
+	}
+	if source != "" && ruleID != "" && level != "" {
+		candidates = append(candidates, source+"."+ruleID+"."+level)
+	}
+	if source != "" && ruleID != "" {
+		candidates = append(candidates, source+"."+ruleID)
+	}
+	if source != "" && level != "" {
+		candidates = append(candidates, source+"."+level)
+	}
+	if source != "" {
+		candidates = append(candidates, source)
+	}
+	if level != "" {
+		candidates = append(candidates, level)
+	}
+
+	for _, candidate := range candidates {
+		if score, ok := cfg.Decision.RuleScores[candidate]; ok && score > 0 {
+			return score, true
+		}
+		colonCandidate := strings.ReplaceAll(candidate, ".", ":")
+		if score, ok := cfg.Decision.RuleScores[colonCandidate]; ok && score > 0 {
+			return score, true
+		}
+	}
+	return 0, false
+}
+
+func scoreKeyPart(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
 }
 
 func normalizeLevel(value string) string {

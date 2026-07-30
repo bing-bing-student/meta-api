@@ -7,8 +7,87 @@ comment_moderation:
     use_builtin: true
     strict_builtin_match: true
     custom_words:
-      block: {}
-      review: {}
+      block:
+        sexual:
+          - 成人网站
+          - 成人网站会员
+          - 高清无码资源
+          - 无码资源
+        gambling:
+          - 赌博
+          - 赌博下注
+          - 下注技巧
+          - 稳赚不赔
+          - 博彩账号
+      review:
+        abuse:
+          - 脑子是不是有坑
+          - 脑子有问题
+          - 你这水平
+          - 根本没做过开发
+          - 丢人
+          - 丢程序员的脸
+          - 装大神
+          - 装懂
+          - 什么都不懂
+          - 骗流量
+          - 过不了
+          - 误人子弟
+          - 脸皮
+          - 献丑
+          - 小学没毕业
+          - 复制粘贴
+          - 不懂装懂
+          - 低级的错误
+          - 害群之马
+          - 别出来误导新人
+          - 继续误导别人
+          - 专门出来误导新人
+          - 真恶心
+          - 恶心
+          - 骗子
+          - 你妈没教过
+          - 你妈的
+          - 实习生都不如
+          - 放屁
+          - 懂个锤子
+          - 审美有问题
+        spam_fraud:
+          - 破解软件
+          - 盗版课程
+          - 代写毕业论文
+          - 免费领取
+          - 免费送
+          - 编程资源包
+          - 低价出售
+          - 出售 chatgpt 账号
+          - claude 账号
+          - 便宜的 chatgpt
+          - 价格比官方低
+          - 付费论文代写
+          - 论文代写
+          - 项目都可以代做
+          - 代做
+          - 考试答案
+          - 作业
+          - 私密资源
+          - 加好友
+          - 投资群
+          - 保证收益
+          - 内部渠道
+          - 身份证照片
+          - 快速办理贷款
+          - 刷量服务
+          - 点赞、评论、收藏、关注
+          - 快速上热门
+          - 刷评论
+          - 真人账号操作
+          - 出售各种账号
+          - 实名账号
+          - 代练代打
+          - 刷分
+          - 刷排名
+          - 快速上分
 
   structure_rules:
     url:
@@ -126,6 +205,7 @@ comment_moderation:
         - 约架
         - 打手
         - 动手
+        - 教训
         - 见血
         - 打断
         - 伤害
@@ -286,12 +366,32 @@ comment_moderation:
         - 贷款
         - 兼职
         - 返现
+        - 游戏账号
+        - 会员账号
+        - 实名账号
+        - 代练
+        - 代打
+        - 刷分
+        - 刷排名
+        - 上分
+        - 私密资源
       predicates:
+        - 出售
         - 扫码
         - 进群
         - 领取
         - 私信
+        - 私聊
+        - 联系
+        - 加好友
+        - 发你
+        - 需要
         - 刷单
+        - 代练
+        - 代打
+        - 刷分
+        - 刷排名
+        - 快速
         - 押金
         - 工具
         - 引流
@@ -308,6 +408,7 @@ comment_moderation:
         - 银行卡
         - 账号密码
         - 住址电话
+        - 住址
         - 个人隐私
         - 公民隐私
         - 人肉搜索
@@ -326,11 +427,14 @@ comment_moderation:
         - 代删负面
         - 非法账号
       predicates:
+        - 查
         - 出售
         - 买卖
         - 泄露
         - 查询
         - 交易
+        - 有偿
+        - 有偿提供
         - 服务
         - 代办
         - 售卖
@@ -342,6 +446,70 @@ comment_moderation:
         - 工具包
         - 扫码
         - 私信
+
+  semantic_rules:
+    disabled: false
+    benign_context:
+      suppress_sources:
+        - lexicon
+      suppress_rule_ids:
+        - risk_phrase
+      suppress_categories:
+        - "*"
+      markers:
+        - 什么叫
+        - 有人说
+        - 看到有人
+        - 如果有人
+        - 所谓
+        - 这个词
+        - 这种词
+        - 这类词
+        - 关键词
+        - 话题
+        - 案例
+        - 例子
+        - 样本
+        - 测试
+        - 测试数据
+        - 讨论
+        - 提到
+        - 说法
+        - 表达
+        - 评价
+        - 现象
+        - 风险
+        - 反诈骗
+        - 没有刻意
+        - 没有到
+        - 反而
+        - 如果一个
+        - 即使
+        - 说明原因
+        - 环境差异
+        - 初来乍到
+        - 支持正版
+        - 学术诚信
+        - 行业乱象
+        - 不代表
+        - 并不代表
+        - 不一定
+        - 不应该
+        - 不能
+        - 不需要
+        - 不要把
+        - 不要因为
+        - 不要只看
+        - 无需
+        - 没必要
+        - 没有意义
+        - 不适合
+        - 更有帮助
+        - 最好
+        - 误杀
+        - 误判
+        - 审核系统
+        - 风控系统
 
   behavior_rules:
     user_frequency:
@@ -360,6 +528,32 @@ comment_moderation:
     score:
       pending: 40
       reject: 80
+    rule_scores:
+      review: 40
+      block: 80
+      "lexicon:abuse:review": 40
+      "lexicon:sensitive:review": 40
+      "lexicon:spam_fraud:review": 60
+      "lexicon:sexual:block": 80
+      "lexicon:gambling:block": 80
+      "structure:contact:review": 40
+      "structure:risk_phrase:review": 40
+      "structure:url:review": 40
+      "structure:decoded_url:review": 40
+      "structure:text_quality:review": 40
+      "structure:script_injection:block": 80
+      "context:political:political_mobilization:review": 60
+      "context:minor:minor_risk:review": 60
+      "context:sexual:sexual_risk:review": 60
+      "context:violence:violence:review": 60
+      "context:gore:gore:review": 60
+      "context:spam_fraud:commercial_spam:review": 60
+      "context:illegal_privacy:illegal_privacy:review": 60
+      "context:harmful_value:harmful_value:review": 40
+      "behavior:user_frequency:review": 40
+      "behavior:ip_frequency:review": 40
+      "behavior:duplicate_content:review": 40
+      "behavior:duplicate_content:block": 80
     category_overrides:
       sexual:
         level: block

@@ -70,6 +70,7 @@ func (m *Moderator) ModerateWithBehavior(ctx context.Context, req Request, behav
 	if behavior != nil {
 		signals = append(signals, behavior(ctx, req, text, cfg)...)
 	}
+	signals = adjustSignalsBySemantics(text, signals, cfg)
 	return decide(signals, cfg)
 }
 
@@ -142,6 +143,18 @@ func ApplyDefaults(cfg *appconfig.CommentModerationConfig) {
 		if _, ok := cfg.StructureRules[name]; !ok {
 			cfg.StructureRules[name] = appconfig.CommentModerationLevelRuleConfig{Level: level}
 		}
+	}
+	if len(cfg.SemanticRules.BenignContext.Markers) == 0 {
+		cfg.SemanticRules.BenignContext.Markers = defaultBenignSemanticMarkers()
+	}
+	if len(cfg.SemanticRules.BenignContext.SuppressSources) == 0 {
+		cfg.SemanticRules.BenignContext.SuppressSources = []string{SourceLexicon}
+	}
+	if len(cfg.SemanticRules.BenignContext.SuppressRuleIDs) == 0 {
+		cfg.SemanticRules.BenignContext.SuppressRuleIDs = []string{"risk_phrase"}
+	}
+	if len(cfg.SemanticRules.BenignContext.SuppressCategories) == 0 {
+		cfg.SemanticRules.BenignContext.SuppressCategories = []string{"*"}
 	}
 	_ = userRule(*cfg)
 	_ = ipRule(*cfg)

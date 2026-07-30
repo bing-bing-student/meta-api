@@ -47,7 +47,7 @@ func contextSignals(text NormalizedComment, cfg appconfig.CommentModerationConfi
 					Source:   SourceContext,
 					Category: category,
 					Level:    level,
-					Score:    scoreForLevel(level, cfg),
+					Score:    scoreForSignal(SourceContext, category, ruleID, level, cfg),
 					Reason:   formatReason(SourceContext, category, level, ruleID+":"+evidence),
 					Evidence: evidence,
 					RuleID:   ruleID,

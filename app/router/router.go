@@ -37,6 +37,7 @@ func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) (*gin.Engine
 		middlewares.TimeoutMiddleware(
 			3*time.Second,
 			middlewares.TimeoutOverride{Prefix: "/user/auth/oauth/", Timeout: 12 * time.Second},
+			middlewares.TimeoutOverride{Prefix: "/user/bug-feedback", Timeout: 10 * time.Second},
 		),
 		middlewares.GinLogger(logger),
 		middlewares.GinRecovery(logger, true),
@@ -173,6 +174,7 @@ func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) (*gin.Engine
 
 		// 管理员相关
 		userGroup.GET("/about-me", adminHandler.UserGetAboutMe)
+		userGroup.POST("/bug-feedback", adminHandler.UserSubmitBugFeedback)
 
 		// 分享风控守卫（v1）：浏览器→precheck（信封风控签发 token）
 		// Nuxt SSR→consume（一次性消费 token，拿到 fingerprint 继续走文件存储）

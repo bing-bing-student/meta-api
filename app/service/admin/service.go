@@ -30,6 +30,7 @@ type Service interface {
 	AdminForceUserLogout(ctx context.Context, request *types.AdminForceUserLogoutRequest) error
 
 	UserGetAboutMe(ctx context.Context) (*types.GetAboutMeResponse, error)
+	UserSubmitBugFeedback(ctx context.Context, request *types.SubmitBugFeedbackRequest) error
 }
 
 // adminService 管理员服务实现

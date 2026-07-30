@@ -34,3 +34,11 @@ oauth:
 admin_info:
   issuer: BingBingStudentBlogWebsite
   account_name: 1425723960@qq.com
+
+bug_feedback:
+  smtp:
+    host: smtp.qq.com
+    port: 465
+    username: "liubing.xyz@qq.com"
+    from: ""
+    from_name: JSON Tool Feedback

@@ -60,6 +60,9 @@ func (d *swdLexiconDetector) Detect(ctx context.Context, text NormalizedComment,
 			continue
 		}
 		for _, match := range engine.MatchAll(view) {
+			if shouldSkipSWDMatch(view, match) {
+				continue
+			}
 			category := swdCategoryName(match.Category)
 			if category == "sensitive" {
 				category = inferSensitiveCategory(match.Word)
@@ -74,13 +77,68 @@ func (d *swdLexiconDetector) Detect(ctx context.Context, text NormalizedComment,
 				Source:   SourceLexicon,
 				Category: category,
 				Level:    level,
-				Score:    scoreForLevel(level, cfg),
+				Score:    scoreForSignal(SourceLexicon, category, "", level, cfg),
 				Reason:   formatReason(SourceLexicon, category, level, match.Word),
 				Evidence: match.Word,
 			})
 		}
 	}
 	return signals, nil
+}
+
+func shouldSkipSWDMatch(view string, match swd.SensitiveWord) bool {
+	word := strings.ToLower(strings.TrimSpace(match.Word))
+	if word == "" {
+		return false
+	}
+	if isBenignChineseTechnicalTermMatch(view, word, match) {
+		return true
+	}
+	if !isShortASCIIWord(word) {
+		return false
+	}
+
+	runes := []rune(view)
+	if match.StartPos < 0 || match.EndPos > len(runes) || match.StartPos >= match.EndPos {
+		return false
+	}
+	if match.StartPos > 0 && isASCIIWordRune(runes[match.StartPos-1]) {
+		return true
+	}
+	if match.EndPos < len(runes) && isASCIIWordRune(runes[match.EndPos]) {
+		return true
+	}
+	return false
+}
+
+func isBenignChineseTechnicalTermMatch(view, word string, match swd.SensitiveWord) bool {
+	if word != "垃圾" {
+		return false
+	}
+
+	runes := []rune(view)
+	if match.StartPos < 0 || match.EndPos > len(runes) || match.StartPos >= match.EndPos {
+		return false
+	}
+	after := string(runes[match.EndPos:])
+	return strings.HasPrefix(after, "回收") || strings.HasPrefix(after, "收集")
+}
+
+func isShortASCIIWord(value string) bool {
+	runes := []rune(value)
+	if len(runes) == 0 || len(runes) > 2 {
+		return false
+	}
+	for _, r := range runes {
+		if !isASCIIWordRune(r) {
+			return false
+		}
+	}
+	return true
+}
+
+func isASCIIWordRune(r rune) bool {
+	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_'
 }
 
 func (d *swdLexiconDetector) ensureConfig(cfg appconfig.CommentModerationConfig) error {

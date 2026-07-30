@@ -57,6 +57,20 @@ type AdminInfoConfig struct {
 	AccountName string `mapstructure:"account_name"`
 }
 
+// BugFeedbackSMTPConfig 描述 Bug 反馈邮件的非敏感 SMTP 配置。
+type BugFeedbackSMTPConfig struct {
+	Host     string `mapstructure:"host"`
+	Port     int    `mapstructure:"port"`
+	Username string `mapstructure:"username"`
+	From     string `mapstructure:"from"`
+	FromName string `mapstructure:"from_name"`
+}
+
+// BugFeedbackConfig 描述 Bug 反馈功能配置。
+type BugFeedbackConfig struct {
+	SMTP BugFeedbackSMTPConfig `mapstructure:"smtp"`
+}
+
 // GuardConfig 风控守卫引擎配置。
 type GuardConfig struct {
 	BuildHashes       []string `mapstructure:"build_hashes"`
@@ -112,6 +126,12 @@ type CommentReportRateLimitConfig struct {
 	IPComment RateLimitWindowConfig `mapstructure:"ip_comment"`
 }
 
+// BugFeedbackRateLimitConfig 描述 Bug 反馈接口限流策略。
+type BugFeedbackRateLimitConfig struct {
+	Disabled bool                  `mapstructure:"disabled"`
+	IP       RateLimitWindowConfig `mapstructure:"ip"`
+}
+
 // CommentModerationScoreConfig 描述评论审核评分决策阈值。
 type CommentModerationScoreConfig struct {
 	Pending int `mapstructure:"pending"`
@@ -160,6 +180,7 @@ type CommentModerationCategoryDecisionConfig struct {
 type CommentModerationDecisionConfig struct {
 	DefaultOnError    string                                             `mapstructure:"default_on_error"`
 	Score             CommentModerationScoreConfig                       `mapstructure:"score"`
+	RuleScores        map[string]int                                     `mapstructure:"rule_scores"`
 	CategoryOverrides map[string]CommentModerationCategoryDecisionConfig `mapstructure:"category_overrides"`
 }
 
@@ -173,6 +194,20 @@ type CommentModerationContextRuleConfig struct {
 	Predicates []string `mapstructure:"predicates"`
 }
 
+// CommentModerationSemanticRulesConfig 描述命中风险规则后的轻量语义复判策略。
+type CommentModerationSemanticRulesConfig struct {
+	Disabled      bool                                     `mapstructure:"disabled"`
+	BenignContext CommentModerationBenignContextRuleConfig `mapstructure:"benign_context"`
+}
+
+// CommentModerationBenignContextRuleConfig 描述引用、讨论、反驳、测试等低风险语境。
+type CommentModerationBenignContextRuleConfig struct {
+	Markers            []string `mapstructure:"markers"`
+	SuppressSources    []string `mapstructure:"suppress_sources"`
+	SuppressRuleIDs    []string `mapstructure:"suppress_rule_ids"`
+	SuppressCategories []string `mapstructure:"suppress_categories"`
+}
+
 // CommentModerationConfig 描述前台评论审核策略。
 type CommentModerationConfig struct {
 	Disabled        bool                                        `mapstructure:"disabled"`
@@ -180,6 +215,7 @@ type CommentModerationConfig struct {
 	Lexicon         CommentModerationLexiconConfig              `mapstructure:"lexicon"`
 	StructureRules  map[string]CommentModerationLevelRuleConfig `mapstructure:"structure_rules"`
 	ContextRules    []CommentModerationContextRuleConfig        `mapstructure:"context_rules"`
+	SemanticRules   CommentModerationSemanticRulesConfig        `mapstructure:"semantic_rules"`
 	BehaviorRules   CommentModerationBehaviorRulesConfig        `mapstructure:"behavior_rules"`
 	Decision        CommentModerationDecisionConfig             `mapstructure:"decision"`
 }
@@ -189,6 +225,7 @@ type RateLimitConfig struct {
 	AdminLogin    AdminLoginRateLimitConfig    `mapstructure:"admin_login"`
 	CommentSubmit CommentSubmitRateLimitConfig `mapstructure:"comment_submit"`
 	CommentReport CommentReportRateLimitConfig `mapstructure:"comment_report"`
+	BugFeedback   BugFeedbackRateLimitConfig   `mapstructure:"bug_feedback"`
 }
 
 // Config 定义项目配置文件结构体
@@ -201,6 +238,7 @@ type Config struct {
 	RedisConfig             *RedisConfig             `mapstructure:"redis"`
 	OAuthConfig             *OAuthConfig             `mapstructure:"oauth"`
 	AdminInfoConfig         *AdminInfoConfig         `mapstructure:"admin_info"`
+	BugFeedbackConfig       *BugFeedbackConfig       `mapstructure:"bug_feedback"`
 	GuardConfig             *GuardConfig             `mapstructure:"guard"`
 	RateLimitConfig         *RateLimitConfig         `mapstructure:"rate_limit"`
 	CommentModerationConfig *CommentModerationConfig `mapstructure:"comment_moderation"`
@@ -220,6 +258,7 @@ func (c *Config) Replace(next *Config) {
 	c.RedisConfig = next.RedisConfig
 	c.OAuthConfig = next.OAuthConfig
 	c.AdminInfoConfig = next.AdminInfoConfig
+	c.BugFeedbackConfig = next.BugFeedbackConfig
 	c.GuardConfig = next.GuardConfig
 	c.RateLimitConfig = next.RateLimitConfig
 	c.CommentModerationConfig = next.CommentModerationConfig
@@ -258,6 +297,19 @@ func (c *Config) AdminInfoSnapshot() AdminInfoConfig {
 	return *c.AdminInfoConfig
 }
 
+// BugFeedbackSnapshot 返回 Bug 反馈配置快照。
+func (c *Config) BugFeedbackSnapshot() BugFeedbackConfig {
+	if c == nil {
+		return BugFeedbackConfig{}
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.BugFeedbackConfig == nil {
+		return BugFeedbackConfig{}
+	}
+	return *c.BugFeedbackConfig
+}
+
 // RateLimitSnapshot 返回限流配置快照。
 func (c *Config) RateLimitSnapshot() RateLimitConfig {
 	if c == nil {
@@ -289,6 +341,17 @@ func (c *Config) CommentModerationSnapshot() CommentModerationConfig {
 	snapshot.Lexicon.CustomWords = cloneCommentModerationCustomWordsConfig(snapshot.Lexicon.CustomWords)
 	snapshot.StructureRules = cloneCommentModerationLevelRuleConfigMap(snapshot.StructureRules)
 	snapshot.ContextRules = cloneCommentModerationContextRuleConfigSlice(snapshot.ContextRules)
+	snapshot.SemanticRules.BenignContext.Markers = cloneStringSlice(snapshot.SemanticRules.BenignContext.Markers)
+	snapshot.SemanticRules.BenignContext.SuppressSources = cloneStringSlice(
+		snapshot.SemanticRules.BenignContext.SuppressSources,
+	)
+	snapshot.SemanticRules.BenignContext.SuppressRuleIDs = cloneStringSlice(
+		snapshot.SemanticRules.BenignContext.SuppressRuleIDs,
+	)
+	snapshot.SemanticRules.BenignContext.SuppressCategories = cloneStringSlice(
+		snapshot.SemanticRules.BenignContext.SuppressCategories,
+	)
+	snapshot.Decision.RuleScores = cloneIntMap(snapshot.Decision.RuleScores)
 	snapshot.Decision.CategoryOverrides = cloneCommentModerationCategoryDecisionConfigMap(snapshot.Decision.CategoryOverrides)
 	return snapshot
 }
@@ -322,6 +385,17 @@ func cloneCommentModerationCategoryDecisionConfigMap(
 		return nil
 	}
 	dst := make(map[string]CommentModerationCategoryDecisionConfig, len(src))
+	for key, value := range src {
+		dst[key] = value
+	}
+	return dst
+}
+
+func cloneIntMap(src map[string]int) map[string]int {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(map[string]int, len(src))
 	for key, value := range src {
 		dst[key] = value
 	}

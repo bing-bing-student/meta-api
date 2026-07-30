@@ -32,6 +32,12 @@ func TestLoadConfigFilesFromSplitFiles(t *testing.T) {
 	if cfg.RateLimitConfig == nil || cfg.RateLimitConfig.AdminLogin.AccountLogin.IP.Limit == 0 {
 		t.Fatalf("expected rate limit config, got %+v", cfg.RateLimitConfig)
 	}
+	if cfg.BugFeedbackConfig == nil || cfg.BugFeedbackConfig.SMTP.Host != "smtp.qq.com" {
+		t.Fatalf("expected bug feedback smtp config, got %+v", cfg.BugFeedbackConfig)
+	}
+	if cfg.RateLimitConfig.BugFeedback.IP.Limit == 0 {
+		t.Fatalf("expected bug feedback rate limit config, got %+v", cfg.RateLimitConfig.BugFeedback)
+	}
 	if cfg.CommentModerationConfig == nil || cfg.CommentModerationConfig.Lexicon.Provider != "go_swd" {
 		t.Fatalf("expected comment moderation config, got %+v", cfg.CommentModerationConfig)
 	}

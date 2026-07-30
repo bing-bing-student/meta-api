@@ -21,6 +21,7 @@ type Handler interface {
 	AdminUpdateUserCommentPermission(c *gin.Context)
 	AdminForceUserLogout(c *gin.Context)
 	UserGetAboutMe(c *gin.Context)
+	UserSubmitBugFeedback(c *gin.Context)
 }
 
 type adminHandler struct {

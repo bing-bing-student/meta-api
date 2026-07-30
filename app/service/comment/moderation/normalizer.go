@@ -36,6 +36,7 @@ func normalizeText(value string) string {
 		case r >= '\uff01' && r <= '\uff5e':
 			r -= '\ufee0'
 		}
+		r = normalizeStyledDigit(r)
 		if unicode.IsControl(r) {
 			continue
 		}
@@ -49,7 +50,121 @@ func normalizeText(value string) string {
 		builder.WriteRune(unicode.ToLower(r))
 		lastSpace = false
 	}
-	return strings.TrimSpace(builder.String())
+	return normalizeChineseDigitsInNumericRuns(strings.TrimSpace(builder.String()))
+}
+
+func normalizeStyledDigit(r rune) rune {
+	switch {
+	case r >= '0' && r <= '9':
+		return r
+	case r >= '０' && r <= '９':
+		return r - '０' + '0'
+	case r == '⓪' || r == '⓿':
+		return '0'
+	case r >= '①' && r <= '⑨':
+		return r - '①' + '1'
+	case r >= '⑴' && r <= '⑼':
+		return r - '⑴' + '1'
+	case r >= '⓵' && r <= '⓽':
+		return r - '⓵' + '1'
+	case r >= '❶' && r <= '❾':
+		return r - '❶' + '1'
+	case r >= '➀' && r <= '➈':
+		return r - '➀' + '1'
+	case r >= '➊' && r <= '➒':
+		return r - '➊' + '1'
+	case r >= '₀' && r <= '₉':
+		return r - '₀' + '0'
+	case r == '⁰':
+		return '0'
+	case r == '¹':
+		return '1'
+	case r == '²':
+		return '2'
+	case r == '³':
+		return '3'
+	case r >= '⁴' && r <= '⁹':
+		return r - '⁴' + '4'
+	default:
+		return r
+	}
+}
+
+func normalizeChineseDigitsInNumericRuns(value string) string {
+	runes := []rune(value)
+	var builder strings.Builder
+	builder.Grow(len(value))
+
+	for i := 0; i < len(runes); {
+		if !isNumericRunRune(runes[i]) {
+			builder.WriteRune(runes[i])
+			i++
+			continue
+		}
+
+		start := i
+		hasASCII := false
+		chineseDigits := 0
+		for i < len(runes) && isNumericRunRune(runes[i]) {
+			if runes[i] >= '0' && runes[i] <= '9' {
+				hasASCII = true
+			}
+			if _, ok := chineseDigitValue(runes[i]); ok {
+				chineseDigits++
+			}
+			i++
+		}
+
+		convertChinese := hasASCII || chineseDigits >= 2
+		for _, r := range runes[start:i] {
+			if convertChinese {
+				if digit, ok := chineseDigitValue(r); ok {
+					builder.WriteRune(digit)
+					continue
+				}
+			}
+			builder.WriteRune(r)
+		}
+	}
+
+	return builder.String()
+}
+
+func isNumericRunRune(r rune) bool {
+	if r >= '0' && r <= '9' {
+		return true
+	}
+	if _, ok := chineseDigitValue(r); ok {
+		return true
+	}
+	return unicode.IsSpace(r) || unicode.IsPunct(r) || unicode.IsSymbol(r)
+}
+
+func chineseDigitValue(r rune) (rune, bool) {
+	switch r {
+	case '零', '〇':
+		return '0', true
+	case '一', '壹', '幺':
+		return '1', true
+	case '二', '贰', '两':
+		return '2', true
+	case '三', '叁':
+		return '3', true
+	case '四', '肆':
+		return '4', true
+	case '五', '伍':
+		return '5', true
+	case '六', '陆':
+		return '6', true
+	case '七', '柒':
+		return '7', true
+	case '八', '捌':
+		return '8', true
+	case '九', '玖':
+		return '9', true
+	default:
+		return 0, false
+	}
 }
 
 func compactText(value string) string {

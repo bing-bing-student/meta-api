@@ -104,6 +104,16 @@ type GetAboutMeResponse struct {
 	Email           []string `json:"email"`
 }
 
+type SubmitBugFeedbackRequest struct {
+	Message           string `json:"message" binding:"required,max=2000"`
+	ScreenshotDataURL string `json:"screenshotDataURL"`
+	ScreenshotName    string `json:"screenshotName" binding:"omitempty,max=120"`
+	PageURL           string `json:"pageURL" binding:"omitempty,max=500"`
+	Locale            string `json:"locale" binding:"omitempty,oneof=zh en"`
+	UserAgent         string `json:"userAgent" binding:"omitempty,max=300"`
+	ClientIP          string `json:"-"`
+}
+
 type AdminGetUserListRequest struct {
 	Page              int    `form:"page" binding:"required,gte=1"`
 	PageSize          int    `form:"pageSize" binding:"required,gte=1,lte=50"`

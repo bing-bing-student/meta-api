@@ -59,11 +59,36 @@ type UserAddCommentResponse struct {
 	Status string `json:"status"`
 }
 
+type UserReportCommentRequest struct {
+	CommentID      string `json:"commentID" form:"commentID" binding:"required,lte=19"`
+	Reason         string `json:"reason" form:"reason" binding:"omitempty,lte=200"`
+	UserID         string `json:"-" form:"-"`
+	SessionVersion int64  `json:"-" form:"-"`
+	ClientIP       string `json:"-" form:"-"`
+}
+
+type UserReportCommentResponse struct {
+	CommentID   string `json:"commentID"`
+	ReportCount int64  `json:"reportCount"`
+	Status      string `json:"status"`
+}
+
+type UserGetCommentReportStatusRequest struct {
+	CommentIDs     []string `json:"commentIDs" form:"commentIDs" binding:"required,min=1,max=100,dive,lte=19"`
+	UserID         string   `json:"-" form:"-"`
+	SessionVersion int64    `json:"-" form:"-"`
+}
+
+type UserGetCommentReportStatusResponse struct {
+	ReportedCommentIDs []string `json:"reportedCommentIDs"`
+}
+
 type AdminGetCommentListRequest struct {
 	Page            int    `form:"page" binding:"required,gte=1"`
 	PageSize        int    `form:"pageSize" binding:"required,gte=1,lte=50"`
 	ArticleID       string `form:"articleID" binding:"omitempty,lte=19"`
 	ArticleTitle    string `form:"articleTitle" binding:"omitempty,lte=100"`
+	ContentKeyword  string `form:"contentKeyword" binding:"omitempty,lte=100"`
 	AuthorHandle    string `form:"authorHandle" binding:"omitempty,lte=32"`
 	CreateStartTime string `form:"createStartTime" binding:"omitempty,lte=19"`
 	CreateEndTime   string `form:"createEndTime" binding:"omitempty,lte=19"`
@@ -72,17 +97,11 @@ type AdminGetCommentListRequest struct {
 
 type AdminCommentItem struct {
 	ID                  string `json:"id"`
-	ArticleID           string `json:"articleID"`
 	ArticleTitle        string `json:"articleTitle"`
 	ParentID            string `json:"parentID,omitempty"`
-	UserID              string `json:"userID,omitempty"`
-	ReplyToUserID       string `json:"replyToUserID,omitempty"`
 	ReplyToAuthorName   string `json:"replyToAuthorName,omitempty"`
 	ReplyToAuthorHandle string `json:"replyToAuthorHandle,omitempty"`
-	AuthorName          string `json:"authorName"`
 	AuthorHandle        string `json:"authorHandle,omitempty"`
-	AvatarURL           string `json:"avatarURL,omitempty"`
-	Provider            string `json:"provider,omitempty"`
 	Content             string `json:"content"`
 	Status              string `json:"status"`
 	IP                  string `json:"ip,omitempty"`
@@ -103,4 +122,43 @@ type AdminUpdateCommentStatusRequest struct {
 type AdminDeleteCommentRequest struct {
 	ID     string   `json:"id" binding:"omitempty,lte=19"`
 	IDList []string `json:"idList" binding:"omitempty,dive,lte=19"`
+}
+
+type AdminGetCommentReportListRequest struct {
+	Page           int    `form:"page" binding:"required,gte=1"`
+	PageSize       int    `form:"pageSize" binding:"required,gte=1,lte=50"`
+	CommentQuery   string `form:"commentQuery" binding:"omitempty,lte=100"`
+	AuthorHandle   string `form:"authorHandle" binding:"omitempty,lte=32"`
+	ReporterHandle string `form:"reporterHandle" binding:"omitempty,lte=32"`
+	Status         string `form:"status" binding:"omitempty,oneof=pending accepted rejected"`
+}
+
+type AdminCommentReportItem struct {
+	ID                  string `json:"id"`
+	CommentID           string `json:"commentID"`
+	ArticleID           string `json:"articleID"`
+	ArticleTitle        string `json:"articleTitle"`
+	CommentAuthorID     string `json:"commentAuthorID,omitempty"`
+	CommentAuthorName   string `json:"commentAuthorName"`
+	CommentAuthorHandle string `json:"commentAuthorHandle,omitempty"`
+	CommentContent      string `json:"commentContent"`
+	CommentStatus       string `json:"commentStatus"`
+	ReporterID          string `json:"reporterID"`
+	ReporterName        string `json:"reporterName"`
+	ReporterHandle      string `json:"reporterHandle,omitempty"`
+	Reason              string `json:"reason,omitempty"`
+	Status              string `json:"status"`
+	IP                  string `json:"ip,omitempty"`
+	CreateTime          string `json:"createTime"`
+	UpdateTime          string `json:"updateTime"`
+}
+
+type AdminGetCommentReportListResponse struct {
+	Rows  []AdminCommentReportItem `json:"rows"`
+	Total int                      `json:"total"`
+}
+
+type AdminHandleCommentReportRequest struct {
+	CommentID string `json:"commentID" binding:"required,lte=19"`
+	Action    string `json:"action" binding:"required,oneof=accept reject"`
 }

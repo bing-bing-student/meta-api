@@ -57,7 +57,7 @@ func BuildContainer(bs *bootstrap.Bootstrap) (*dig.Container, error) {
 		func() *keymanager.Manager { return bs.KeyManager },
 		func(logger *zap.Logger) *edgeone.Client { return edgeone.New(logger, bs.Context()) },
 		func(logger *zap.Logger) *sitemap.Client { return sitemap.New(logger, bs.Context()) },
-		func(rdb *redis.Client, logger *zap.Logger) guard.Store {return guard.NewRedisStore(rdb, logger)},
+		func(rdb *redis.Client, logger *zap.Logger) guard.Store { return guard.NewRedisStore(rdb, logger) },
 		newGuardEngine,
 	}
 	for _, provider := range baseProviders {

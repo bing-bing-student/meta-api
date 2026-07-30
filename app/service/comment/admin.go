@@ -27,11 +27,12 @@ func (s *commentService) AdminGetCommentList(ctx context.Context,
 	}
 
 	filter := commentModel.AdminListFilter{
-		ArticleTitle: strings.TrimSpace(request.ArticleTitle),
-		AuthorHandle: normalizeAdminAuthorHandle(request.AuthorHandle),
-		Status:       status,
-		Offset:       (request.Page - 1) * request.PageSize,
-		Limit:        request.PageSize,
+		ArticleTitle:   strings.TrimSpace(request.ArticleTitle),
+		ContentKeyword: strings.TrimSpace(request.ContentKeyword),
+		AuthorHandle:   normalizeAdminAuthorHandle(request.AuthorHandle),
+		Status:         status,
+		Offset:         (request.Page - 1) * request.PageSize,
+		Limit:          request.PageSize,
 	}
 
 	if request.ArticleID != "" {
@@ -138,6 +139,9 @@ func (s *commentService) AdminDeleteComment(ctx context.Context, request *types.
 }
 
 func (s *commentService) invalidateArticleCommentCache(ctx context.Context, articleID uint64) error {
+	if s == nil || s.redis == nil {
+		return nil
+	}
 	key := cachekey.CommentArticleApprovedList(strconv.FormatUint(articleID, 10)).String()
 	if err := s.redis.Del(ctx, key).Err(); err != nil {
 		s.logger.Error("failed to delete comment cache", zap.String("key", key), zap.Error(err))
@@ -149,15 +153,10 @@ func (s *commentService) invalidateArticleCommentCache(ctx context.Context, arti
 func toAdminCommentItem(row commentModel.AdminListItem) types.AdminCommentItem {
 	item := types.AdminCommentItem{
 		ID:                  strconv.FormatUint(row.ID, 10),
-		ArticleID:           strconv.FormatUint(row.ArticleID, 10),
 		ArticleTitle:        row.ArticleTitle,
-		UserID:              strconv.FormatUint(row.UserID, 10),
 		ReplyToAuthorName:   row.ReplyToAuthorName,
 		ReplyToAuthorHandle: row.ReplyToAuthorHandle,
-		AuthorName:          row.AuthorName,
 		AuthorHandle:        row.AuthorHandle,
-		AvatarURL:           row.AvatarURL,
-		Provider:            row.Provider,
 		Content:             row.Content,
 		Status:              row.Status,
 		IP:                  row.IP,
@@ -166,9 +165,6 @@ func toAdminCommentItem(row commentModel.AdminListItem) types.AdminCommentItem {
 	}
 	if row.ParentID != 0 {
 		item.ParentID = strconv.FormatUint(row.ParentID, 10)
-	}
-	if row.ReplyToUserID != 0 {
-		item.ReplyToUserID = strconv.FormatUint(row.ReplyToUserID, 10)
 	}
 	return item
 }

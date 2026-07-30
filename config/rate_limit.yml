@@ -1,0 +1,59 @@
+rate_limit:
+  admin_login:
+    # 设置为 true 可临时关闭后端登录限流；生产环境建议保持 false。
+    disabled: false
+    # 账号密码登录限流；按 IP、用户名、用户名+IP 组合维度限制暴力破解。
+    account_login:
+      # 单客户端 IP 在指定窗口内允许的账号密码登录尝试次数。
+      ip:
+        limit: 8
+        window_seconds: 600
+      # 单用户名在指定窗口内允许的登录尝试次数。
+      username:
+        limit: 5
+        window_seconds: 1800
+      # 单用户名 + 单客户端 IP 在指定窗口内允许的登录尝试次数。
+      username_ip:
+        limit: 3
+        window_seconds: 600
+      # 密码连续失败阈值；达到后进入退避锁定。
+      failure_threshold: 3
+      # 密码失败计数窗口。
+      failure_window_seconds: 1800
+      # 退避等级保留时间；超过该时间后退避等级重新计算。
+      lock_level_ttl_seconds: 86400
+      # 退避锁定阶梯；多次触发后依次使用这些锁定时长。
+      lock_durations_seconds: [300, 900, 3600, 21600]
+    bind_dynamic_code:
+      ip:
+        limit: 6
+        window_seconds: 600
+      challenge:
+        limit: 4
+        window_seconds: 180
+      failure_threshold: 4
+      failure_window_seconds: 180
+    verify_dynamic_code:
+      ip:
+        limit: 10
+        window_seconds: 600
+      challenge:
+        limit: 4
+        window_seconds: 180
+      failure_threshold: 4
+      failure_window_seconds: 180
+  comment_submit:
+    # 设置为 true 可临时关闭前台评论提交限流；生产环境建议保持 false。
+    disabled: false
+    # 单客户端 IP 在指定窗口内允许提交的评论次数。
+    ip:
+      limit: 20
+      window_seconds: 600
+    # 单登录用户在指定窗口内允许提交的评论次数。
+    user:
+      limit: 10
+      window_seconds: 300
+    # 单登录用户对同一篇文章在指定窗口内允许提交的评论次数。
+    user_article:
+      limit: 5
+      window_seconds: 300

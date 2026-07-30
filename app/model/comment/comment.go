@@ -43,6 +43,7 @@ type Comment struct {
 type AdminListFilter struct {
 	ArticleID       uint64
 	ArticleTitle    string
+	ContentKeyword  string
 	AuthorHandle    string
 	CreateStartTime *time.Time
 	CreateEndTime   *time.Time
@@ -53,17 +54,11 @@ type AdminListFilter struct {
 
 type AdminListItem struct {
 	ID                  uint64    `gorm:"column:id"`
-	ArticleID           uint64    `gorm:"column:article_id"`
 	ArticleTitle        string    `gorm:"column:article_title"`
 	ParentID            uint64    `gorm:"column:parent_id"`
-	UserID              uint64    `gorm:"column:user_id"`
-	ReplyToUserID       uint64    `gorm:"column:reply_to_user_id"`
 	ReplyToAuthorName   string    `gorm:"column:reply_to_author_name"`
 	ReplyToAuthorHandle string    `gorm:"column:reply_to_author_handle"`
-	AuthorName          string    `gorm:"column:author_name"`
 	AuthorHandle        string    `gorm:"column:author_handle"`
-	AvatarURL           string    `gorm:"column:avatar_url"`
-	Provider            string    `gorm:"column:provider"`
 	Content             string    `gorm:"column:content"`
 	Status              string    `gorm:"column:status"`
 	IP                  string    `gorm:"column:ip"`
@@ -196,6 +191,10 @@ func (m *commentModel) ListComments(ctx context.Context, filter AdminListFilter)
 		like := "%" + utils.EscapeLike(filter.ArticleTitle) + "%"
 		query = query.Where("a.title LIKE ? COLLATE utf8mb4_general_ci", like)
 	}
+	if filter.ContentKeyword != "" {
+		like := "%" + utils.EscapeLike(filter.ContentKeyword) + "%"
+		query = query.Where("c.content LIKE ? COLLATE utf8mb4_general_ci", like)
+	}
 	if filter.Status != "" {
 		query = query.Where("c.status = ?", filter.Status)
 	}
@@ -220,7 +219,7 @@ func (m *commentModel) ListComments(ctx context.Context, filter AdminListFilter)
 	}
 
 	if err := query.
-		Select("c.id, c.article_id, a.title as article_title, c.parent_id, c.user_id, c.reply_to_user_id, ru.display_name as reply_to_author_name, ru.handle as reply_to_author_handle, c.author_name, u.handle as author_handle, u.avatar_url, u.provider, c.content, c.status, c.ip, c.create_time, c.update_time").
+		Select("c.id, a.title as article_title, c.parent_id, ru.display_name as reply_to_author_name, ru.handle as reply_to_author_handle, u.handle as author_handle, c.content, c.status, c.ip, c.create_time, c.update_time").
 		Order("c.create_time DESC").
 		Offset(filter.Offset).
 		Limit(filter.Limit).

@@ -11,10 +11,14 @@ type Handler interface {
 	UserGetCommentList(c *gin.Context)
 	UserGetCommentReplyList(c *gin.Context)
 	UserAddComment(c *gin.Context)
+	UserReportComment(c *gin.Context)
+	UserGetCommentReportStatus(c *gin.Context)
 
 	AdminGetCommentList(c *gin.Context)
 	AdminUpdateCommentStatus(c *gin.Context)
 	AdminDeleteComment(c *gin.Context)
+	AdminGetCommentReportList(c *gin.Context)
+	AdminHandleCommentReport(c *gin.Context)
 }
 
 type commentHandler struct {

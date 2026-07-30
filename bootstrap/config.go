@@ -1,7 +1,10 @@
 package bootstrap
 
 import (
+	"errors"
 	"log"
+	"os"
+	"path/filepath"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
@@ -9,37 +12,104 @@ import (
 	"meta-api/config"
 )
 
+var configFiles = []string{
+	"./config/app.yml",
+	"./config/rate_limit.yml",
+	"./config/comment_moderation.yml",
+}
+
+const legacyConfigFile = "./config/config.yml"
+
 // initConfig 初始化配置
 func initConfig() *config.Config {
-	var err error
-	viper.SetConfigType("yaml")
-	viper.SetConfigFile("./config/config.yml")
-
-	// 读取配置信息
-	if err = viper.ReadInConfig(); err != nil {
-		log.Panicf("Read config.yml file error: %v", err)
+	cfg := &config.Config{}
+	initial, files, err := loadConfigFiles()
+	if err != nil {
+		log.Panicf("Read config files error: %v", err)
 		return nil
 	}
-
-	// 将读取到的配置信息反序列化到 Config 中
-	cfg := &config.Config{}
-	var initial config.Config
-	if err = viper.Unmarshal(&initial); err != nil {
-		log.Panicf("Viper unmarshal error: %v", err)
-		return cfg
-	}
-	cfg.Replace(&initial)
-
-	// 监视配置文件变化
-	viper.WatchConfig()
-	viper.OnConfigChange(func(e fsnotify.Event) {
-		var next config.Config
-		if err = viper.Unmarshal(&next); err != nil {
-			log.Printf("Viper unmarshal error, keep old config: %v", err)
-			return
-		}
-		cfg.Replace(&next)
-	})
+	cfg.Replace(initial)
+	watchConfigFiles(cfg, files)
 
 	return cfg
+}
+
+func loadConfigFiles() (*config.Config, []string, error) {
+	files := configFiles
+	if !allConfigFilesExist(files) {
+		files = []string{legacyConfigFile}
+	}
+
+	reader := viper.New()
+	reader.SetConfigType("yaml")
+	for index, file := range files {
+		reader.SetConfigFile(file)
+		var err error
+		if index == 0 {
+			err = reader.ReadInConfig()
+		} else {
+			err = reader.MergeInConfig()
+		}
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	var next config.Config
+	if err := reader.Unmarshal(&next); err != nil {
+		return nil, nil, err
+	}
+	return &next, files, nil
+}
+
+func allConfigFilesExist(files []string) bool {
+	for _, file := range files {
+		if _, err := os.Stat(file); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
+func watchConfigFiles(cfg *config.Config, files []string) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		log.Printf("Config watch disabled: %v", err)
+		return
+	}
+	for _, file := range files {
+		if err := watcher.Add(filepath.Clean(file)); err != nil {
+			log.Printf("Watch config file %s error: %v", file, err)
+		}
+	}
+
+	go func() {
+		defer func() {
+			if err := watcher.Close(); err != nil && !errors.Is(err, fsnotify.ErrEventOverflow) {
+				log.Printf("Close config watcher error: %v", err)
+			}
+		}()
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					return
+				}
+				if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Rename) == 0 {
+					continue
+				}
+				next, _, err := loadConfigFiles()
+				if err != nil {
+					log.Printf("Reload config files error, keep old config: %v", err)
+					continue
+				}
+				cfg.Replace(next)
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					return
+				}
+				log.Printf("Watch config files error: %v", err)
+			}
+		}
+	}()
 }

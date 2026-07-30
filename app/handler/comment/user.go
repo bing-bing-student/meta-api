@@ -100,6 +100,79 @@ func (h *commentHandler) UserAddComment(c *gin.Context) {
 	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: response})
 }
 
+func (h *commentHandler) UserReportComment(c *gin.Context) {
+	ctx := c.Request.Context()
+	request := new(types.UserReportCommentRequest)
+	if err := c.ShouldBind(request); err != nil {
+		h.logger.Warn("parameter binding error", zap.Error(err))
+		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
+		return
+	}
+	request.UserID = c.GetString(middlewares.CommentUserIDKey)
+	if value, exists := c.Get(middlewares.CommentUserSessionVersionKey); exists {
+		if sessionVersion, ok := value.(int64); ok {
+			request.SessionVersion = sessionVersion
+		}
+	}
+	request.ClientIP = c.ClientIP()
+
+	response, err := h.service.UserReportComment(ctx, request)
+	if err != nil {
+		switch {
+		case errors.Is(err, commentService.ErrCommentSessionInvalid):
+			utils.ClearCommentAuthCookie(c)
+			c.JSON(http.StatusOK, types.Response{Code: codes.Unauthorized, Message: "登录状态已失效，请重新登录", Data: nil})
+		case errors.Is(err, commentService.ErrCommentUnauthorized):
+			c.JSON(http.StatusOK, types.Response{Code: codes.Unauthorized, Message: "登录后才能举报", Data: nil})
+		case errors.Is(err, commentService.ErrCommentAlreadyReported):
+			c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "你已经举报过这条评论", Data: nil})
+		case errors.Is(err, commentService.ErrCommentForbidden):
+			c.JSON(http.StatusOK, types.Response{Code: codes.Forbidden, Message: "不能举报自己的评论", Data: nil})
+		case errors.Is(err, commentService.ErrInvalidComment):
+			c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "只能举报已通过的评论", Data: nil})
+		case errors.Is(err, commentService.ErrCommentNotFound):
+			c.JSON(http.StatusOK, types.Response{Code: codes.NotFound, Message: "评论不存在", Data: nil})
+		default:
+			c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "举报评论失败", Data: nil})
+		}
+		return
+	}
+	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: response})
+}
+
+func (h *commentHandler) UserGetCommentReportStatus(c *gin.Context) {
+	ctx := c.Request.Context()
+	request := new(types.UserGetCommentReportStatusRequest)
+	if err := c.ShouldBind(request); err != nil {
+		h.logger.Warn("parameter binding error", zap.Error(err))
+		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
+		return
+	}
+	request.UserID = c.GetString(middlewares.CommentUserIDKey)
+	if value, exists := c.Get(middlewares.CommentUserSessionVersionKey); exists {
+		if sessionVersion, ok := value.(int64); ok {
+			request.SessionVersion = sessionVersion
+		}
+	}
+
+	response, err := h.service.UserGetCommentReportStatus(ctx, request)
+	if err != nil {
+		switch {
+		case errors.Is(err, commentService.ErrCommentSessionInvalid):
+			utils.ClearCommentAuthCookie(c)
+			c.JSON(http.StatusOK, types.Response{Code: codes.Unauthorized, Message: "登录状态已失效，请重新登录", Data: nil})
+		case errors.Is(err, commentService.ErrCommentUnauthorized):
+			c.JSON(http.StatusOK, types.Response{Code: codes.Unauthorized, Message: "登录后才能查看举报状态", Data: nil})
+		case errors.Is(err, commentService.ErrInvalidComment):
+			c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "无效的请求参数", Data: nil})
+		default:
+			c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "获取举报状态失败", Data: nil})
+		}
+		return
+	}
+	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: response})
+}
+
 // isCommentRateLimited 将评论提交限流错误写成统一业务响应。
 func isCommentRateLimited(c *gin.Context, err error) bool {
 	limited, ok := ratelimit.AsLimited(err)

@@ -234,6 +234,15 @@ func (s *commentService) UserAddComment(ctx context.Context,
 		return nil, fmt.Errorf("failed to load location: %w", err)
 	}
 	now := time.Now().In(loc)
+	moderationInput := commentModerationInput{
+		CommentID: commentID,
+		UserID:    userID,
+		ArticleID: articleID,
+		ClientIP:  request.ClientIP,
+		Content:   content,
+		Now:       now,
+	}
+	moderation := s.moderateComment(ctx, moderationInput)
 	commentInfo := &commentModel.Comment{
 		ID:               commentID,
 		ArticleID:        articleID,
@@ -243,7 +252,7 @@ func (s *commentService) UserAddComment(ctx context.Context,
 		ReplyToCommentID: replyToCommentID,
 		AuthorName:       truncateString(user.DisplayName, 80),
 		Content:          content,
-		Status:           commentModel.StatusPending,
+		Status:           moderation.Status,
 		IP:               request.ClientIP,
 		CreateTime:       now,
 		UpdateTime:       now,
@@ -252,10 +261,11 @@ func (s *commentService) UserAddComment(ctx context.Context,
 		s.logger.Error("failed to create comment", zap.Error(err))
 		return nil, err
 	}
+	s.recordCommentModerationBehavior(ctx, moderationInput)
 
 	return &types.UserAddCommentResponse{
 		ID:     strconv.FormatUint(commentID, 10),
-		Status: commentModel.StatusPending,
+		Status: moderation.Status,
 	}, nil
 }
 

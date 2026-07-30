@@ -1,0 +1,36 @@
+log:
+  mysql_full_log: "./log/mysql.full.log"
+  mysql_slow_log: "./log/mysql.slow.log"
+  http_info_log: "./log/http.info.log"
+  http_warn_log: "./log/http.warn.log"
+  http_err_log: "./log/http.err.log"
+  max_size: 1
+  max_age: 180
+  max_backups: 30
+  compress: false
+
+retry:
+  max_retries: 3
+  initial_delay: 1
+  max_delay: 60
+  jitter_factor: 0.3
+
+mysql:
+  max_open_conn: 100
+  max_idle_conn: 20
+  conn_max_lifetime: 3
+
+redis:
+  db: 0
+
+oauth:
+  github:
+    client_id: ""
+    redirect_uri: ""
+  google:
+    client_id: ""
+    redirect_uri: ""
+
+admin_info:
+  issuer: BingBingStudentBlogWebsite
+  account_name: 1425723960@qq.com

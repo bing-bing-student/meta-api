@@ -93,9 +93,9 @@ func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) (*gin.Engine
 	// 后台管理路由(不需要JWT验证)
 	adminGroup := r.Group("/admin")
 	{
-		adminGroup.POST("/refresh-token", adminHandler.RefreshToken)            // 刷新 RefreshToken
-		adminGroup.POST("/logout", adminHandler.Logout)                         // 登出，清除Cookie
-		adminGroup.POST("/sms-code", adminHandler.SendSMSCode)                  // 发送短信验证码
+		adminGroup.POST("/refresh-token", adminHandler.RefreshToken) // 刷新 RefreshToken
+		adminGroup.POST("/logout", adminHandler.Logout)              // 登出，清除Cookie
+		// adminGroup.POST("/sms-code", adminHandler.SendSMSCode)                  // 发送短信验证码（已停用）
 		adminGroup.POST("/account-login", adminHandler.AccountLogin)            // 账号密码登录
 		adminGroup.POST("/bind-dynamic-code", adminHandler.BindDynamicCode)     // 绑定 TOTP 动态码
 		adminGroup.POST("/verify-dynamic-code", adminHandler.VerifyDynamicCode) // 验证 TOTP 动态码
@@ -127,6 +127,8 @@ func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) (*gin.Engine
 		authAdminGroup.GET("/comment/list", commentHandler.AdminGetCommentList)
 		authAdminGroup.PUT("/comment/status", commentHandler.AdminUpdateCommentStatus)
 		authAdminGroup.DELETE("/comment/delete", commentHandler.AdminDeleteComment)
+		authAdminGroup.GET("/comment/report-list", commentHandler.AdminGetCommentReportList)
+		authAdminGroup.PUT("/comment/report", commentHandler.AdminHandleCommentReport)
 
 		// 用户管理
 		authAdminGroup.GET("/user/list", adminHandler.AdminGetUserList)
@@ -159,6 +161,8 @@ func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) (*gin.Engine
 		userGroup.GET("/comment/list", commentHandler.UserGetCommentList)
 		userGroup.GET("/comment/reply-list", commentHandler.UserGetCommentReplyList)
 		userGroup.POST("/comment/add", middlewares.CommentUserJWT(), commentHandler.UserAddComment)
+		userGroup.POST("/comment/report", middlewares.CommentUserJWT(), commentHandler.UserReportComment)
+		userGroup.POST("/comment/report-status", middlewares.CommentUserJWT(), commentHandler.UserGetCommentReportStatus)
 
 		// 前台登录相关
 		userGroup.GET("/auth/oauth/:provider/login", userAuthHandler.OAuthLogin)

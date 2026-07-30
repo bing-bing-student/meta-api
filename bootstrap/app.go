@@ -109,6 +109,9 @@ func (b *Bootstrap) InitMySQL() *Bootstrap {
 	}
 
 	b.MySQL = initMySQL(mySQLConfig)
+	if err := autoMigrateMySQL(b.MySQL); err != nil {
+		b.Logger.Panic("auto migrate mysql failed", zap.Error(err))
+	}
 	return b
 }
 

@@ -1,46 +1,39 @@
-# 评论审核系统重设计方案
+# 评论审核系统架构说明
 
-本文重新设计当前网站的评论审核系统。新方案以 `kirklin/go-swd` 作为本地敏感词识别层，第一版优先使用其内置词库，不导入本站旧自定义词库；自定义词库能力保留为空配置，用于后续根据误伤和漏审结果做小范围微调。评论审核应拆成可解释、可配置、可回归测试的流水线。
+本文记录当前已落地的评论审核架构。评论审核现在是本地规则优先、可解释、可配置、可回归测试的信号管线，最终对外仍只输出三种状态：
+
+- `approved`
+- `pending`
+- `rejected`
+
+内部通过 `risk_score`、命中信号和中文原因辅助治理，但前台和后台业务状态不扩展新枚举。
 
 ## 设计目标
 
-- 本地优先：评论提交主链路不能依赖外部审核 API，避免延迟和可用性风险。
-- `go-swd` 专职做敏感词识别：第一版使用其内置 7W+ 高质量词条作为主词库，替换当前自研关键词匹配。
-- 自定义词库延后启用：保留 `AddWords` 能力，但默认不注入旧词库，避免一开始混用两套词库导致效果无法归因。
-- 策略偏严格：内置词库命中默认至少进入待审，高风险分类直接拒绝。
-- 决策独立：命中敏感词只是审核信号之一，最终状态由策略引擎统一裁决。
-- 配置收敛：线上修复漏洞时只需要判断“词库、结构特征、行为风险、外部兜底”四类入口。
-- 可解释：每条待审/拒绝评论都必须记录命中的信号、分类、规则 ID 和最终决策原因。
-- 可压测：保留并扩展现有 300 条违规语料，所有规则和词库更新都能跑回归报告。
+- 本地优先：评论提交主链路不依赖外部审核 API，避免延迟和可用性风险。
+- 可解释：待审和拒绝结果要能展示命中来源、分类、规则 ID、证据和中文原因。
+- 可配置：线上治理优先修改 `config/comment_moderation.yml`，避免频繁改代码。
+- 可回归：通过 `testdata` 语料持续验证漏审和误杀。
+- 可干预：后台提供审核模拟能力，管理员可以 dry-run 多条评论，不创建评论、不写行为统计。
+- 保守放行：语义复判只压制低风险词库/短语误杀，不压制联系方式、URL、上下文组合、行为风险等强风险信号。
 
-## 当前系统应废弃的部分
-
-当前 `moderation.go` 同时承担文本归一化、关键词匹配、变体匹配、英文辱骂、正则、base64 URL、涉政组合、安全上下文、行为风险、相似召回、补丁规则和最终评分。这会导致两个问题：
-
-- 每修一个漏审都在一个大文件里继续堆逻辑，长期不可维护。
-- `comment_moderation.yml` 的规则语义和执行层绑定太紧，线上不知道应该改词库、改正则、改上下文，还是改相似样本。
-
-新系统应删除这类“一个函数串全部规则”的实现方式，改成模块化信号管线。
-
-## 总体架构
+## 总体链路
 
 ```text
 User Submit Comment
         |
         v
-Moderation Orchestrator
+commentService.UserAddComment
+        |
+        v
+moderation.Moderator
         |
         +--> Text Normalizer
-        |
-        +--> Lexicon Layer (go-swd)
-        |
+        +--> Lexicon Layer (go-swd + custom words)
         +--> Structure Layer
-        |
         +--> Context Layer
-        |
-        +--> Behavior Layer
-        |
-        +--> Optional External Review Layer
+        +--> Behavior Layer (Redis)
+        +--> Semantic Adjustment
         |
         v
 Policy Decision Engine
@@ -50,23 +43,27 @@ Policy Decision Engine
         +--> rejected
         |
         v
-Audit Log + Regression Corpus
+Persist Comment + Moderation Reasons
 ```
 
-## 核心接口
+主要代码位置：
 
-审核入口只保留一个统一接口：
+- `app/service/comment/moderation/moderator.go`
+- `app/service/comment/moderation/normalizer.go`
+- `app/service/comment/moderation/lexicon_swd.go`
+- `app/service/comment/moderation/structure.go`
+- `app/service/comment/moderation/context.go`
+- `app/service/comment/moderation/behavior.go`
+- `app/service/comment/moderation/semantic.go`
+- `app/service/comment/moderation/decision.go`
+- `config/comment_moderation.yml`
+
+## 核心数据结构
+
+审核请求：
 
 ```go
-type CommentModerator interface {
-	Moderate(ctx context.Context, req ModerationRequest) (ModerationResult, error)
-}
-```
-
-请求结构：
-
-```go
-type ModerationRequest struct {
+type Request struct {
 	CommentID uint64
 	UserID    uint64
 	ArticleID uint64
@@ -76,21 +73,22 @@ type ModerationRequest struct {
 }
 ```
 
-结果结构：
+审核结果：
 
 ```go
-type ModerationResult struct {
+type Result struct {
 	Status   string
 	Score    int
-	Signals  []ModerationSignal
+	Signals  []Signal
+	Reasons  []string
 	Decision string
 }
 ```
 
-信号结构：
+审核信号：
 
 ```go
-type ModerationSignal struct {
+type Signal struct {
 	Source   string
 	Category string
 	Level    string
@@ -101,201 +99,168 @@ type ModerationSignal struct {
 }
 ```
 
-`Source` 建议固定为：
+当前 `Source`：
 
 - `lexicon`
 - `structure`
 - `context`
 - `behavior`
-- `external`
-- `manual_feedback`
+- `semantic`
 
-`Level` 建议固定为：
+当前 `Level`：
 
 - `allow`
 - `notice`
 - `review`
 - `block`
 
-这样最终决策不依赖某一个模块的内部实现。
-
 ## Layer 1: Text Normalizer
 
-归一化层只做文本视图生成，不做任何审核判断。
+归一化层只生成文本视图，不直接决定审核状态。
 
 输出：
 
 ```go
 type NormalizedComment struct {
-	Raw         string
-	Normalized  string
-	Compact     string
-	AsciiFolded  string
+	Raw          string
+	Normalized   string
+	Compact      string
 	PinyinFolded string
 	DecodedTexts []string
 }
 ```
 
-职责：
+当前能力：
 
-- 去除零宽字符和无意义空白。
+- 去除零宽字符、控制字符和无意义空白。
 - 全角转半角。
-- 英文大小写统一。
-- 生成 compact 文本。
-- 提取并解码 base64 片段。
-- 生成少量必要的规避视图，例如 `yuepao` -> `约炮`。
+- 英文统一小写。
+- 生成 `compact` 文本。
+- 生成少量拼音折叠视图，例如 `yuepao` -> `约炮`。
+- 提取并解码 base64 URL 候选。
+- 数字样式归一化，例如 `9⓿二肆⁹₈` -> `902498`。
+- 中文数字在数字串上下文中归一化，避免全局替换破坏正常中文句子。
 
-注意：`go-swd` README 里提到当前 V1.0 支持基础文本匹配和特殊字符过滤，大小写、全半角、拼音混合、同音、形近仍属于规划项。因此这些规避能力不能完全交给 `go-swd`，需要保留在本项目的 Normalizer 层。
+## Layer 2: Lexicon Layer
 
-## Layer 2: Lexicon Layer (go-swd)
+词库层使用 `github.com/kirklin/go-swd` 作为本地敏感词基础设施。
 
-`go-swd` 是新系统的本地敏感词识别核心。第一版只启用其内置词库，不导入本站原有 `reject/pending` 关键词配置。这样可以先验证 `go-swd` 内置词库在本站评论场景下的真实召回率和误伤率。
+当前策略：
 
-README 中的关键用法：
+- 启用 `go-swd` 内置词库。
+- 启用 `lexicon.custom_words` 做本站场景微调。
+- 高风险分类如 `sexual`、`gambling` 默认 `block`。
+- `abuse`、`spam_fraud`、`sensitive` 等默认 `review`。
+- 短 ASCII 词命中会做边界过滤，避免 `Java` 中的 `av` 误杀。
+- 部分中文技术术语做精确跳过，例如 `垃圾回收` 中的 `垃圾` 不作为辱骂命中。
 
-```go
-detector, err := swd.New()
+配置入口：
 
-customWords := map[string]swd.Category{
-	"涉黄": swd.Pornography,
-	"涉政": swd.Political,
-	"赌博词汇": swd.Gambling,
-	"毒品词汇": swd.Drugs,
-	"脏话词汇": swd.Profanity,
-	"诈骗词汇": swd.Scam,
-}
-
-err = detector.AddWords(customWords)
-matched := detector.DetectIn(text, swd.Pornography, swd.Political)
-words := detector.MatchAll(text)
+```yaml
+lexicon:
+  provider: go_swd
+  use_builtin: true
+  strict_builtin_match: true
+  custom_words:
+    block:
+      sexual: []
+      gambling: []
+    review:
+      abuse: []
+      spam_fraud: []
 ```
 
-第一版创建 detector 后不调用 `AddWords` 注入旧词表：
+治理原则：
 
-```go
-detector, err := swd.New()
-words := detector.MatchAll(text)
-```
-
-`AddWords` 只作为后续微调入口保留。例如线上发现内置词库漏掉少量本站特有风险词，再通过配置注入：
-
-```go
-customWords := map[string]swd.Category{
-	"本站特有风险词": swd.Custom,
-}
-err = detector.AddWords(customWords)
-```
-
-在本项目中不让 `go-swd` 直接写最终状态，而是做适配：
-
-```go
-type LexiconDetector interface {
-	Detect(ctx context.Context, text NormalizedComment) ([]ModerationSignal, error)
-	Reload(words LexiconWords) error
-}
-```
-
-分类映射：
-
-| `go-swd` category | 本站审核分类 | 默认处置 |
-| --- | --- | --- |
-| `swd.Pornography` | `sexual` | `block` |
-| `swd.Political` | `political` | `review` |
-| `swd.Violence` | `violence` | `review` |
-| `swd.Gambling` | `gambling` | `block` |
-| `swd.Drugs` | `drugs` | `block` |
-| `swd.Profanity` | `abuse` | `review` |
-| `swd.Discrimination` | `hate` | `review` |
-| `swd.Scam` | `spam_fraud` | `review` |
-| `swd.Custom` | `custom` | 由配置指定 |
-
-关键设计：
-
-- `go-swd` 命中只产生 `lexicon` 信号。
-- 是否 `pending` 或 `rejected` 由 Policy Decision Engine 决定。
-- 内置词库命中默认至少 `review`，即评论进入 `pending`。
-- 高风险分类默认 `block`，即评论进入 `rejected`。
-- 自定义词库保留，但第一版默认为空；后续不再写成复杂的 `reject/pending` 配置，而是写成“分类 + 等级”。
-- 保留 `MatchAll` 的结果作为审核证据，用于后台展示和回归报告。
+- 明确违法、高风险内容可放入 `block`。
+- 需要人工判断或容易误伤的内容放入 `review`。
 
 ## Layer 3: Structure Layer
 
-结构层处理不适合词库表达的形态。
+结构层处理不适合词库表达的形态风险。
 
-典型规则：
+当前规则：
 
-- URL、域名、短链。
-- 手机号、QQ、微信号、邮箱。
-- base64 解码后出现 URL。
-- HTML/script 注入。
-- 二维码/扫码/私信/加群组合。
-- 重复字符、异常标点、广告格式。
+- `url`
+- `decoded_url`
+- `contact`
+- `script_injection`
+- `text_quality`
+- `risk_phrase`
 
-结构层配置示例：
+典型能力：
+
+- URL、域名、混写 URL。
+- 手机号、QQ、微信、加好友、私信、进群等联系方式意图。
+- 邮箱混淆写法。
+- base64 解码后 URL。
+- script 注入。
+- 纯数字、数字样式串、纯符号、重复字符等低质文本。
+- 广告、诈骗、暴力、低俗等风险短语。
+
+结构规则的默认等级来自：
 
 ```yaml
 structure_rules:
   url:
-    action: review
+    level: review
   decoded_url:
-    action: review
-  script_injection:
-    action: block
+    level: review
   contact:
-    action: review
+    level: review
+  script_injection:
+    level: block
+  text_quality:
+    level: review
+  risk_phrase:
+    level: review
 ```
-
-这层应替代当前散落在 `pending.regexps` 里的联系方式和 URL 正则。
 
 ## Layer 4: Context Layer
 
-上下文层处理“单个词不违规，但组合起来有风险”的情况。
+上下文层处理“单个词未必违规，但组合起来有风险”的情况。
 
-示例：
-
-- `未成年 + 私照`
-- `公共机构 + 冲击`
-- `血腥 + 合集`
-- `手机号 + 出售`
-- `成人资源 + 下载`
-
-新结构：
+当前配置格式：
 
 ```yaml
 context_rules:
-  - id: minor_private_photo
-    category: minor
-    level: block
+  - id: illegal_privacy
+    category: illegal_privacy
+    level: review
     subjects:
-      - 未成年
-      - 学生
+      - 手机号
+      - 住址
+      - 开房记录
     predicates:
-      - 私照
-      - 资源
-      - 交易
+      - 查
+      - 有偿
+      - 有偿提供
 ```
 
-与当前 `safety_context` 相比，新增：
+当前主要覆盖：
 
-- `id`：用于后台证据和回归报告。
-- `category`：用于统计风险领域。
-- `level`：用于表达 `review/block`，不再依赖全局分数猜测。
+- 涉政动员
+- 未成年人风险
+- 暴力邀约
+- 血腥内容交易
+- 色情擦边组合
+- 商业引流和灰产交易
+- 隐私查询和非法账号交易
+- 不良价值导向
+
+上下文信号的 `RuleID` 使用配置里的 `id`，便于后台展示和报告统计。
 
 ## Layer 5: Behavior Layer
 
-行为层只处理用户行为，不看内容语义。
+行为层只处理用户行为，不理解内容语义。
 
-信号：
+当前信号：
 
-- 同一用户短时间多次提交。
-- 同一 IP 短时间多次提交。
-- 同一内容重复提交。
-- 新注册用户高频评论。
-- 被举报命中率高的用户。
+- `user_frequency`
+- `ip_frequency`
+- `duplicate_content`
 
-行为层默认只能提升到 `review`，不建议单独 `block`，除非重复刷屏非常明确。
-
-配置示例：
+配置：
 
 ```yaml
 behavior_rules:
@@ -311,246 +276,223 @@ behavior_rules:
     block_threshold: 4
 ```
 
-## Layer 6: Optional External Review Layer
+实现说明：
 
-外部审核不参与主链路阻塞，符合当前项目“外部审核 API 必须异步化”的约束。
+- Redis ZSet 记录用户和 IP 的窗口内评论行为。
+- Redis counter 记录重复内容。
+- 正常用户提交评论后会记录行为。
+- 后台审核模拟使用 dry-run，不写行为统计。
 
-策略：
+## Layer 6: Semantic Adjustment
 
-- `approved` 评论可以异步抽检。
-- `pending` 评论可以异步请求云审核，结果辅助人工审核。
-- `rejected` 评论默认不请求外部审核，节省费用。
-- 外部失败或超时不改变主链路结果。
+语义复判层用于降低关键词裸匹配带来的误杀，不是大模型语义理解。
 
-推荐接口：
+当前策略：
 
-```go
-type ExternalReviewer interface {
-	ReviewAsync(ctx context.Context, req ModerationRequest, localResult ModerationResult) error
-}
+- 命中良性语境 marker 时，可以压制低风险词库或 `risk_phrase` 信号。
+- 如果存在强风险信号，则不做压制。
+- 强风险包括：
+  - `behavior`
+  - `context`
+  - `structure.contact`
+  - `structure.url`
+  - `structure.decoded_url`
+  - `structure.script_injection`
+
+典型放行场景：
+
+- 引用、讨论、反诈骗、测试、误杀分析。
+- 技术语境，例如 `垃圾回收`。
+- 自谦语境，例如 `初来乍到，今天献丑了`。
+
+典型不放行场景：
+
+- `私密资源要不要？加好友发你，别在评论区问`
+- `谁有办法查一个人的手机号、住址和开房记录？有偿提供`
+- 任何带联系方式、URL、上下文组合风险、行为风险的评论。
+
+配置入口：
+
+```yaml
+semantic_rules:
+  disabled: false
+  benign_context:
+    suppress_sources:
+      - lexicon
+    suppress_rule_ids:
+      - risk_phrase
+    suppress_categories:
+      - "*"
+    markers: []
 ```
 
 ## Policy Decision Engine
 
-最终状态由策略引擎统一决定。
+最终状态仍然只有三种。
 
-建议规则：
+当前决策规则：
 
-1. 任意 `block` 信号命中明确高危分类，状态为 `rejected`。
-2. 任意 `go-swd` 内置词库命中，状态至少为 `pending`。
-3. 任意 `review` 信号命中，状态至少为 `pending`。
-4. 多个弱信号累计超过阈值，状态为 `pending`。
-5. 没有风险信号，状态为 `approved`。
-6. 审核模块异常时，状态为 `pending`，不能默认放行。
+1. 任意 `block` 信号命中，状态为 `rejected`。
+2. 任意 `review` 信号命中，状态为 `pending`。
+3. 没有风险信号，状态为 `approved`。
+4. 审核模块异常时，默认 `pending`。
+5. `review` 信号可以累计风险分，但累计到拒绝阈值时会压到 `reject - 1`，避免多个待审信号自动升级成拒绝。
 
-示例配置：
+默认阈值：
 
 ```yaml
 decision:
   default_on_error: pending
-  levels:
-    block: rejected
-    review: pending
   score:
     pending: 40
-    rejected: 80
-  category_overrides:
-    sexual:
-      level: block
-    gambling:
-      level: block
-    drugs:
-      level: block
-    political:
-      level: review
-    abuse:
-      level: review
+    reject: 80
 ```
 
-这里保留分数，但分数只是排序和统计，不再作为唯一决策来源。
-
-## 配置重构
-
-建议把 `comment_moderation.yml` 收敛为以下结构：
+评分细化：
 
 ```yaml
-comment_moderation:
-  disabled: false
+decision:
+  rule_scores:
+    review: 40
+    block: 80
+    "lexicon:spam_fraud:review": 60
+    "context:illegal_privacy:illegal_privacy:review": 60
+```
 
-  lexicon:
-    provider: go_swd
-    use_builtin: true
-    strict_builtin_match: true
-    custom_words:
-      block: {}
-      review: {}
+风险分语义：
 
-  structure_rules:
-    decoded_url:
-      level: review
-    contact:
-      level: review
-    script_injection:
-      level: block
+- `0`：明确正常。
+- `40`：普通待审。
+- `60`：高风险待审。
+- `80`：直接拒绝。
+- `79`：多个高风险待审信号叠加后仍保持 `pending`。
 
-  context_rules:
-    - id: illegal_privacy_trade
-      category: illegal_privacy
-      level: review
-      subjects:
-        - 身份证
-        - 银行卡
-        - 手机号
-      predicates:
-        - 出售
-        - 买卖
-        - 查询
+注意：`risk_score` 用于后台解释、排序和治理分析，不改变对外状态枚举。
 
-  behavior_rules:
-    user_frequency:
-      window_seconds: 600
-      review_threshold: 6
-    ip_frequency:
-      window_seconds: 600
-      review_threshold: 12
-    duplicate_content:
+## 评论提交与持久化
+
+前台评论提交链路：
+
+```text
+UserAddComment
+  -> moderateComment
+  -> CreateComment
+  -> recordCommentModerationBehavior
+```
+
+`comment` 表当前新增：
+
+```go
+ModerationReasons string `gorm:"column:moderation_reasons;type:text"`
+```
+
+数据库中保存 raw reason，例如：
+
+```text
+lexicon:abuse:review:骗子
+context:illegal_privacy:review:illegal_privacy:手机号+查
+```
+
+后台返回时会格式化成中文原因，例如：
+
+```text
+敏感词库命中：骗子（辱骂攻击，待人工复核）
+上下文规则命中：手机号+查（隐私与非法交易风险，待人工复核）
+```
+
+## 举报与限流
+
+举报阈值：
+
+```yaml
+report_threshold: 3
+```
+
+含义：同一评论累计 `pending` 举报数达到阈值后，如果评论当前是 `approved`，会转为 `pending`。
+
+为降低滥用，举报有独立限流：
+
+```yaml
+rate_limit:
+  comment_report:
+    ip:
+      limit: 30
       window_seconds: 86400
-      review_threshold: 2
-      block_threshold: 4
-
-  decision:
-    default_on_error: pending
-    score:
-      pending: 40
-      rejected: 80
+    user:
+      limit: 10
+      window_seconds: 86400
+    ip_comment:
+      limit: 2
+      window_seconds: 86400
 ```
 
-线上修复入口变成：
+## 回归测试集
 
-| 线上问题 | 修改位置 |
-| --- | --- |
-| `go-swd` 内置词库已命中，但处置过松或过严 | `decision.category_overrides` |
-| `go-swd` 内置词库漏掉明确敏感词 | `lexicon.custom_words.block` |
-| `go-swd` 内置词库漏掉可疑词 | `lexicon.custom_words.review` |
-| 新增 URL/联系方式/脚本类形态 | `structure_rules` |
-| 新增组合语义风险 | `context_rules` |
-| 刷屏/重复提交问题 | `behavior_rules` |
-| 决策过松或过严 | `decision` |
-
-不再保留 `reject/pending/similarity/political_context/safety_context` 这种混合结构。
-
-第一版上线时，`lexicon.custom_words` 应保持为空。只有当回归报告和人工审核结果证明内置词库存在稳定漏审时，才补充自定义词库。
-
-## 包结构建议
+当前新增了长期维护的黄金测试集：
 
 ```text
-app/service/comment/moderation/
-├── moderator.go        # Orchestrator
-├── types.go            # ModerationRequest/Result/Signal
-├── normalizer.go       # Text Normalizer
-├── lexicon.go          # LexiconDetector interface
-├── lexicon_swd.go      # go-swd adapter
-├── structure.go        # URL/contact/script/base64
-├── context.go          # subject + predicate rules
-├── behavior.go         # Redis-backed behavior signals
-├── decision.go         # Policy Decision Engine
-├── audit.go            # audit log/event model
-└── testdata/
+app/service/comment/testdata/comment_moderation/
+  normal.tsv       # 非违规评论，期望 approved
+  violation.tsv    # 违规评论，期望 pending 或 rejected
+  gray.tsv         # 灰区样本，只生成报告，不阻塞测试
+  candidates.tsv   # 线上候选样本池，人工确认前不进入强断言
+  report.txt       # normal + violation 强回归报告
+  gray_report.txt  # gray 灰区观察报告
 ```
 
-旧的 `app/service/comment/moderation.go` 应拆掉，不再保留一个大文件。
-
-## 数据库与审计
-
-当前 `comment` 表只存最终状态，不足以分析漏审。建议新增审核记录表：
+TSV 字段：
 
 ```text
-comment_moderation_audit
-  id
-  comment_id
-  status
-  score
-  decision
-  signals_json
-  config_version
-  create_time
+id	text	expected	category	tags	note
 ```
 
-用途：
+`expected` 支持：
 
-- 管理后台展示“为什么进入待审/拒绝”。
-- 回放线上漏审样本。
-- 对比配置变更前后的审核结果。
-- 统计各分类命中率和误伤率。
+- `approved`：必须通过，否则计入误杀。
+- `risk`：只要不是 `approved` 即视为拦住，`pending` 和 `rejected` 都可接受。
+- `pending`：必须待审核。
+- `rejected`：必须拒绝。
 
-## 管理后台配合
-
-后台评论列表应展示：
-
-- 最终状态。
-- 风险分类。
-- 命中来源：`lexicon/structure/context/behavior/external`。
-- 命中证据：敏感词、规则 ID、结构规则名称。
-- 人工处理结果。
-
-人工处理应反哺：
-
-- 人工驳回 pending -> 进入误伤样本集。
-- 人工拒绝 pending -> 进入漏审强化样本集。
-- 多次命中的新词 -> 提醒加入 `lexicon.custom_words`。
-
-## 回归测试
-
-保留现有语料测试，但报告格式改成信号级：
+核心指标：
 
 ```text
-TOTAL cases=300 approved=0 pending=190 rejected=110
-
-TOP SIGNALS
-lexicon:gambling:block = 32
-structure:decoded_url:review = 12
-context:illegal_privacy:review = 9
-behavior:duplicate_content:review = 6
+误杀率 = normal.tsv 中 actual != approved 的数量 / normal.tsv 总数
+漏审率 = violation.tsv 中 actual == approved 的数量 / violation.tsv 总数
 ```
 
-每次改配置或升级 `go-swd` 后必须跑：
+当前强回归阈值：
+
+```text
+误杀率 = 0
+漏审率 = 0
+```
+
+样本流转规则：
+
+1. 线上新发现的评论先放入 `candidates.tsv`。
+2. 人工确认后再移动到 `normal.tsv`、`violation.tsv` 或 `gray.tsv`。
+3. 每次改算法或配置，都要看 `report.txt` 中误杀率、漏审率和错误分类。
+4. `gray.tsv` 不阻塞测试，只用于观察灰区策略是否符合预期。
+
+常用命令：
 
 ```bash
-go test ./app/service/comment -run TestCommentModerationReportCorpus -v
+go test ./app/service/comment -run 'TestCommentModerationGoldenCorpus|TestCommentModerationGrayCorpusReport' -v
+go test ./...
 ```
 
-新增 PoC 测试：
+## 当前结论
 
-- 对比当前实现和新实现的 300 条语料结果。
-- 统计新增 `go-swd` 后的误伤样本。
-- 单独测试 `go-swd` 内置词库在本站正常评论上的误伤率。
-- 单独统计 `go-swd` 内置词库命中后的分类分布，确认哪些分类应该直接拒绝，哪些分类只进入待审。
-- 自定义词库保持为空跑第一轮报告，避免把旧词库效果混入基线。
+`go-swd` 现在是敏感词基础设施，不是完整审核系统。真正的审核能力来自多层信号组合：
 
-## 迁移步骤
+```text
+normalizer
++ lexicon
++ structure
++ context
++ behavior
++ semantic adjustment
++ decision
+```
 
-1. 引入 `github.com/kirklin/go-swd`，先写 `LexiconDetector` 适配层和单测。
-2. 新增 `moderation` 子包，实现 `types.go`、`normalizer.go`、`decision.go`。
-3. 第一版只启用 `go-swd` 内置词库，自定义词库配置保持为空。
-4. 设置偏严格决策：内置词库命中至少 `pending`，`sexual/gambling/drugs` 等高风险分类直接 `rejected`。
-5. 把 URL、联系方式、base64、script 检测迁入 `structure.go`。
-6. 把 `safety_context` 重写为带 `id/category/level` 的 `context_rules`。
-7. 把 Redis 行为风险迁入 `behavior.go`。
-8. 新增审核审计表和写入逻辑。
-9. 改 `commentService.UserAddComment` 只调用新的 `CommentModerator`。
-10. 删除旧 `moderation.go` 和旧配置字段。
-11. 用现有 300 条语料、正常评论语料和线上漏审样本做 A/B 报告。
-12. 确认内置词库的误伤和漏审分布后，再决定是否补充 `lexicon.custom_words`。
-
-## 最终结论
-
-`go-swd` 应作为新系统的敏感词基础设施，而不是完整审核系统。适合当前网站的方案是：
-
-- `go-swd` 负责高性能本地词库识别，第一版优先使用内置词库作为主审核词库。
-- 自定义词库功能保留，但默认为空，只用于后续微调。
-- 本项目保留文本归一化、结构检测、上下文组合、行为风险。
-- 决策引擎统一把信号转换成 `approved/pending/rejected`，默认策略偏严格。
-- 配置从“按技术实现分组”改成“按线上处理动作分组”。
-- 所有结果写审计日志，并通过语料回归验证。
-
-这比继续维护现有 `moderation.go` 更稳，也比直接把评论审核交给开源库更可控。
+这套架构适合当前 1C/2G 的线上资源约束：主链路不依赖外部服务，规则可解释，治理成本可控。后续如果要继续提升效果，优先方向不是推翻架构，而是补充语料、优化词库边界、细化上下文规则，并在必要时为灰区样本增加轻量语义分类器。

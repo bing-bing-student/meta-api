@@ -8,7 +8,7 @@ import (
 
 func adjustSignalsBySemantics(text NormalizedComment, signals []Signal,
 	cfg appconfig.CommentModerationConfig) []Signal {
-	if len(signals) == 0 || cfg.SemanticRules.Disabled || hasStrongSemanticRisk(signals) ||
+	if len(signals) == 0 || cfg.SemanticRules.Disabled || hasNonSuppressibleSemanticRisk(signals) ||
 		!hasBenignSemanticContext(text, cfg) {
 		return signals
 	}
@@ -16,7 +16,7 @@ func adjustSignalsBySemantics(text NormalizedComment, signals []Signal,
 	adjusted := make([]Signal, 0, len(signals))
 	suppressed := make([]string, 0)
 	for _, signal := range signals {
-		if shouldSuppressByBenignContext(signal, cfg) {
+		if shouldSuppressByBenignContext(text, signal, cfg) {
 			suppressed = append(suppressed, signal.Evidence)
 			continue
 		}
@@ -36,14 +36,14 @@ func adjustSignalsBySemantics(text NormalizedComment, signals []Signal,
 	return adjusted
 }
 
-func hasStrongSemanticRisk(signals []Signal) bool {
+func hasNonSuppressibleSemanticRisk(signals []Signal) bool {
 	for _, signal := range signals {
 		switch signal.Source {
-		case SourceBehavior, SourceContext:
+		case SourceBehavior:
 			return true
 		case SourceStructure:
 			switch signal.RuleID {
-			case "contact", "url", "decoded_url", "script_injection":
+			case "url", "decoded_url", "script_injection":
 				return true
 			}
 		}
@@ -51,7 +51,7 @@ func hasStrongSemanticRisk(signals []Signal) bool {
 	return false
 }
 
-func shouldSuppressByBenignContext(signal Signal, cfg appconfig.CommentModerationConfig) bool {
+func shouldSuppressByBenignContext(text NormalizedComment, signal Signal, cfg appconfig.CommentModerationConfig) bool {
 	if semanticValueAllowed(signal.Source, cfg.SemanticRules.BenignContext.SuppressSources) {
 		return true
 	}
@@ -62,6 +62,14 @@ func shouldSuppressByBenignContext(signal Signal, cfg appconfig.CommentModeratio
 	if signal.Source == SourceLexicon &&
 		semanticValueAllowed(signal.Category, cfg.SemanticRules.BenignContext.SuppressCategories) {
 		return true
+	}
+	if hasExplicitModerationMetaContext(text) {
+		switch signal.Source {
+		case SourceContext:
+			return true
+		case SourceStructure:
+			return signal.RuleID == "contact"
+		}
 	}
 	return false
 }
@@ -104,6 +112,50 @@ func hasBenignSemanticContext(text NormalizedComment, cfg appconfig.CommentModer
 	return false
 }
 
+func hasExplicitModerationMetaContext(text NormalizedComment) bool {
+	markers := []string{
+		"识别测试",
+		"安全测试",
+		"测试语料",
+		"违规样例",
+		"命中规则",
+		"误杀",
+		"误判",
+		"不代表",
+		"不是我的真实需求",
+		"不是真实需求",
+		"不要把",
+		"正常讨论",
+		"隐私保护案例",
+		"风控系统",
+		"审核策略",
+		"审核系统",
+		"内容安全系统",
+		"举例说明",
+		"案例说明",
+		"只是引用",
+		"自嘲",
+	}
+	return textContainsAnySemanticMarker(text, markers)
+}
+
+func textContainsAnySemanticMarker(text NormalizedComment, markers []string) bool {
+	views := []string{text.Raw, text.Normalized, text.Compact, text.PinyinFolded}
+	for _, view := range views {
+		view = strings.TrimSpace(strings.ToLower(view))
+		if view == "" {
+			continue
+		}
+		for _, marker := range markers {
+			marker = strings.TrimSpace(strings.ToLower(marker))
+			if marker != "" && strings.Contains(view, marker) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func defaultBenignSemanticMarkers() []string {
 	return []string{
 		"什么叫",
@@ -127,7 +179,6 @@ func defaultBenignSemanticMarkers() []string {
 		"表达",
 		"评价",
 		"现象",
-		"风险",
 		"反诈骗",
 		"没有刻意",
 		"没有到",
@@ -159,6 +210,11 @@ func defaultBenignSemanticMarkers() []string {
 		"误判",
 		"审核系统",
 		"风控系统",
+		"内容安全系统",
+		"命中规则",
+		"违规样例",
+		"不是我的真实需求",
+		"自嘲",
 	}
 }
 

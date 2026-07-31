@@ -1,0 +1,3 @@
+id	text	expected	category	tags	note
+# Candidate samples are not used as strong regression assertions.
+# Add online uncertain samples here first, then move them to normal.tsv, violation.tsv, or gray.tsv after manual labeling.

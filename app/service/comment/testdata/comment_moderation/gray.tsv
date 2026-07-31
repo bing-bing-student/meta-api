@@ -1,0 +1,6 @@
+id	text	expected	category	tags	note
+G001	这家店老板就是个骗子，宣传的时候说得特别好，实际体验完全不是一回事。	pending	abuse	consumer_review,strong_accusation	gray area; direct fraud accusation should be manually reviewed
+G002	这家店宣传和实际体验差距比较大，不太推荐。	approved	consumer_review	negative_review	benign negative review without strong accusation
+G003	这个资料整理得比较完整，建议作者后续放到文章附件里。	approved	normal	resource	benign resource mention
+G004	能不能加一个评论区举报的案例分析？	approved	normal	report_discussion	benign feature discussion
+G005	如果有人在评论区暗示去主页拿资源，应该怎么处理？	approved	moderation_design	resource,profile	benign moderation discussion

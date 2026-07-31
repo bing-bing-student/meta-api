@@ -1,0 +1,13 @@
+TOTAL cases=5 approved=3 pending=2 rejected=0
+NORMAL total=0 false_positive=0 false_positive_rate=0.00%
+VIOLATION total=0 false_negative=0 false_negative_rate=0.00%
+GRAY total=5 mismatch=1
+WRONG_BY_CATEGORY
+  moderation_design=1
+
+CASES
+ok | corpus=gray | expected=pending | actual=pending | risk_score=40 | category=abuse | tags=consumer_review,strong_accusation | reasons=lexicon:abuse:review:骗子 | text=这家店老板就是个骗子，宣传的时候说得特别好，实际体验完全不是一回事。
+ok | corpus=gray | expected=approved | actual=approved | risk_score=0 | category=consumer_review | tags=negative_review | reasons= | text=这家店宣传和实际体验差距比较大，不太推荐。
+ok | corpus=gray | expected=approved | actual=approved | risk_score=0 | category=normal | tags=resource | reasons= | text=这个资料整理得比较完整，建议作者后续放到文章附件里。
+ok | corpus=gray | expected=approved | actual=approved | risk_score=0 | category=normal | tags=report_discussion | reasons= | text=能不能加一个评论区举报的案例分析？
+wrong | corpus=gray | expected=approved | actual=pending | risk_score=79 | category=moderation_design | tags=resource,profile | reasons=context:spam_fraud:review:commercial_spam:资源+主页;context:spam_fraud:review:commercial_spam:资源+处理 | text=如果有人在评论区暗示去主页拿资源，应该怎么处理？

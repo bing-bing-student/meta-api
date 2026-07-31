@@ -97,6 +97,9 @@ func shouldSkipSWDMatch(view string, match swd.SensitiveWord) bool {
 	if !isShortASCIIWord(word) {
 		return false
 	}
+	if isQuotedJSONValueMatch(view, match) {
+		return true
+	}
 
 	runes := []rune(view)
 	if match.StartPos < 0 || match.EndPos > len(runes) || match.StartPos >= match.EndPos {
@@ -109,6 +112,21 @@ func shouldSkipSWDMatch(view string, match swd.SensitiveWord) bool {
 		return true
 	}
 	return false
+}
+
+func isQuotedJSONValueMatch(view string, match swd.SensitiveWord) bool {
+	runes := []rune(view)
+	if match.StartPos <= 0 || match.EndPos >= len(runes) || match.StartPos >= match.EndPos {
+		return false
+	}
+	if runes[match.StartPos-1] != '"' || runes[match.EndPos] != '"' {
+		return false
+	}
+	i := match.StartPos - 2
+	for i >= 0 && strings.TrimSpace(string(runes[i])) == "" {
+		i--
+	}
+	return i >= 0 && (runes[i] == ':' || runes[i] == '：')
 }
 
 func isBenignChineseTechnicalTermMatch(view, word string, match swd.SensitiveWord) bool {

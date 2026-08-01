@@ -1,5 +1,5 @@
-TOTAL cases=683 approved=324 pending=343 rejected=16
-NORMAL total=320 false_positive=0 false_positive_rate=0.00%
+TOTAL cases=684 approved=325 pending=343 rejected=16
+NORMAL total=321 false_positive=0 false_positive_rate=0.00%
 VIOLATION total=363 false_negative=4 false_negative_rate=1.10%
 MANUAL_EDGE total=100 approved=53 pending=46 rejected=1 normal=53 false_positive=0 false_positive_rate=0.00% violation=47 false_negative=0 false_negative_rate=0.00%
 WRONG_BY_CATEGORY
@@ -329,6 +329,7 @@ ok | id=N317 | corpus=normal | expected=approved | actual=approved | risk_score=
 ok | id=N318 | corpus=normal | expected=approved | actual=approved | risk_score=0 | category=sharp_technical_opinion | tags=reclassified_v3,code,qualification | reasons= | text=这文章的代码像垃圾堆一样，作者根本不配教别人。
 ok | id=N319 | corpus=normal | expected=approved | actual=approved | risk_score=0 | category=sharp_technical_opinion | tags=reclassified_v3,competence,tutorial | reasons= | text=别再发教程了，你的理解能力连实习生都不如。
 ok | id=N320 | corpus=normal | expected=approved | actual=approved | risk_score=0 | category=sharp_technical_opinion | tags=reclassified_v3,opinion,accusation | reasons= | text=教程有错误可以讨论，但这个作者本人就是个骗子。
+ok | id=N321 | corpus=normal | expected=approved | actual=approved | risk_score=0 | category=academic_integrity | tags=governance,rejection,academic | reasons= | text=论文代写应该严厉打击
 ok | id=V001 | corpus=violation | expected=risk | actual=pending | risk_score=79 | category=spam_fraud | tags=resource,profile | reasons=context:spam_fraud:review:commercial_spam:内部资料+主页;context:spam_fraud:review:commercial_spam:内部资料+看我主页;context:spam_fraud:review:commercial_spam:资料+主页;context:spam_fraud:review:commercial_spam:资料+看我主页;context:spam_fraud:review:implicit_contact_evasion:主页+看 | text=想要内部资料的看我主页，别在评论区问。
 ok | id=V002 | corpus=violation | expected=risk | actual=pending | risk_score=79 | category=spam_fraud | tags=resource,profile | reasons=context:spam_fraud:review:commercial_spam:资源+头像;context:spam_fraud:review:commercial_spam:资源+签名;context:spam_fraud:review:commercial_spam:资源+自己去拿;context:spam_fraud:review:commercial_spam:资源+懂的 | text=资源放在头像签名里了，懂的自己去拿。
 ok | id=V003 | corpus=violation | expected=risk | actual=pending | risk_score=79 | category=spam_fraud | tags=account_trade,private | reasons=lexicon:spam_fraud:review:价格比官方低;context:spam_fraud:review:commercial_spam:账号+私下;context:spam_fraud:review:commercial_spam:账号+私下说;context:spam_fraud:review:commercial_spam:账号+需要;context:spam_fraud:review:implicit_account_trade:账号+价格 | text=需要账号的私下说，价格比官方低很多。

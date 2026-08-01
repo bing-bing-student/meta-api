@@ -319,3 +319,4 @@ N317	作者大概把键盘敲响就当成会编程了，属实可笑。	approved
 N318	这文章的代码像垃圾堆一样，作者根本不配教别人。	approved	sharp_technical_opinion	reclassified_v3,code,qualification	代码与教学资格评价允许过审
 N319	别再发教程了，你的理解能力连实习生都不如。	approved	sharp_technical_opinion	reclassified_v3,competence,tutorial	尖锐能力比较允许过审
 N320	教程有错误可以讨论，但这个作者本人就是个骗子。	approved	sharp_technical_opinion	reclassified_v3,opinion,accusation	用户确认可过审的观点表达
+N321	论文代写应该严厉打击	approved	academic_integrity	governance,rejection,academic	明确反对论文代写

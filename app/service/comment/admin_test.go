@@ -1,6 +1,10 @@
 package comment
 
-import "testing"
+import (
+	"testing"
+
+	commentModeration "meta-api/app/service/comment/moderation"
+)
 
 func TestNormalizeAdminAuthorHandle(t *testing.T) {
 	tests := []struct {
@@ -22,5 +26,51 @@ func TestNormalizeAdminAuthorHandle(t *testing.T) {
 				t.Fatalf("expected %q, got %q", tt.want, got)
 			}
 		})
+	}
+}
+
+func TestAdminModerationPreviewKeepsPipelineTrace(t *testing.T) {
+	clauseText := commentModeration.Normalize("风险研究引用低价出售作为样例")
+	suppressed := commentModeration.Signal{
+		Source:   commentModeration.SourceLexicon,
+		Category: "spam_fraud",
+		Level:    commentModeration.LevelReview,
+		Evidence: "低价出售",
+		RuleID:   "lexicon",
+		Clause:   1,
+	}
+	result := commentModeration.Result{
+		Status:   "approved",
+		Decision: "no_risk_signal",
+		Signals: []commentModeration.Signal{
+			{
+				Source:   commentModeration.SourceSemantic,
+				Category: "benign_context",
+				Level:    commentModeration.LevelAllow,
+				RuleID:   "benign_context",
+			},
+		},
+		Trace: commentModeration.Trace{
+			Clauses: []commentModeration.ClauseTrace{
+				{ID: 1, Text: clauseText},
+			},
+			DetectorSignals:   []commentModeration.Signal{suppressed},
+			SuppressedSignals: []commentModeration.Signal{suppressed},
+			BehaviorEvaluated: true,
+		},
+	}
+
+	item := toAdminPreviewCommentModerationItem(7, clauseText.Raw, result)
+	if len(item.Trace.Clauses) != 1 || item.Trace.Clauses[0].ID != 1 {
+		t.Fatalf("trace clauses = %+v, want clause 1", item.Trace.Clauses)
+	}
+	if len(item.Trace.SuppressedSignals) != 1 || item.Trace.SuppressedSignals[0].ClauseID != 1 {
+		t.Fatalf("suppressed signals = %+v, want clause provenance", item.Trace.SuppressedSignals)
+	}
+	if !item.Trace.BehaviorEvaluated {
+		t.Fatal("behavior evaluation state was not preserved")
+	}
+	if item.Text.Confusable != clauseText.Confusable {
+		t.Fatalf("confusable = %q, want %q", item.Text.Confusable, clauseText.Confusable)
 	}
 }

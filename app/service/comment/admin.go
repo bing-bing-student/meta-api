@@ -171,6 +171,7 @@ func (s *commentService) AdminPreviewCommentModeration(ctx context.Context,
 		Total:          len(comments),
 		BehaviorDryRun: true,
 	}
+	evaluateBehavior := userID != 0 || articleID != 0 || clientIP != ""
 	for _, item := range comments {
 		input := commentModerationInput{
 			UserID:    userID,
@@ -179,7 +180,12 @@ func (s *commentService) AdminPreviewCommentModeration(ctx context.Context,
 			Content:   item.content,
 			Now:       now,
 		}
-		result := s.moderateCommentWithBehavior(ctx, input, nil)
+		var result commentModerationResult
+		if evaluateBehavior {
+			result = s.moderateComment(ctx, input)
+		} else {
+			result = s.moderateCommentWithBehavior(ctx, input, nil)
+		}
 		response.Rows = append(response.Rows, toAdminPreviewCommentModerationItem(item.line, item.content, result))
 		incrementAdminPreviewSummary(response, result.Status)
 	}
@@ -296,6 +302,7 @@ func toAdminPreviewCommentModerationItem(line int, content string,
 		RawReasons:     compactCommentModerationReasons(result.Reasons),
 		Signals:        toAdminCommentModerationSignals(result.Signals),
 		Text:           toAdminCommentModerationTextView(text),
+		Trace:          toAdminCommentModerationTrace(result.Trace),
 		BehaviorDryRun: true,
 	}
 }
@@ -319,6 +326,7 @@ func toAdminCommentModerationTextView(text commentModerationTextView) types.Admi
 		Raw:          text.Raw,
 		Normalized:   text.Normalized,
 		Compact:      text.Compact,
+		Confusable:   text.Confusable,
 		PinyinFolded: text.PinyinFolded,
 		DecodedTexts: append([]string{}, text.DecodedTexts...),
 	}
@@ -339,9 +347,26 @@ func toAdminCommentModerationSignals(signals []commentModerationSignal) []types.
 			ReasonText: formatCommentModerationReason(signal.Reason),
 			Evidence:   signal.Evidence,
 			RuleID:     signal.RuleID,
+			ClauseID:   signal.Clause,
 		})
 	}
 	return values
+}
+
+func toAdminCommentModerationTrace(trace commentModeration.Trace) types.AdminCommentModerationTrace {
+	clauses := make([]types.AdminCommentModerationClause, 0, len(trace.Clauses))
+	for _, clause := range trace.Clauses {
+		clauses = append(clauses, types.AdminCommentModerationClause{
+			ID:   clause.ID,
+			Text: toAdminCommentModerationTextView(clause.Text),
+		})
+	}
+	return types.AdminCommentModerationTrace{
+		Clauses:           clauses,
+		DetectorSignals:   toAdminCommentModerationSignals(trace.DetectorSignals),
+		SuppressedSignals: toAdminCommentModerationSignals(trace.SuppressedSignals),
+		BehaviorEvaluated: trace.BehaviorEvaluated,
+	}
 }
 
 func parseAdminCommentTimeRange(startValue string, endValue string) (*time.Time, *time.Time, error) {

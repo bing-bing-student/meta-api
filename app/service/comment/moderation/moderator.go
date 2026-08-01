@@ -21,6 +21,7 @@ type Moderator struct {
 	logger       *zap.Logger
 	lexicon      LexiconDetector
 	behavior     *BehaviorStore
+	policy       policyCache
 }
 
 func NewModerator(configSource ConfigSource, logger *zap.Logger, redis *redis.Client) *Moderator {
@@ -51,6 +52,11 @@ func (m *Moderator) ModerateWithBehavior(ctx context.Context, req Request, behav
 	if cfg.Disabled {
 		return disabledResult()
 	}
+	compiledConfig, err := m.policy.Resolve(cfg)
+	if err != nil {
+		return errorResult(err, cfg)
+	}
+	cfg = compiledConfig
 	text := Normalize(req.Content)
 
 	signals := make([]Signal, 0, 8)
@@ -65,13 +71,34 @@ func (m *Moderator) ModerateWithBehavior(ctx context.Context, req Request, behav
 		return errorResult(err, cfg)
 	}
 	signals = append(signals, lexiconSignals...)
+	signals = append(signals, fuzzyLexiconSignals(text, cfg)...)
 	signals = append(signals, structureSignals(text, cfg)...)
-	signals = append(signals, contextSignals(text, cfg)...)
+	signals = append(signals, combinationSignals(text, cfg)...)
 	if behavior != nil {
 		signals = append(signals, behavior(ctx, req, text, cfg)...)
 	}
-	signals = adjustSignalsBySemantics(text, signals, cfg)
-	return decide(signals, cfg)
+	detectorSignals := append([]Signal(nil), signals...)
+	signals, suppressedSignals := adjustSignalsBySemanticsWithTrace(text, signals, cfg)
+	result := decide(signals, cfg)
+	result.Trace = Trace{
+		Clauses:           moderationClauseTrace(text),
+		DetectorSignals:   detectorSignals,
+		SuppressedSignals: append([]Signal(nil), suppressedSignals...),
+		BehaviorEvaluated: behavior != nil,
+	}
+	return result
+}
+
+func moderationClauseTrace(text NormalizedComment) []ClauseTrace {
+	clauses := semanticClauses(text)
+	trace := make([]ClauseTrace, 0, len(clauses))
+	for index, clause := range clauses {
+		trace = append(trace, ClauseTrace{
+			ID:   index + 1,
+			Text: clause,
+		})
+	}
+	return trace
 }
 
 func (m *Moderator) RecordBehavior(ctx context.Context, req Request) {
@@ -143,18 +170,6 @@ func ApplyDefaults(cfg *appconfig.CommentModerationConfig) {
 		if _, ok := cfg.StructureRules[name]; !ok {
 			cfg.StructureRules[name] = appconfig.CommentModerationLevelRuleConfig{Level: level}
 		}
-	}
-	if len(cfg.SemanticRules.BenignContext.Markers) == 0 {
-		cfg.SemanticRules.BenignContext.Markers = defaultBenignSemanticMarkers()
-	}
-	if len(cfg.SemanticRules.BenignContext.SuppressSources) == 0 {
-		cfg.SemanticRules.BenignContext.SuppressSources = []string{SourceLexicon}
-	}
-	if len(cfg.SemanticRules.BenignContext.SuppressRuleIDs) == 0 {
-		cfg.SemanticRules.BenignContext.SuppressRuleIDs = []string{"risk_phrase"}
-	}
-	if len(cfg.SemanticRules.BenignContext.SuppressCategories) == 0 {
-		cfg.SemanticRules.BenignContext.SuppressCategories = []string{"*"}
 	}
 	_ = userRule(*cfg)
 	_ = ipRule(*cfg)

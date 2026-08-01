@@ -3,7 +3,9 @@ package moderation
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -29,20 +31,49 @@ func (s *BehaviorStore) Signals(ctx context.Context, req Request, text Normalize
 		return nil
 	}
 	keys := BuildBehaviorKeys(req.UserID, req.ArticleID, req.ClientIP, text.Normalized)
-	userCount, userErr := s.countEvents(ctx, keys.User, req.Now, durationSeconds(userRule(cfg).WindowSeconds))
-	ipCount, ipErr := s.countEvents(ctx, keys.IP, req.Now, durationSeconds(ipRule(cfg).WindowSeconds))
-	duplicateCount, duplicateErr := s.getCounter(ctx, keys.Duplicate)
-	if userErr != nil || ipErr != nil || duplicateErr != nil {
+	var userCount, ipCount, duplicateCount int64
+	var userErr, ipErr, duplicateErr error
+	userEvaluated := req.UserID != 0
+	ipEvaluated := strings.TrimSpace(req.ClientIP) != ""
+	duplicateEvaluated := req.UserID != 0 && req.ArticleID != 0
+	if userEvaluated {
+		userCount, userErr = s.countEvents(ctx, keys.User, req.Now, durationSeconds(userRule(cfg).WindowSeconds))
+	}
+	if ipEvaluated {
+		ipCount, ipErr = s.countEvents(ctx, keys.IP, req.Now, durationSeconds(ipRule(cfg).WindowSeconds))
+	}
+	if duplicateEvaluated {
+		duplicateCount, duplicateErr = s.getCounter(ctx, keys.Duplicate)
+	}
+	nearDuplicate := nearDuplicateRule(cfg)
+	var nearDuplicateCount int64
+	var nearDuplicateErr error
+	nearDuplicateEvaluated := duplicateEvaluated && !nearDuplicate.Disabled
+	if nearDuplicateEvaluated {
+		nearDuplicateCount, nearDuplicateErr = s.countNearDuplicates(
+			ctx,
+			keys.NearDuplicate,
+			req.Now,
+			text.Normalized,
+			nearDuplicate,
+		)
+	}
+	if userErr != nil || ipErr != nil || duplicateErr != nil || nearDuplicateErr != nil {
 		if s.logger != nil {
 			s.logger.Warn("comment moderation behavior risk unavailable",
-				zap.Error(errors.Join(userErr, ipErr, duplicateErr)))
+				zap.Error(errors.Join(userErr, ipErr, duplicateErr, nearDuplicateErr)))
 		}
 		return nil
 	}
 	return BehaviorSignals(BehaviorState{
-		UserCount:      userCount,
-		IPCount:        ipCount,
-		DuplicateCount: duplicateCount,
+		UserCount:              userCount,
+		IPCount:                ipCount,
+		DuplicateCount:         duplicateCount,
+		NearDuplicateCount:     nearDuplicateCount,
+		UserEvaluated:          userEvaluated,
+		IPEvaluated:            ipEvaluated,
+		DuplicateEvaluated:     duplicateEvaluated,
+		NearDuplicateEvaluated: nearDuplicateEvaluated,
 	}, cfg)
 }
 
@@ -57,6 +88,8 @@ func (s *BehaviorStore) Record(ctx context.Context, req Request, cfg appconfig.C
 	userWindow := durationSeconds(userRule(cfg).WindowSeconds)
 	ipWindow := durationSeconds(ipRule(cfg).WindowSeconds)
 	duplicateWindow := durationSeconds(duplicateRule(cfg).WindowSeconds)
+	nearDuplicate := nearDuplicateRule(cfg)
+	nearDuplicateWindow := durationSeconds(nearDuplicate.WindowSeconds)
 
 	pipe := s.redis.Pipeline()
 	pipe.ZRemRangeByScore(ctx, keys.User, "0", strconv.FormatInt(req.Now.Add(-userWindow).Unix()-1, 10))
@@ -67,6 +100,14 @@ func (s *BehaviorStore) Record(ctx context.Context, req Request, cfg appconfig.C
 	pipe.Expire(ctx, keys.IP, ipWindow+behaviorTTLExtra)
 	pipe.Incr(ctx, keys.Duplicate)
 	pipe.Expire(ctx, keys.Duplicate, duplicateWindow)
+	contentRunes := len([]rune(compactText(normalized)))
+	if !nearDuplicate.Disabled && contentRunes >= nearDuplicate.MinContentRunes {
+		member := fmt.Sprintf("%016x:%d:%d", simHash(normalized), contentRunes, req.CommentID)
+		pipe.ZRemRangeByScore(ctx, keys.NearDuplicate, "0",
+			strconv.FormatInt(req.Now.Add(-nearDuplicateWindow).Unix()-1, 10))
+		pipe.ZAdd(ctx, keys.NearDuplicate, redis.Z{Score: nowScore, Member: member})
+		pipe.Expire(ctx, keys.NearDuplicate, nearDuplicateWindow+behaviorTTLExtra)
+	}
 	if _, err := pipe.Exec(ctx); err != nil && s.logger != nil {
 		s.logger.Warn("failed to record comment moderation behavior", zap.Error(err))
 	}
@@ -75,19 +116,25 @@ func (s *BehaviorStore) Record(ctx context.Context, req Request, cfg appconfig.C
 func BehaviorSignals(state BehaviorState, cfg appconfig.CommentModerationConfig) []Signal {
 	signals := make([]Signal, 0, 3)
 	user := userRule(cfg)
-	if state.UserCount+1 >= user.ReviewThreshold {
+	if state.UserEvaluated && state.UserCount+1 >= user.ReviewThreshold {
 		signals = append(signals, behaviorSignal("user_frequency", LevelReview, "user_frequency", cfg))
 	}
 	ip := ipRule(cfg)
-	if state.IPCount+1 >= ip.ReviewThreshold {
+	if state.IPEvaluated && state.IPCount+1 >= ip.ReviewThreshold {
 		signals = append(signals, behaviorSignal("ip_frequency", LevelReview, "ip_frequency", cfg))
 	}
 	duplicate := duplicateRule(cfg)
 	switch observed := state.DuplicateCount + 1; {
+	case !state.DuplicateEvaluated:
 	case duplicate.BlockThreshold > 0 && observed >= duplicate.BlockThreshold:
 		signals = append(signals, behaviorSignal("duplicate_content", LevelBlock, "duplicate_block", cfg))
 	case duplicate.ReviewThreshold > 0 && observed >= duplicate.ReviewThreshold:
 		signals = append(signals, behaviorSignal("duplicate_content", LevelReview, "duplicate_review", cfg))
+	}
+	nearDuplicate := nearDuplicateRule(cfg)
+	if state.NearDuplicateEvaluated && !nearDuplicate.Disabled &&
+		state.NearDuplicateCount+1 >= nearDuplicate.ReviewThreshold {
+		signals = append(signals, behaviorSignal("near_duplicate", LevelReview, "simhash_review", cfg))
 	}
 	return signals
 }
@@ -117,15 +164,67 @@ func (s *BehaviorStore) getCounter(ctx context.Context, key string) (int64, erro
 	return count, err
 }
 
+func (s *BehaviorStore) countNearDuplicates(ctx context.Context, key string, now time.Time,
+	content string, rule appconfig.CommentModerationNearDuplicateConfig) (int64, error) {
+	contentRunes := len([]rune(compactText(content)))
+	if contentRunes < rule.MinContentRunes {
+		return 0, nil
+	}
+	values, err := s.redis.ZRevRangeByScore(ctx, key, &redis.ZRangeBy{
+		Min:    strconv.FormatInt(now.Add(-durationSeconds(rule.WindowSeconds)).Unix(), 10),
+		Max:    "+inf",
+		Offset: 0,
+		Count:  rule.MaxSamples,
+	}).Result()
+	if err != nil {
+		return 0, err
+	}
+
+	return countSimilarFingerprints(values, simHash(content), contentRunes, rule), nil
+}
+
+func countSimilarFingerprints(values []string, fingerprint uint64, contentRunes int,
+	rule appconfig.CommentModerationNearDuplicateConfig) int64 {
+	var count int64
+	for _, value := range values {
+		parts := strings.Split(value, ":")
+		if len(parts) != 3 {
+			continue
+		}
+		previousHash, hashErr := strconv.ParseUint(parts[0], 16, 64)
+		previousLength, lengthErr := strconv.Atoi(parts[1])
+		if hashErr != nil || lengthErr != nil ||
+			!withinLengthDifference(contentRunes, previousLength, rule.MaxLengthDifferencePercent) {
+			continue
+		}
+		if simHashDistance(fingerprint, previousHash) <= rule.MaxHammingDistance {
+			count++
+		}
+	}
+	return count
+}
+
+func withinLengthDifference(left, right, maxPercent int) bool {
+	if left <= 0 || right <= 0 {
+		return false
+	}
+	difference := left - right
+	if difference < 0 {
+		difference = -difference
+	}
+	return difference*100 <= max(left, right)*maxPercent
+}
+
 func BuildBehaviorKeys(userID, articleID uint64, clientIP, normalized string) BehaviorKeys {
 	userHash := ratelimit.HashPart(strconv.FormatUint(userID, 10))
 	articleHash := ratelimit.HashPart(strconv.FormatUint(articleID, 10))
 	ipHash := ratelimit.HashPart(normalizeRateLimitValue(clientIP))
 	contentHash := ratelimit.HashPart(compactText(normalized))
 	return BehaviorKeys{
-		User:      cachekey.CommentModeration("behavior", "user", userHash).String(),
-		IP:        cachekey.CommentModeration("behavior", "ip", ipHash).String(),
-		Duplicate: cachekey.CommentModeration("behavior", "duplicate", userHash, articleHash, contentHash).String(),
+		User:          cachekey.CommentModeration("behavior", "user", userHash).String(),
+		IP:            cachekey.CommentModeration("behavior", "ip", ipHash).String(),
+		Duplicate:     cachekey.CommentModeration("behavior", "duplicate", userHash, articleHash, contentHash).String(),
+		NearDuplicate: cachekey.CommentModeration("behavior", "near_duplicate", userHash, articleHash).String(),
 	}
 }
 
@@ -165,6 +264,29 @@ func duplicateRule(cfg appconfig.CommentModerationConfig) appconfig.CommentModer
 	}
 	if rule.BlockThreshold <= rule.ReviewThreshold {
 		rule.BlockThreshold = defaultDuplicateBlockThreshold
+	}
+	return rule
+}
+
+func nearDuplicateRule(cfg appconfig.CommentModerationConfig) appconfig.CommentModerationNearDuplicateConfig {
+	rule := cfg.BehaviorRules.NearDuplicate
+	if rule.WindowSeconds <= 0 {
+		rule.WindowSeconds = defaultNearDuplicateWindow
+	}
+	if rule.ReviewThreshold <= 0 {
+		rule.ReviewThreshold = defaultNearDuplicateThreshold
+	}
+	if rule.MaxHammingDistance <= 0 {
+		rule.MaxHammingDistance = defaultNearDuplicateDistance
+	}
+	if rule.MinContentRunes <= 0 {
+		rule.MinContentRunes = defaultNearDuplicateMinRunes
+	}
+	if rule.MaxSamples <= 0 {
+		rule.MaxSamples = defaultNearDuplicateMaxSamples
+	}
+	if rule.MaxLengthDifferencePercent <= 0 {
+		rule.MaxLengthDifferencePercent = defaultNearDuplicateLengthDiff
 	}
 	return rule
 }

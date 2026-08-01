@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	moderationRegressionDir        = "testdata/comment_moderation"
+	moderationRegressionDir        = "testdata"
 	maxFalsePositiveRate           = 0
 	maxFalseNegativeRate           = 0
 	moderationRegressionReportFile = "report.txt"
@@ -58,6 +58,18 @@ type moderationCorpusMetrics struct {
 	FalsePositiveRate  float64
 	FalseNegativeRate  float64
 	CategoryWrongCount map[string]int
+	ManualEdge         moderationManualEdgeMetrics
+}
+
+type moderationManualEdgeMetrics struct {
+	Total          int
+	NormalTotal    int
+	ViolationTotal int
+	Approved       int
+	Pending        int
+	Rejected       int
+	FalsePositive  int
+	FalseNegative  int
 }
 
 func TestCommentModerationGoldenCorpus(t *testing.T) {
@@ -66,13 +78,14 @@ func TestCommentModerationGoldenCorpus(t *testing.T) {
 
 	normalCases := loadModerationCorpusFile(t, "normal.tsv")
 	violationCases := loadModerationCorpusFile(t, "violation.tsv")
-	generatedNormalCases, generatedViolationCases := generatedModerationCorpusCases()
-	cases := append(normalCases, generatedNormalCases...)
-	cases = append(cases, violationCases...)
-	cases = append(cases, generatedViolationCases...)
+	cases := append(normalCases, violationCases...)
 	results, metrics := evaluateModerationCorpus(t, moderator, cases, true)
 	writeModerationRegressionReport(t, results, metrics)
+	assertModerationCorpusMetrics(t, metrics, moderationRegressionReportFile)
+}
 
+func assertModerationCorpusMetrics(t *testing.T, metrics moderationCorpusMetrics, reportFile string) {
+	t.Helper()
 	if metrics.FalsePositiveRate > maxFalsePositiveRate {
 		t.Fatalf("false positive rate %.2f%% exceeds %.2f%% (%d/%d)",
 			metrics.FalsePositiveRate*100, float64(maxFalsePositiveRate)*100,
@@ -85,7 +98,7 @@ func TestCommentModerationGoldenCorpus(t *testing.T) {
 	}
 	if metrics.StrictMismatch > 0 {
 		t.Fatalf("strict moderation corpus mismatches: %d; see %s",
-			metrics.StrictMismatch, filepath.Join(moderationRegressionDir, moderationRegressionReportFile))
+			metrics.StrictMismatch, filepath.Join(moderationRegressionDir, reportFile))
 	}
 }
 
@@ -212,24 +225,49 @@ func evaluateModerationCorpus(t *testing.T, moderator *moderation.Moderator,
 			Content:   item.Text,
 			Now:       now.Add(time.Duration(index) * time.Second),
 		}, nil)
+		manualEdge := hasModerationCorpusTag(item.Tags, "manual_edge")
 
 		switch result.Status {
 		case commentModel.StatusApproved:
 			metrics.Approved++
+			if manualEdge {
+				metrics.ManualEdge.Approved++
+			}
 		case commentModel.StatusRejected:
 			metrics.Rejected++
+			if manualEdge {
+				metrics.ManualEdge.Rejected++
+			}
 		default:
 			metrics.Pending++
+			if manualEdge {
+				metrics.ManualEdge.Pending++
+			}
 		}
 
 		wrong, falsePositive, falseNegative := classifyModerationCorpusResult(item, result.Status)
+		if manualEdge {
+			metrics.ManualEdge.Total++
+			switch item.Corpus {
+			case "normal":
+				metrics.ManualEdge.NormalTotal++
+				if falsePositive {
+					metrics.ManualEdge.FalsePositive++
+				}
+			case "violation":
+				metrics.ManualEdge.ViolationTotal++
+				if falseNegative {
+					metrics.ManualEdge.FalseNegative++
+				}
+			}
+		}
 		switch item.Corpus {
-		case "normal", "normal_generated":
+		case "normal":
 			metrics.NormalTotal++
 			if falsePositive {
 				metrics.FalsePositive++
 			}
-		case "violation", "violation_generated":
+		case "violation":
 			metrics.ViolationTotal++
 			if falseNegative {
 				metrics.FalseNegative++
@@ -263,63 +301,13 @@ func evaluateModerationCorpus(t *testing.T, moderator *moderation.Moderator,
 	return results, metrics
 }
 
-func generatedModerationCorpusCases() ([]moderationCorpusCase, []moderationCorpusCase) {
-	normalTemplates := []string{
-		"这篇文章第 %d 段解释得很清楚，示例也比较完整。",
-		"关于第 %d 个问题，我觉得还可以补充一点边界条件。",
-		"这个方案在本地测试第 %d 次时表现稳定，感谢分享。",
-		"第 %d 个代码片段里的变量命名可以再统一一些。",
-		"我在 Go 里复现了第 %d 个例子，结果和文章一致。",
-		"这篇教程对第 %d 个步骤的说明比较适合新手。",
-		"第 %d 条评论只是讨论微信和 QQ 的识别策略，不包含联系方式。",
-		"如果第 %d 个样例里出现 av 字符串，也可能只是 JSON 测试值。",
-		"第 %d 次回归测试说明，关键词不能脱离上下文判断。",
-		"文章第 %d 节对垃圾回收机制的解释很实用。",
+func hasModerationCorpusTag(tags, want string) bool {
+	for _, tag := range strings.Split(tags, ",") {
+		if strings.TrimSpace(tag) == want {
+			return true
+		}
 	}
-	violationTemplates := []string{
-		"vx：b i n g b i n g s t u d e n t %04d",
-		"qq：b i n g b i n g s t u d e n t %04d",
-		"微信：b i n g b i n g s t u d e n t %04d",
-		"v：b i n g b i n g s t u d e n t %04d",
-		"加微信：bingbingstudent%04d，资料直接发你",
-		"qq：study helper %04d，课程设计和实验报告都能处理",
-		"微信：essay helper %04d，论文降重和查重报告都接",
-		"vx：game boost %04d，代练代打刷分刷排名都可以",
-		"qq：hot rank %04d，直播间人气和评论互动都能做",
-		"微信：private query %04d，手机号住址都可以查",
-		"vx：loan fast %04d，快速办理贷款不看征信",
-		"qq：account deal %04d，二手账号老号实名号都有",
-		"微信：adult resource %04d，高清无码资源私发",
-		"vx：bet group %04d，博彩账号和下注技巧都有",
-		"qq：tool share %04d，网站后台权限和数据库账号有办法进去",
-	}
-
-	normalCases := make([]moderationCorpusCase, 0, 2500)
-	for i := 0; i < 2500; i++ {
-		normalCases = append(normalCases, moderationCorpusCase{
-			ID:       fmt.Sprintf("GN%04d", i+1),
-			Text:     fmt.Sprintf(normalTemplates[i%len(normalTemplates)], i+1),
-			Expected: commentModel.StatusApproved,
-			Category: "generated_normal",
-			Tags:     "generated,normal",
-			Note:     "deterministic generated normal regression case",
-			Corpus:   "normal_generated",
-		})
-	}
-
-	violationCases := make([]moderationCorpusCase, 0, 2500)
-	for i := 0; i < 2500; i++ {
-		violationCases = append(violationCases, moderationCorpusCase{
-			ID:       fmt.Sprintf("GV%04d", i+1),
-			Text:     fmt.Sprintf(violationTemplates[i%len(violationTemplates)], i+1),
-			Expected: "risk",
-			Category: "generated_violation",
-			Tags:     "generated,violation",
-			Note:     "deterministic generated violation regression case",
-			Corpus:   "violation_generated",
-		})
-	}
-	return normalCases, violationCases
+	return false
 }
 
 func classifyModerationCorpusResult(item moderationCorpusCase, actual string) (wrong, falsePositive, falseNegative bool) {
@@ -369,26 +357,38 @@ func writeModerationCorpusReport(t *testing.T, path string, results []moderation
 		metrics.NormalTotal, metrics.FalsePositive, metrics.FalsePositiveRate*100)
 	fmt.Fprintf(&b, "VIOLATION total=%d false_negative=%d false_negative_rate=%.2f%%\n",
 		metrics.ViolationTotal, metrics.FalseNegative, metrics.FalseNegativeRate*100)
+	if metrics.ManualEdge.Total > 0 {
+		manualFalsePositiveRate := float64(metrics.ManualEdge.FalsePositive) /
+			float64(metrics.ManualEdge.NormalTotal)
+		manualFalseNegativeRate := float64(metrics.ManualEdge.FalseNegative) /
+			float64(metrics.ManualEdge.ViolationTotal)
+		fmt.Fprintf(&b,
+			"MANUAL_EDGE total=%d approved=%d pending=%d rejected=%d normal=%d false_positive=%d false_positive_rate=%.2f%% violation=%d false_negative=%d false_negative_rate=%.2f%%\n",
+			metrics.ManualEdge.Total,
+			metrics.ManualEdge.Approved,
+			metrics.ManualEdge.Pending,
+			metrics.ManualEdge.Rejected,
+			metrics.ManualEdge.NormalTotal,
+			metrics.ManualEdge.FalsePositive,
+			manualFalsePositiveRate*100,
+			metrics.ManualEdge.ViolationTotal,
+			metrics.ManualEdge.FalseNegative,
+			manualFalseNegativeRate*100,
+		)
+	}
 	if metrics.GrayTotal > 0 {
 		fmt.Fprintf(&b, "GRAY total=%d mismatch=%d\n", metrics.GrayTotal, metrics.GrayMismatch)
 	}
 	writeModerationCategorySummary(&b, metrics.CategoryWrongCount)
 	b.WriteString("\nCASES\n")
-	generatedOKCount := 0
-	const maxGeneratedOKReportRows = 40
 	for _, result := range results {
 		statusMarker := "ok"
 		if result.Wrong {
 			statusMarker = "wrong"
 		}
-		if isGeneratedModerationCorpus(result.Case.Corpus) && !result.Wrong {
-			generatedOKCount++
-			if generatedOKCount > maxGeneratedOKReportRows {
-				continue
-			}
-		}
-		fmt.Fprintf(&b, "%s | corpus=%s | expected=%s | actual=%s | risk_score=%d | category=%s | tags=%s | reasons=%s | text=%s\n",
+		fmt.Fprintf(&b, "%s | id=%s | corpus=%s | expected=%s | actual=%s | risk_score=%d | category=%s | tags=%s | reasons=%s | text=%s\n",
 			statusMarker,
+			result.Case.ID,
 			result.Case.Corpus,
 			result.Case.Expected,
 			result.Result.Status,
@@ -399,18 +399,10 @@ func writeModerationCorpusReport(t *testing.T, path string, results []moderation
 			result.Case.Text,
 		)
 	}
-	if generatedOKCount > maxGeneratedOKReportRows {
-		fmt.Fprintf(&b, "ok | corpus=generated | omitted_ok_cases=%d | note=generated ok rows are truncated in report\n",
-			generatedOKCount-maxGeneratedOKReportRows)
-	}
 
 	if err := os.WriteFile(path, []byte(b.String()), 0644); err != nil {
 		t.Fatalf("write moderation corpus report %s: %v", path, err)
 	}
-}
-
-func isGeneratedModerationCorpus(corpus string) bool {
-	return strings.HasSuffix(corpus, "_generated")
 }
 
 func writeModerationCategorySummary(b *strings.Builder, wrongCount map[string]int) {

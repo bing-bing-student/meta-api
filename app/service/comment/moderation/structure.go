@@ -12,29 +12,24 @@ var (
 	scriptRegexp           = regexp.MustCompile(`(?i)(<\s*script\b|javascript\s*:)`)
 	phoneRegexp            = regexp.MustCompile(`\b1[3-9]\d{9}\b`)
 	domainRegexp           = regexp.MustCompile(`(?i)(https?\s*:\s*/\s*/|www\s*\.|[\p{Han}a-z0-9][\p{Han}a-z0-9._-]*\s*\.\s*(com|cn|net|org|top|xyz|shop|vip|cc|io|me)\b)`)
+	obfuscatedDomainRegexp = regexp.MustCompile(`(?i)(hxxps?\s*:\s*/\s*/|[a-z0-9-]+\s*(点|\[\s*\.\s*\])\s*(com|cn|net|org|top|xyz|shop|vip|cc|io|me)\b)`)
 	accountRegexp          = regexp.MustCompile(`(?i)(加|群|qq|vx|v信|微信|筘|扣|抠|薇|威|扫码|二维码|企鹅群)[^\n]{0,12}\d[\d\s]{4,}|(\b(v|vx|qq)\b|微信|微信号|v信)\s*[:：]\s*[a-z0-9_-]{4,}|(\b(v|vx|qq)\b|微信|微信号|v信)\s*[:：]\s*(?:[a-z0-9][\s_-]*){4,}`)
 	contactIntentRegexp    = regexp.MustCompile(`(?i)(加\s*(微信|vx|v信|qq|群|好友|筘|扣|抠|薇|威)|v我|联系\s*我|私信|进群|扫码|二维码|绿泡泡|绿信|微信号|账号写图片|联系方式)`)
 	emailObfuscationRegexp = regexp.MustCompile(`(?i)\b[a-z0-9._%+-]+\s+at\s+[a-z0-9.-]+\s+dot\s+[a-z]{2,}\b`)
-	riskPhraseRegexp       = regexp.MustCompile(`(?i)(政治敏感|打倒|灭亡|现有制度|统一发帖|集中刷屏|评论区集合|色情资源|成人交友|成人资料|特殊陪聊|同城特殊安排|激情聊天|留微信|微信号|威信|v信|vx\s*联系|广告|推广|返现|兼职赚钱|贷款|刷好评|刷屏推广|投注平台|赌博平台|赌博赚钱|稳赚|中奖|手续费|虚假投资|虚假理财|高收益|保本|骗子项目|彩票网站|虚拟币骗局|诈骗|黑客攻击|破解软件|激活码|揍到服|教训某人|教训那个人|现场集合|砸店|砸东西|砍人|威胁证人|报复社会|境外组织资料|月包服务|骗到钱|拜金炫富|普通人不配|极端享乐|嘲笑|嘲讽|活该|歧视|逃学赚钱|攀比借贷|低俗审丑|仇富仇贫)`)
 )
 
 func structureSignals(text NormalizedComment, cfg appconfig.CommentModerationConfig) []Signal {
 	signals := make([]Signal, 0, 4)
-	if scriptRegexp.MatchString(text.Normalized) {
+	if hasRiskyScriptClause(text, cfg) {
 		signals = append(signals, newStructureSignal("script_injection", "script", cfg))
 	}
-	if domainRegexp.MatchString(text.Normalized) {
+	if hasRiskyURLClause(text, cfg) {
 		signals = append(signals, newStructureSignal("url", "url", cfg))
 	}
-	if phoneRegexp.MatchString(text.Normalized) || accountRegexp.MatchString(text.Normalized) ||
-		contactIntentRegexp.MatchString(text.Normalized) ||
-		emailObfuscationRegexp.MatchString(text.Normalized) ||
-		len(matchContactShapes(text.Normalized)) > 0 {
-		if !isNegatedContactMention(text.Normalized) && !isBenignContactMention(text.Normalized) {
-			signals = append(signals, newStructureSignal("contact", "contact", cfg))
-		}
+	if hasRiskyContactClause(text, cfg) {
+		signals = append(signals, newStructureSignal("contact", "contact", cfg))
 	}
-	if riskPhraseRegexp.MatchString(text.Normalized) {
+	if matchesRiskPhrase(text, cfg) {
 		signals = append(signals, newStructureSignal("risk_phrase", "risk_phrase", cfg))
 	}
 	for _, decoded := range text.DecodedTexts {
@@ -46,18 +41,95 @@ func structureSignals(text NormalizedComment, cfg appconfig.CommentModerationCon
 	return signals
 }
 
+func matchesRiskPhrase(text NormalizedComment, cfg appconfig.CommentModerationConfig) bool {
+	return containsAnyNormalized(text.Compact, cfg.StructurePatterns.RiskPhrases) ||
+		matchesAnySemanticPattern(text.Normalized, cfg.StructurePatterns.RiskPatterns)
+}
+
+func hasRiskyScriptClause(text NormalizedComment, cfg appconfig.CommentModerationConfig) bool {
+	for _, clause := range semanticClauses(text) {
+		if scriptRegexp.MatchString(clause.Normalized) && !isBenignSemanticClause(clause, cfg) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasRiskyURLClause(text NormalizedComment, cfg appconfig.CommentModerationConfig) bool {
+	if (domainRegexp.MatchString(text.Normalized) ||
+		obfuscatedDomainRegexp.MatchString(text.Normalized)) &&
+		!allSemanticClausesBenign(text, cfg) {
+		return true
+	}
+	for _, clause := range semanticClauses(text) {
+		if !domainRegexp.MatchString(clause.Normalized) &&
+			!obfuscatedDomainRegexp.MatchString(clause.Normalized) {
+			continue
+		}
+		if !isBenignSemanticClause(clause, cfg) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasRiskyContactClause(text NormalizedComment, cfg appconfig.CommentModerationConfig) bool {
+	fullMatch := phoneRegexp.MatchString(text.Normalized) ||
+		accountRegexp.MatchString(text.Normalized) ||
+		contactIntentRegexp.MatchString(text.Normalized) ||
+		emailObfuscationRegexp.MatchString(text.Normalized) ||
+		len(matchContactShapes(text.Normalized)) > 0
+	if fullMatch && !allSemanticClausesBenign(text, cfg) {
+		return true
+	}
+	for _, clause := range semanticClauses(text) {
+		value := clause.Normalized
+		matched := phoneRegexp.MatchString(value) ||
+			accountRegexp.MatchString(value) ||
+			contactIntentRegexp.MatchString(value) ||
+			emailObfuscationRegexp.MatchString(value) ||
+			len(matchContactShapes(value)) > 0
+		if matched && !isNegatedContactMention(value) &&
+			!isBenignContactMention(value) &&
+			!isBenignSemanticClause(clause, cfg) {
+			return true
+		}
+	}
+	return false
+}
+
+func allSemanticClausesBenign(text NormalizedComment, cfg appconfig.CommentModerationConfig) bool {
+	clauses := semanticClauses(text)
+	if len(clauses) == 0 {
+		return false
+	}
+	for _, clause := range clauses {
+		if !isBenignSemanticClause(clause, cfg) {
+			return false
+		}
+	}
+	return true
+}
+
 func isNegatedContactMention(value string) bool {
-	return strings.Contains(value, "不包含联系方式") ||
+	if strings.Contains(value, "不包含联系方式") ||
 		strings.Contains(value, "没有联系方式") ||
 		strings.Contains(value, "不留联系方式") ||
-		strings.Contains(value, "无需联系方式")
+		strings.Contains(value, "无需联系方式") {
+		return true
+	}
+	return containsAnyString(value, []string{"不需要", "无需", "不要", "不应", "禁止", "别把"}) &&
+		contactIntentRegexp.MatchString(value)
 }
 
 func isBenignContactMention(value string) bool {
 	return strings.Contains(value, "联系方式识别测试") ||
 		strings.Contains(value, "联系方式测试") ||
 		(strings.Contains(value, "不要把") && strings.Contains(value, "当成违规")) ||
-		(strings.Contains(value, "正常讨论") && strings.Contains(value, "误杀"))
+		(strings.Contains(value, "别把") && strings.Contains(value, "判违规")) ||
+		(strings.Contains(value, "正常讨论") && strings.Contains(value, "误杀")) ||
+		(containsAnyString(value, []string{"测试数据", "测试号码", "示例账号", "正则", "反垃圾样本"}) &&
+			containsAnyString(value, []string{"微信", "账号", "手机号", "号码", "邮件", " at "}))
 }
 
 func newStructureSignal(ruleID, evidence string, cfg appconfig.CommentModerationConfig) Signal {
@@ -194,7 +266,6 @@ func containsAnyCompact(views []string, values []string) []string {
 	seen := make(map[string]struct{})
 	for _, view := range views {
 		for _, value := range values {
-			value = compactText(normalizeText(value))
 			if value == "" || !strings.Contains(view, value) {
 				continue
 			}

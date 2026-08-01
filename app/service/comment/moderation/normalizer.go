@@ -6,6 +6,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"golang.org/x/text/unicode/norm"
 )
 
 var urlShapeRegexp = regexp.MustCompile(`(?i)(https?\s*:\s*/\s*/|www\s*\.|[a-z0-9][a-z0-9._-]*\s*\.\s*(com|cn|net|org|top|xyz|shop|vip|cc|io|me)\b)`)
@@ -17,13 +19,14 @@ func Normalize(raw string) NormalizedComment {
 		Raw:          raw,
 		Normalized:   normalized,
 		Compact:      compact,
+		Confusable:   confusableSkeleton(compact),
 		PinyinFolded: foldMixedPinyin(compact),
 		DecodedTexts: decodedURLTexts(raw),
 	}
 }
 
 func normalizeText(value string) string {
-	value = strings.ToLower(value)
+	value = norm.NFKC.String(strings.ToLower(value))
 	var builder strings.Builder
 	builder.Grow(len(value))
 	lastSpace := false
@@ -50,7 +53,7 @@ func normalizeText(value string) string {
 		builder.WriteRune(unicode.ToLower(r))
 		lastSpace = false
 	}
-	normalized := normalizeRiskEmoji(strings.TrimSpace(builder.String()))
+	normalized := normalizeRiskVariants(normalizeRiskEmoji(strings.TrimSpace(builder.String())))
 	return normalizeChineseDigitsInNumericRuns(normalized)
 }
 
@@ -62,6 +65,44 @@ func normalizeRiskEmoji(value string) string {
 		"🐮", "牛",
 		"🍺", "逼",
 		"🈚", "无",
+	)
+	return replacer.Replace(value)
+}
+
+func normalizeRiskVariants(value string) string {
+	replacer := strings.NewReplacer(
+		"價", "价",
+		"岀", "出",
+		"賣", "卖",
+		"買", "买",
+		"會員", "会员",
+		"帳號", "账号",
+		"賬號", "账号",
+		"號", "号",
+		"資源", "资源",
+		"聯繫", "联系",
+		"貸款", "贷款",
+		"論文", "论文",
+		"論", "论",
+		"代寫", "代写",
+		"寫", "写",
+		"賭博", "赌博",
+		"專區", "专区",
+		"內部", "内部",
+		"穩賺", "稳赚",
+		"低伽", "低价",
+		"出兽", "出售",
+		"高級", "高级",
+		"會圓", "会员",
+		"帳戸", "账号",
+		"薇訫", "微信",
+		"作業", "作业",
+		"保證", "保证",
+		"詳情", "详情",
+		"訫", "信",
+		"х", "x",
+		"а", "a",
+		"о", "o",
 	)
 	return replacer.Replace(value)
 }

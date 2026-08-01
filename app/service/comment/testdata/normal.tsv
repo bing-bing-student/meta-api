@@ -1,0 +1,321 @@
+id	text	expected	category	tags	note
+N001	这篇文章讨论“赌博平台”这个词为什么不能只靠关键词判断，反诈骗场景很容易误伤。	approved	meta_discussion	keyword,anti_fraud	false positive regression for keyword discussion
+N002	垃圾回收这一段讲得很清楚，尤其是 STW 的解释。	approved	tech	gc,technical_term	technical term should not match abuse
+N003	初来乍到，今天献丑了，有说错的地方欢迎指出。	approved	self_deprecating	benign_context	benign self-deprecating expression
+N004	“骗子”这个词在消费评价里使用要谨慎，最好说明具体事实。	approved	meta_discussion	abuse,quote	discussing wording instead of accusing
+N005	盗版课程这个话题其实很值得讨论，支持正版才是长期方案。	approved	meta_discussion	copyright,support正版	anti-piracy discussion
+N006	如果评论里只是引用“私密资源”这个词做安全测试，不一定代表用户在传播。	approved	security_test	quote,resource	explicit safety test context
+N007	这篇文章提到成人内容审核策略，是在做风控系统设计分析。	approved	moderation_design	sexual,policy	content safety design discussion
+N008	不要把“加好友”三个字本身当成违规，关键要看是不是引流。	approved	moderation_design	contact,false_positive	contact keyword discussion
+N009	这段代码的变量名叫 scamDetector，不代表评论内容是在诈骗。	approved	tech	english,false_positive	technical identifier contains risk word
+N010	Java 里的 av 字符串不应该被当成色情词。	approved	tech	short_ascii	false positive regression for embedded av
+N011	我们在做联系方式识别测试，样本文本里会出现“微信”和“QQ”。	approved	security_test	contact,test	contact detection test context
+N012	这个案例说明“手机号查询”相关内容应该被严格限制。	approved	privacy_education	privacy,case	privacy risk education
+N013	“无码资源”这类词出现在安全测试文档里时，不一定代表评论违规。	approved	security_test	sexual,quote	explicit safety test context
+N014	作者说自己写得像垃圾，其实是在自嘲，不是在攻击别人。	approved	self_deprecating	abuse,quote	self-deprecating context
+N015	这篇文章分析刷量产业链，是为了提醒大家不要参与。	approved	anti_fraud	spam_fraud,education	anti-spam education
+N016	讨论代写论文的危害，本身不应该被当成推广代写。	approved	education	academic_integrity	anti-cheating discussion
+N017	反诈骗文章里出现“保证收益”是为了举例说明骗局话术。	approved	anti_fraud	investment,quote	scam phrase as example
+N018	这里说的“开房记录”是隐私保护案例，不是提供查询服务。	approved	privacy_education	privacy,case	privacy protection case
+N019	“低价出售账号”这句话是违规样例，不是我的真实需求。	approved	moderation_design	spam_fraud,sample	violation sample discussion
+N020	文章里提到约炮、裸聊，是在说明内容安全系统的命中规则。	approved	moderation_design	sexual,policy	content safety rule discussion
+N021	不要因为出现“赌博”两个字就直接拒绝，语境很重要。	approved	moderation_design	gambling,false_positive	context matters discussion
+N022	这条评论只是复现误判：成人网站、博彩、贷款这些词都在测试语料里。	approved	security_test	mixed,test	false positive reproduction
+N023	我觉得“献丑”在这里是谦虚表达，不是攻击作者。	approved	meta_discussion	abuse,quote	benign phrase explanation
+N024	这篇文章介绍如何识别虚假投资广告，例子里会出现“稳赚不赔”。	approved	anti_fraud	investment,quote	scam phrase as example
+N025	风控系统需要识别“加群领取资料”这种引流模式，但正常讨论不能误杀。	approved	moderation_design	contact,spam_fraud	false positive regression for contact phrase
+N026	根本没干过开发吧，一看就是CV工程师	approved	tech_criticism	sharp_criticism,mild_mockery	sharp technical criticism without explicit abuse should pass
+N027	"{""test"": ""av""}"	approved	code_snippet	json,short_ascii	false positive regression for short ascii word in json value
+N028	"{""test"": ""av""} 我来试试这个JSON"	approved	code_snippet	json,test	false positive regression for json test snippet
+N029	"{""test"": ""av""} 我来测试一下"	approved	code_snippet	json,test	false positive regression for json test snippet with test context
+N030	看完你这篇我算是知道什么叫不懂还硬讲了	approved	tech_criticism	sharp_criticism	harsh but content-focused technical criticism should pass
+N031	你这不是分享经验，是拿错误结论坑后来的人	approved	tech_criticism	content_criticism	criticism of conclusion quality without explicit abuse should pass
+N032	这种人最喜欢把自己踩过的坑包装成“经验”，真够离谱的	approved	tech_criticism	sarcasm,content_criticism	sarcastic criticism without explicit abuse should pass
+N033	这教程看着挺专业，实际上全是拼凑出来的水货	approved	tech_criticism	content_criticism	criticism of tutorial quality should pass
+N034	这篇文章是在分析“稳赚不赔”为什么是典型诈骗话术，大家千万不要相信。	approved	anti_fraud	manual_edge,false_positive	反诈语境包含赌博拦截词
+N035	公司安全培训拿“成人网站会员”作为违规样例，并不代表我们要购买。	approved	moderation_design	manual_edge,false_positive	引用强拦截词
+N036	医学课程讨论未成年人隐私保护，重点是禁止泄露学生照片。	approved	education	manual_edge,false_positive	未成年人和隐私的保护语境
+N037	警方通报提醒市民不要参加所谓投资群，也不要相信保证收益。	approved	anti_fraud	manual_edge,false_positive	官方反诈转述
+N038	文章对“论文代写”的产业链做了批判，支持学术诚信。	approved	education	manual_edge,false_positive	反对学术作弊
+N039	别把“加好友”本身都判违规，正常技术交流也会使用这个表达。	approved	moderation_design	manual_edge,false_positive	讨论联系方式规则
+N040	这个正则应该识别微信号，但示例账号 test_user_2026 只是测试数据。	approved	technical	manual_edge,false_positive	虚构联系方式测试
+N041	Redis 的主从切换失败并不代表数据一定丢失，要结合日志判断。	approved	technical	manual_edge,false_positive	失败一词的技术语境
+N042	Go 的垃圾回收不是“垃圾内容”，这里讲的是 GC 调优。	approved	technical	manual_edge,false_positive	垃圾的技术含义
+N043	这个 kill 命令只是终止本地测试进程，不是在威胁任何人。	approved	technical	manual_edge,false_positive	暴力英文词的技术语境
+N044	数据库死锁排查部分写得很好，建议再补一个事务回滚案例。	approved	technical	manual_edge,false_positive	死锁技术术语
+N045	防火墙规则会阻断攻击流量，这里的“攻击”是网络安全概念。	approved	technical	manual_edge,false_positive	攻击的安全防御语境
+N046	文章引用“砸店报复”作为违法案例，结论是遇事应当报警。	approved	legal_education	manual_edge,false_positive	暴力案例的反对语境
+N047	急救培训展示伤口图片前应该充分提示，并进行必要打码。	approved	medical	manual_edge,false_positive	医疗场景中的伤口图片
+N048	事故现场视频不应随意传播，这既伤害家属也可能侵犯隐私。	approved	media_ethics	manual_edge,false_positive	反对传播血腥内容
+N049	讨论政治口号的传播机制属于学术研究，不等于号召大家转发。	approved	academic	manual_edge,false_positive	政治学术语境
+N050	文章比较了美国和中国的软件产业，但没有任何政治动员内容。	approved	normal_discussion	manual_edge,false_positive	国家名称正常讨论
+N051	政府公开数据接口的分页设计很合理，示例也容易理解。	approved	technical	manual_edge,false_positive	公共机构正常讨论
+N052	学生可以在老师指导下完成课程设计，不应该找人代做。	approved	education	manual_edge,false_positive	反对代做
+N053	家长不应要求小孩公开联系方式，保护隐私比流量更重要。	approved	child_safety	manual_edge,false_positive	儿童保护语境
+N054	这篇反诈骗文章列出了“快速办理贷款”的诱导方式，提醒很及时。	approved	anti_fraud	manual_edge,false_positive	贷款骗局引用
+N055	建议平台严查刷评论和刷赞服务，虚假互动会破坏社区。	approved	platform_governance	manual_edge,false_positive	反对刷量
+N056	支持正版课程，所谓内部教程和盗版资源最终都会伤害作者。	approved	copyright	manual_edge,false_positive	反盗版语境
+N057	这里的账号是数据库账号，不是拿来出售的平台会员账号。	approved	technical	manual_edge,false_positive	账号的技术含义
+N058	测试用例名叫 gamblingDetector，不代表代码在推广赌博。	approved	technical	manual_edge,false_positive	英文标识符
+N059	变量 adultContentPolicy 表示内容安全策略，请不要按单词直接误判。	approved	technical	manual_edge,false_positive	英文标识符
+N060	文章附件能否提供完整源码？我只需要本项目的开源示例。	approved	normal_request	manual_edge,false_positive	合法资源请求
+N061	能否把资料放在文章附件，而不是让读者去其他平台领取？	approved	normal_request	manual_edge,false_positive	资料与领取的正常语境
+N062	我不需要加群，也不需要私信，直接在评论区解释即可。	approved	negated_contact	manual_edge,false_positive	明确否定联系方式
+N063	无需联系方式，公开回复解决方案对其他读者更有帮助。	approved	negated_contact	manual_edge,false_positive	明确否定联系方式
+N064	我的手机号校验正则为什么匹配不到 13800138000 这个测试号码？	approved	technical	manual_edge,false_positive	虚构测试手机号
+N065	文档地址是 https://go.dev/doc/，这是官方技术资料。	approved	technical_link	manual_edge,false_positive	正常技术链接
+N066	示例域名 example.com 仅用于文档，不是广告或引流链接。	approved	technical_link	manual_edge,false_positive	保留域名示例
+N067	邮件解析器需要支持 user at example dot com 这种反垃圾样本。	approved	technical	manual_edge,false_positive	混淆邮箱测试
+N068	JSON 里的字段名叫 privateResourceEnabled，只是布尔配置。	approved	code_snippet	manual_edge,false_positive	风险词出现在代码标识符
+N069	配置项 reject_score=80 表示审核阈值，不是考试答案。	approved	technical	manual_edge,false_positive	数字及审核术语
+N070	版本号 2026.07.31 看起来没问题，建议补充变更日志。	approved	technical	manual_edge,false_positive	数字型正常评论
+N071	哈哈哈哈，这个并发问题我也踩过，修复方式很实用。	approved	normal_expression	manual_edge,false_positive	重复字符但有完整语义
+N072	作者说“我真菜”明显是在自嘲，不是在辱骂其他用户。	approved	self_deprecating	manual_edge,false_positive	自嘲语境
+N073	“胡说八道”作为语言学样本出现时，不应直接认定用户在攻击作者。	approved	meta_discussion	manual_edge,false_positive	辱骂词引用
+N074	这段结论有明显错误，但建议针对代码讨论，不要攻击作者本人。	approved	constructive_criticism	manual_edge,false_positive	负面评价但不辱骂
+N075	我不同意这个实现，性能测试数据不足，建议重新验证。	approved	constructive_criticism	manual_edge,false_positive	正常技术批评
+N076	所谓“骗子项目”是文章举出的反面案例，作者并未进行推广。	approved	anti_fraud	manual_edge,false_positive	风险短语引用
+N077	如果有人发布成人资源链接，审核系统应该直接拦截。	approved	moderation_design	manual_edge,false_positive	条件句审核讨论
+N078	如果有人私信出售账号，应当举报，而不是与其交易。	approved	moderation_design	manual_edge,false_positive	条件句反对交易
+N079	看到有人说可以查开房记录，请不要相信并及时向平台举报。	approved	privacy_safety	manual_edge,false_positive	举报非法隐私服务
+N080	未成年人深夜聊天的安全风险值得讨论，重点是加强监护。	approved	child_safety	manual_edge,false_positive	风险教育
+N081	网络攻击工具的检测规则需要覆盖混淆字符，这是防御研究。	approved	security_research	manual_edge,false_positive	安全研究
+N082	这条只是审核测试：低价账号、内部资料、稳赚不赔均为违规样例。	approved	moderation_design	manual_edge,false_positive	多个风险词的显式测试
+N083	评论中出现“举报”可能是在维护社区秩序，不能一概视为恶意。	approved	platform_governance	manual_edge,false_positive	举报的正常语境
+N084	新闻报道引用了“稳赚不赔、内部渠道”等诈骗话术，目的是提醒读者识别骗局。	approved	quoted_risk	manual_arch_v2,quote,anti_fraud	新闻引用诈骗话术
+N085	判决书中记录被告曾发布“低价出售账号”的广告，这不是评论者在交易。	approved	quoted_risk	manual_arch_v2,quote,legal	司法材料引用交易广告
+N086	论文把“代写包过”作为研究对象，分析其对学术诚信的破坏。	approved	quoted_risk	manual_arch_v2,quote,academic	研究论文引用代写
+N087	培训材料展示“加微信返钱”这一典型诱导句，要求员工遇到后立即上报。	approved	quoted_risk	manual_arch_v2,quote,training	培训材料引用引流
+N088	文章引用攻击者的话“把后台地址给我”，随后解释为什么绝不能照做。	approved	quoted_risk	manual_arch_v2,quote,security	安全文章引用攻击话术
+N089	纪录片字幕出现“盘口提前知道”，上下文是在揭露非法赌球团伙。	approved	quoted_risk	manual_arch_v2,quote,documentary	纪录片引用赌博话术
+N090	客服规范将“私信领取完整版”列为禁止发送的营销内容。	approved	quoted_risk	manual_arch_v2,quote,policy	规范引用营销话术
+N091	反诈课堂让学生辨认“无需征信当天放款”为什么不可信。	approved	quoted_risk	manual_arch_v2,quote,education	课堂引用贷款诈骗
+N092	这段审核日志里的“高清无码资源”只是被命中的证据字段。	approved	quoted_risk	manual_arch_v2,quote,log	审核日志包含违规证据
+N093	研究报告统计了“刷赞、刷评论、真人互动”等黑产关键词的出现频率。	approved	quoted_risk	manual_arch_v2,quote,research	研究报告引用黑产词
+N094	我不想加任何群，也不会通过私信接收所谓资料。	approved	negation_scope	manual_arch_v2,negation,contact	明确拒绝私域引流
+N095	请勿购买共享账号，官方订阅才有稳定的安全保障。	approved	negation_scope	manual_arch_v2,negation,account	劝阻账号交易
+N096	不要把身份证照片发给陌生人，更不能让对方查询住址。	approved	negation_scope	manual_arch_v2,negation,privacy	隐私安全劝阻
+N097	我没有出售课程答案，只是在说明这类广告为什么违规。	approved	negation_scope	manual_arch_v2,negation,academic	否认出售答案
+N098	这个帖子不是在推荐贷款，而是在比较正规银行的利率。	approved	negation_scope	manual_arch_v2,negation,finance	否认贷款推广
+N099	拒绝代写，从自己完成实验报告开始培养研究能力。	approved	negation_scope	manual_arch_v2,negation,academic	拒绝学术作弊
+N100	别去所谓的内部群，也别相信固定回报的承诺。	approved	negation_scope	manual_arch_v2,negation,fraud	连续否定诈骗话术
+N101	任何人都不应传播未成年人的照片和联系方式。	approved	negation_scope	manual_arch_v2,negation,minor	未成年人隐私保护
+N102	平台禁止用小号反复举报他人，这种骚扰应当受到处理。	approved	negation_scope	manual_arch_v2,negation,governance	禁止举报骚扰
+N103	不要扫描来源不明的二维码，尤其不要输入账号口令。	approved	negation_scope	manual_arch_v2,negation,security	二维码安全提醒
+N104	变量名 gamblingAccount 只是测试结构体字段，不代表存在博彩账户。	approved	technical_context	manual_arch_v2,code,identifier	代码标识符包含赌博词
+N105	示例函数叫 sellAccountForTest，用来验证账号交易检测器。	approved	technical_context	manual_arch_v2,code,test	测试函数名包含交易词
+N106	数据库字段 contact_phone 存储客服电话，迁移时不能遗漏。	approved	technical_context	manual_arch_v2,database,contact	数据库字段含手机号概念
+N107	日志中的 user@example.org 是 RFC 文档使用的保留示例地址。	approved	technical_context	manual_arch_v2,email,documentation	标准文档示例邮箱
+N108	单元测试用 13900000000 验证手机号脱敏结果是否正确。	approved	technical_context	manual_arch_v2,phone,test	测试手机号
+N109	安全扫描器需要识别 javascript: 伪协议，但这里没有执行任何脚本。	approved	technical_context	manual_arch_v2,security,code	讨论脚本注入特征
+N110	配置中的 adult_content_score 是内容分类字段，不是成人资源推广。	approved	technical_context	manual_arch_v2,config,identifier	配置字段包含成人词
+N111	正则 hxxps?:// 用于匹配混淆链接，是防御代码的一部分。	approved	technical_context	manual_arch_v2,regex,url	正则包含混淆 URL
+N112	接口返回字段 loan_status 表示借款审批状态，和广告无关。	approved	technical_context	manual_arch_v2,api,finance	接口字段包含贷款词
+N113	测试夹具里的 qq_account 为空，目的是覆盖缺少联系方式的分支。	approved	technical_context	manual_arch_v2,test,contact	测试夹具包含 QQ 字段
+N114	急诊教材展示创伤照片时必须获得授权并做好遮挡。	approved	professional_context	manual_arch_v2,medical,education	医学教材讨论创伤照片
+N115	医生提醒不要自行购买处方药，应到正规医院评估。	approved	professional_context	manual_arch_v2,medical,safety	正规医疗提醒
+N116	警方通报披露了赌博网站的侦破过程，没有提供访问入口。	approved	professional_context	manual_arch_v2,news,gambling	警方通报赌博案件
+N117	记者调查账号买卖黑产，是为了揭示实名信息泄露风险。	approved	professional_context	manual_arch_v2,news,account	调查报道账号黑产
+N118	儿童保护课程讨论诱骗者如何索要私密照片，重点是预防。	approved	professional_context	manual_arch_v2,child_safety,education	儿童保护教育
+N119	网络安全演练模拟后台越权访问，所有操作都在隔离环境完成。	approved	professional_context	manual_arch_v2,security,simulation	授权安全演练
+N120	经济学课程分析高收益骗局为何利用了人们的损失厌恶。	approved	professional_context	manual_arch_v2,education,fraud	经济课程分析骗局
+N121	平台治理报告介绍了刷量团伙的常见模式和处置数量。	approved	professional_context	manual_arch_v2,governance,spam	治理报告介绍刷量
+N122	媒体伦理课要求事故视频发布前隐藏受害者身份。	approved	professional_context	manual_arch_v2,media,privacy	媒体伦理教育
+N123	论文研究网络辱骂对青少年心理健康的影响，并倡导友善表达。	approved	professional_context	manual_arch_v2,research,abuse	研究网络辱骂危害
+N124	Go 官方包文档在 https://pkg.go.dev 可以直接查询。	approved	benign_reference	manual_arch_v2,url,documentation	官方技术链接
+N125	项目仓库是 https://github.com/example/demo，仅用于复现代码问题。	approved	benign_reference	manual_arch_v2,url,repository	代码仓库链接
+N126	请把问题写在公开评论区，不要加我的微信或私聊。	approved	benign_reference	manual_arch_v2,contact,negation	拒绝私聊
+N127	公司客服号码 400-000-0000 已经公布在官网帮助中心。	approved	benign_reference	manual_arch_v2,phone,official	公开客服电话
+N128	邮箱 security@example.com 用于接收漏洞报告，不接受商业推广。	approved	benign_reference	manual_arch_v2,email,security	安全联系邮箱
+N129	文档示例写作 alice at example dot org，用来讲解邮件混淆识别。	approved	benign_reference	manual_arch_v2,email,documentation	混淆邮箱示例
+N130	微信群只是文章里的产品功能名，这里没有群号或邀请方式。	approved	benign_reference	manual_arch_v2,contact,product	无实际联系方式
+N131	二维码登录是桌面端的正常认证流程，不是引流入口。	approved	benign_reference	manual_arch_v2,qrcode,login	正常二维码登录
+N132	域名 example点com 是教学占位符，不应被当作真实广告地址。	approved	benign_reference	manual_arch_v2,url,example	混淆域名教学示例
+N133	手机号 13800138000 出现在脱敏教程中，输出应为 138****8000。	approved	benign_reference	manual_arch_v2,phone,privacy	脱敏教程测试号码
+N134	前一段介绍数据库账号权限。下一段讨论商品出售流程，两者没有关联。	approved	cross_sentence	manual_arch_v2,discourse,account	跨句无关主体谓词
+N135	文章先解释课程设计要求，最后提到禁止代做服务。	approved	cross_sentence	manual_arch_v2,discourse,academic	跨句教育与否定
+N136	这里说直播间需要互动设计；另一个案例批评刷评论黑产。	approved	cross_sentence	manual_arch_v2,discourse,engagement	跨句正常产品与黑产批评
+N137	我正在申请正规贷款。文章下一节提醒不要相信当天放款广告。	approved	cross_sentence	manual_arch_v2,discourse,finance	正规贷款与反诈提醒
+N138	事故发生在现场。视频课程随后讲解如何保护伤者隐私。	approved	cross_sentence	manual_arch_v2,discourse,medical	跨句事故与课程
+N139	学生完成了论文。老师在课堂上批评网上的包过宣传。	approved	cross_sentence	manual_arch_v2,discourse,academic	跨句正常论文与批评
+N140	账号权限需要管理员审批。出售会员资格属于另一个违规案例。	approved	cross_sentence	manual_arch_v2,discourse,account	跨句账号与违规案例
+N141	帖子介绍排名算法。结尾建议严查代练刷分。	approved	cross_sentence	manual_arch_v2,discourse,game	跨句算法与治理
+N142	家长讨论孩子深夜聊天的作息问题，并强调不能泄露隐私。	approved	cross_sentence	manual_arch_v2,discourse,minor	正常家庭讨论
+N143	报告提到姓名和地区字段，随后说明任何查询都必须经过授权。	approved	cross_sentence	manual_arch_v2,discourse,privacy	跨句字段与授权
+N144	The article explains why “guaranteed return” is a fraud warning, not an investment offer.	approved	multilingual_benign	manual_arch_v2,english,anti_fraud	英文反诈说明
+N145	This test string contains WeChat and QQ only to validate the moderation parser.	approved	multilingual_benign	manual_arch_v2,english,test	英文测试联系方式
+N146	README 里的 buy_account 示例是被禁止的 API 操作。	approved	multilingual_benign	manual_arch_v2,mixed_language,documentation	中英混合禁用示例
+N147	“casino” 在这篇语言学文章中只是外来词研究对象。	approved	multilingual_benign	manual_arch_v2,english,research	英文赌博词研究
+N148	日文资料中的アカウント売買被标记为禁止行为。	approved	multilingual_benign	manual_arch_v2,japanese,policy	日文账号买卖禁令
+N149	繁体句子“請勿購買會員帳號”表达的是安全提醒。	approved	multilingual_benign	manual_arch_v2,traditional,negation	繁体安全提醒
+N150	Python 示例变量 adult_site_url 的值是空字符串。	approved	multilingual_benign	manual_arch_v2,english,code	英文变量名
+N151	The phrase “DM me for details” appears in a spam-detection benchmark.	approved	multilingual_benign	manual_arch_v2,english,benchmark	英文垃圾检测样本
+N152	俄语单词 казино 出现在翻译练习里，不是在推荐网站。	approved	multilingual_benign	manual_arch_v2,russian,translation	俄语词汇翻译
+N153	拼音 lun wen dai xie 被用来测试分词器能否识别规避写法。	approved	multilingual_benign	manual_arch_v2,pinyin,test	拼音规避测试说明
+N154	建议新增举报入口，方便用户反馈疑似诈骗评论。	approved	governance	manual_arch_v2,report,platform	建议平台举报功能
+N155	管理员应当冻结发布联系方式广告的账号并保留证据。	approved	governance	manual_arch_v2,enforcement,contact	治理联系方式广告
+N156	社区公告要求删除博彩引流内容，而不是删除正常讨论。	approved	governance	manual_arch_v2,policy,gambling	社区治理公告
+N157	审核员复核后确认这是反诈案例，应恢复被误封的评论。	approved	governance	manual_arch_v2,appeal,anti_fraud	审核申诉恢复
+N158	平台需要统计代写广告的处置率，不能只统计关键词数量。	approved	governance	manual_arch_v2,metrics,academic	治理指标讨论
+N159	用户投诉有人私信卖账号，客服已经要求对方停止。	approved	governance	manual_arch_v2,complaint,account	投诉账号交易
+N160	这份透明度报告公布了色情推广的拦截数量。	approved	governance	manual_arch_v2,transparency,sexual	透明度报告
+N161	请对泄露他人住址的帖子进行下架并通知受害者。	approved	governance	manual_arch_v2,enforcement,privacy	要求下架隐私泄露
+N162	发现刷量服务时应记录证据，不要参与交易。	approved	governance	manual_arch_v2,enforcement,spam	刷量治理流程
+N163	学校应提供原创写作辅导，减少学生寻找代写的动机。	approved	governance	manual_arch_v2,education,academic	学校治理建议
+N164	我不同意作者的结论，但实验数据和推导过程值得讨论。	approved	critical_opinion	manual_arch_v2,criticism,civil	文明反对观点
+N165	这段代码写得比较绕，建议拆成几个小函数提高可读性。	approved	critical_opinion	manual_arch_v2,code_review,civil	正常代码批评
+N166	文章标题有些夸张，不过正文提供的证据还算完整。	approved	critical_opinion	manual_arch_v2,review,civil	温和内容评价
+N167	这个方案在高并发下可能失效，需要补充基准测试。	approved	critical_opinion	manual_arch_v2,technical_review,civil	技术风险批评
+N168	我看不懂这一段，可能是背景知识不足，能否再解释一下？	approved	critical_opinion	manual_arch_v2,self_reflection,civil	自我反思提问
+N169	作者的语气比较强硬，但这不等于他在辱骂读者。	approved	critical_opinion	manual_arch_v2,meta_discussion,abuse	讨论语气而非辱骂
+N170	这次更新确实退步了，搜索结果比之前更不准确。	approved	critical_opinion	manual_arch_v2,product_feedback,civil	负面产品反馈
+N171	我对这个观点持保留态度，因为样本量不足以支持结论。	approved	critical_opinion	manual_arch_v2,academic_review,civil	学术质疑
+N172	这个笑话有点冷，但没有针对任何群体或个人。	approved	critical_opinion	manual_arch_v2,humor,civil	无攻击幽默
+N173	与其嘲讽新手，不如给出可以复现的错误示例。	approved	critical_opinion	manual_arch_v2,negation,abuse	反对嘲讽
+N174	有人在评论区问哪里能买共享账号，我已经回复他不要购买，并附上官方订阅说明。	approved	complex_benign	manual_arch_v2,long_context,account	长文本中劝阻交易
+N175	这篇文章详细分析了贷款骗局的流程，包括当天放款和免征信等话术，结论是全部不要相信。	approved	complex_benign	manual_arch_v2,long_context,fraud	长文本反诈分析
+N176	为了测试审核系统，我列出“加微信、私信领取、低价出售”三个例子，这些都不是实际需求。	approved	complex_benign	manual_arch_v2,long_context,test	多个风险词测试
+N177	老师展示了过去的作弊广告，然后要求大家独立完成论文并遵守学术规范。	approved	complex_benign	manual_arch_v2,long_context,academic	先引用后教育
+N178	安全团队在封闭实验室复现了后台越权漏洞，修复后才公开技术细节。	approved	complex_benign	manual_arch_v2,long_context,security	授权漏洞研究
+N179	新闻先描述团伙如何通过头像引流，后面明确提醒读者不要搜索或联系。	approved	complex_benign	manual_arch_v2,long_context,anti_fraud	引流手法新闻提醒
+N180	家长群讨论如何防止孩子被诱导发送照片，没有分享任何孩子的真实信息。	approved	complex_benign	manual_arch_v2,long_context,minor	儿童安全讨论
+N181	报告中的“固定回报”是风险标签，系统遇到这类承诺应转人工审核。	approved	complex_benign	manual_arch_v2,long_context,policy	风险标签说明
+N182	产品文档同时出现账号、会员、价格和入口，但描述的是官方购买流程。	approved	complex_benign	manual_arch_v2,long_context,official	官方购买说明
+N183	评论先批评刷赞行为，随后建议平台公开算法并减少虚假互动。	approved	complex_benign	manual_arch_v2,long_context,governance	治理虚假互动
+N184	Go 的 goroutine 调度部分讲得很清楚，建议再补充一下 GOMAXPROCS 的影响。	approved	technical_blog	tech_blog_v3,go,concurrency	Go 调度技术讨论
+N185	这段 defer 放在循环里可能增加资源占用，可以考虑显式关闭。	approved	technical_blog	tech_blog_v3,go,code_review	Go 资源管理建议
+N186	泛型约束写得有点宽，收紧接口后编译器能提供更准确的提示。	approved	technical_blog	tech_blog_v3,go,generics	Go 泛型代码审查
+N187	这里的数据竞争可以用 go test -race 稳定复现，不必凭日志猜测。	approved	technical_blog	tech_blog_v3,go,race	Go race 技术术语
+N188	context 取消后还在发送结果，可能造成 goroutine 泄漏。	approved	technical_blog	tech_blog_v3,go,context	Go context 技术评论
+N189	这个 channel 不需要缓冲，当前生产者和消费者本来就是同步协作。	approved	technical_blog	tech_blog_v3,go,channel	Go channel 讨论
+N190	接口放在使用方定义更符合 Go 的习惯，也方便生成小范围 mock。	approved	technical_blog	tech_blog_v3,go,interface	Go 接口设计
+N191	错误包装保留了原始 cause，使用 errors.Is 判断会比比较字符串稳妥。	approved	technical_blog	tech_blog_v3,go,error	Go 错误处理
+N192	基准测试没有调用 ResetTimer，初始化时间可能污染最终结果。	approved	technical_blog	tech_blog_v3,go,benchmark	Go 基准测试
+N193	这份 pprof 火焰图只能说明 CPU 热点，暂时不能推出内存泄漏。	approved	technical_blog	tech_blog_v3,go,pprof	Go 性能分析
+N194	Rust 的所有权示例很好，不过借用生命周期还可以再画一张关系图。	approved	technical_blog	tech_blog_v3,rust,ownership	Rust 所有权讨论
+N195	unsafe 代码块需要解释不变量，否则后续维护者很难判断边界。	approved	technical_blog	tech_blog_v3,rust,unsafe	Rust unsafe 技术审查
+N196	Python 装饰器这里返回了异步函数，调用端也必须使用 await。	approved	technical_blog	tech_blog_v3,python,async	Python 异步讨论
+N197	GIL 不等于所有操作都线程安全，复合读写仍然需要同步。	approved	technical_blog	tech_blog_v3,python,threading	Python GIL 讨论
+N198	Java 的 volatile 能保证可见性，但不能让自增操作具备原子性。	approved	technical_blog	tech_blog_v3,java,concurrency	Java 并发技术评论
+N199	这个线程池的队列没有上限，高峰期可能先耗尽内存。	approved	technical_blog	tech_blog_v3,java,thread_pool	线程池容量建议
+N200	C++ 示例里的裸指针所有权不明确，改成 unique_ptr 会更容易维护。	approved	technical_blog	tech_blog_v3,cpp,memory	C++ 内存管理
+N201	移动构造函数标记 noexcept 后，vector 扩容时更可能走移动路径。	approved	technical_blog	tech_blog_v3,cpp,move	C++ 移动语义
+N202	TypeScript 的 any 把类型错误推迟到了运行期，这里更适合 unknown。	approved	technical_blog	tech_blog_v3,typescript,type	TS 类型建议
+N203	闭包捕获的是变量而不是当时的值，这正是循环输出相同结果的原因。	approved	technical_blog	tech_blog_v3,javascript,closure	闭包技术解释
+N204	这条 SQL 没有命中联合索引，是因为最左侧字段缺少过滤条件。	approved	database	tech_blog_v3,mysql,index	MySQL 索引分析
+N205	EXPLAIN 里的 rows 只是估算值，仍然要结合实际执行时间判断。	approved	database	tech_blog_v3,mysql,explain	MySQL 执行计划
+N206	长事务会拖住 undo 清理，建议把批量任务拆成更小的事务。	approved	database	tech_blog_v3,mysql,transaction	MySQL 长事务
+N207	这里的死锁来自两条事务更新顺序相反，不是数据库随机杀连接。	approved	database	tech_blog_v3,mysql,deadlock	数据库死锁术语
+N208	主从复制延迟期间读取旧值是预期现象，需要明确一致性要求。	approved	database	tech_blog_v3,mysql,replication	数据库主从术语
+N209	分页越往后越慢，可以使用上一页最后一个主键做游标。	approved	database	tech_blog_v3,mysql,pagination	数据库分页优化
+N210	Redis 热 Key 会让单个分片过载，拆分前先确认访问分布。	approved	cache	tech_blog_v3,redis,hot_key	Redis 热 Key
+N211	缓存击穿和缓存穿透不是一回事，这个案例更像热点 Key 失效。	approved	cache	tech_blog_v3,redis,cache	缓存术语辨析
+N212	分布式锁续期失败后必须停止业务操作，不能继续假设自己持有锁。	approved	cache	tech_blog_v3,redis,lock	分布式锁讨论
+N213	删除缓存失败不一定要回滚数据库，但需要补偿和可观测性。	approved	cache	tech_blog_v3,cache,consistency	缓存一致性
+N214	布隆过滤器存在假阳性，所以不能把命中直接当成数据一定存在。	approved	algorithm	tech_blog_v3,bloom_filter,probability	布隆过滤器
+N215	PostgreSQL 的 MVCC 实现和 MySQL 不完全相同，这里不宜直接类比。	approved	database	tech_blog_v3,postgres,mvcc	PostgreSQL MVCC
+N216	VACUUM 没有及时回收空间，先检查是否存在长期未结束的事务。	approved	database	tech_blog_v3,postgres,vacuum	PostgreSQL 运维
+N217	MongoDB 文档模型适合当前读取模式，但跨文档事务会增加复杂度。	approved	database	tech_blog_v3,mongodb,model	MongoDB 建模
+N218	Elasticsearch 的 refresh 不是数据库提交，二者的可见性语义不同。	approved	search	tech_blog_v3,elasticsearch,refresh	ES 技术讨论
+N219	倒排索引适合关键词检索，范围过滤仍要关注字段类型和基数。	approved	search	tech_blog_v3,index,search	搜索索引讨论
+N220	消息重复投递是正常情况，消费者应该通过业务键保证幂等。	approved	middleware	tech_blog_v3,mq,idempotency	消息幂等
+N221	仅依赖消息顺序不能保证状态正确，失败重试也需要纳入设计。	approved	middleware	tech_blog_v3,mq,retry	消息顺序讨论
+N222	Kafka 分区数增加后不能直接缩回，容量规划最好留出余量。	approved	middleware	tech_blog_v3,kafka,partition	Kafka 分区
+N223	这里选择最终一致性没有问题，但应明确用户可能看到旧状态多久。	approved	architecture	tech_blog_v3,consistency,design	一致性设计
+N224	Docker 镜像里删除文件不会减小前一层体积，需要在同一 RUN 中清理。	approved	devops	tech_blog_v3,docker,image	Docker 镜像层
+N225	容器使用非 root 用户是必要的，挂载目录权限也要一起调整。	approved	security	tech_blog_v3,docker,non_root	容器非 root
+N226	这个基础镜像包含很多不需要的包，攻击面和扫描噪音都会增大。	approved	security	tech_blog_v3,container,image	镜像安全分析
+N227	microdnf update 后清理缓存可以避免把无用元数据留在镜像中。	approved	devops	tech_blog_v3,rocky,docker	Rocky 镜像构建
+N228	Kubernetes 的 livenessProbe 失败会重启容器，不能拿它代替就绪检查。	approved	devops	tech_blog_v3,kubernetes,probe	K8s 探针
+N229	Pod 被驱逐后本地临时目录会丢失，重要数据应放到持久卷。	approved	devops	tech_blog_v3,kubernetes,storage	K8s 存储
+N230	CPU limit 太紧会产生明显 throttling，延迟服务需要结合指标调节。	approved	devops	tech_blog_v3,kubernetes,cpu	K8s CPU 限制
+N231	滚动发布期间两个版本会同时存在，数据库变更必须向前向后兼容。	approved	devops	tech_blog_v3,deployment,migration	滚动发布
+N232	蓝绿部署回滚很快，但两套环境会增加资源成本。	approved	devops	tech_blog_v3,deployment,blue_green	蓝绿部署
+N233	这个 GitHub Actions 示例应固定 action 的提交哈希，降低供应链风险。	approved	security	tech_blog_v3,ci,supply_chain	CI 供应链安全
+N234	构建日志不应输出 token，即使仓库是私有的也可能被更多人读取。	approved	security	tech_blog_v3,ci,secret	CI 密钥保护
+N235	Docker Secret 通过文件挂载读取，比把密码直接写进环境变量更稳妥。	approved	security	tech_blog_v3,docker,secret	Docker Secret
+N236	Trivy 报告里的 HIGH 漏洞还要结合软件是否实际安装和可达来判断。	approved	security	tech_blog_v3,trivy,vulnerability	漏洞扫描解释
+N237	依赖升级修复了 CVE，但仍要跑回归测试确认接口行为没有变化。	approved	security	tech_blog_v3,dependency,cve	依赖安全升级
+N238	Nginx 的 proxy_read_timeout 只影响读取上游响应，不是连接建立超时。	approved	devops	tech_blog_v3,nginx,timeout	Nginx 超时
+N239	开启 gzip 前应确认内容类型，图片再次压缩通常收益很低。	approved	devops	tech_blog_v3,nginx,gzip	Nginx 压缩
+N240	CDN 缓存键忽略查询参数可能提高命中率，也可能返回错误版本。	approved	devops	tech_blog_v3,cdn,cache	CDN 缓存键
+N241	静态资源使用内容哈希命名后，可以配置更长的浏览器缓存。	approved	devops	tech_blog_v3,frontend,cache	静态资源缓存
+N242	证书自动续期成功不代表服务已加载新证书，还要检查 reload。	approved	devops	tech_blog_v3,tls,certificate	TLS 证书续期
+N243	防火墙放行端口前应确认监听地址，绑定 0.0.0.0 会扩大暴露面。	approved	security	tech_blog_v3,firewall,network	防火墙技术评论
+N244	SQL 注入示例用于说明参数化查询的重要性，没有提供攻击服务。	approved	security_research	tech_blog_v3,sql_injection,education	SQL 注入防御
+N245	文章复现 XSS 是为了验证转义策略，payload 只在本地页面执行。	approved	security_research	tech_blog_v3,xss,lab	XSS 安全研究
+N246	CSRF token 应与用户会话绑定，单纯判断 Referer 不能覆盖所有情况。	approved	security_research	tech_blog_v3,csrf,token	CSRF 防御
+N247	这个反序列化漏洞案例已经脱敏，文中也没有真实服务器地址。	approved	security_research	tech_blog_v3,vulnerability,redacted	漏洞案例
+N248	渗透测试必须获得系统所有者授权，超出范围的目标不能扫描。	approved	security_research	tech_blog_v3,pentest,authorization	授权渗透测试
+N249	暴力破解是报告中的攻击类型，修复建议是启用限流和多因素认证。	approved	security_research	tech_blog_v3,bruteforce,defense	暴力破解防御
+N250	端口扫描结果只能说明服务可达，不能直接证明存在漏洞。	approved	security_research	tech_blog_v3,port_scan,analysis	端口扫描分析
+N251	日志里的攻击请求已经做了脱敏，不包含可用账号和密码。	approved	security_research	tech_blog_v3,log,redacted	攻击日志脱敏
+N252	安全团队公开漏洞前先联系了厂商，并等待补丁覆盖主要版本。	approved	security_research	tech_blog_v3,disclosure,vulnerability	负责任披露
+N253	这段 malwareDetector 是检测器类名，不代表项目在传播恶意软件。	approved	code_context	tech_blog_v3,identifier,security	安全类名误杀
+N254	变量 scamScore 用来保存风控分数，不是诈骗推广字段。	approved	code_context	tech_blog_v3,identifier,fraud	诈骗变量名
+N255	测试函数 TestGamblingURL 只验证拦截逻辑，没有访问赌博网站。	approved	code_context	tech_blog_v3,test,gambling	赌博测试函数
+N256	配置项 adult_content_enabled 控制内容过滤开关，不是成人内容入口。	approved	code_context	tech_blog_v3,config,sexual	成人内容配置
+N257	示例里的 kill -TERM 是优雅停止进程，不是在威胁任何人。	approved	code_context	tech_blog_v3,shell,process	kill 命令技术语境
+N258	命令 chmod 600 只是收紧私钥权限，这个建议是正确的。	approved	security	tech_blog_v3,linux,permission	Linux 文件权限
+N259	rm -rf 出现在临时目录清理脚本里，但仍应先校验变量不为空。	approved	code_context	tech_blog_v3,shell,safety	Shell 清理命令
+N260	Master 节点故障后的选主过程描述准确，不过术语可以换成 primary。	approved	distributed_system	tech_blog_v3,cluster,terminology	集群主节点术语
+N261	一致性哈希减少了节点变化时的数据迁移量，并不保证请求均匀。	approved	algorithm	tech_blog_v3,hash,distributed	一致性哈希
+N262	令牌桶允许一定突发流量，固定窗口限流在边界处更容易抖动。	approved	algorithm	tech_blog_v3,rate_limit,token	限流算法
+N263	这里的雪崩指缓存同时失效，不是在描述现实中的灾害。	approved	cache	tech_blog_v3,cache,terminology	缓存雪崩术语
+N264	React 的 key 应保持稳定，直接使用数组下标会影响节点复用。	approved	frontend	tech_blog_v3,react,key	React key
+N265	useEffect 依赖缺少 userId，切换用户后可能仍显示旧数据。	approved	frontend	tech_blog_v3,react,hook	React Hook
+N266	Vue 的 computed 适合派生状态，不建议在里面执行网络请求。	approved	frontend	tech_blog_v3,vue,computed	Vue 技术评论
+N267	浏览器同源策略限制脚本读取响应，但请求本身仍可能已经发出。	approved	frontend	tech_blog_v3,browser,cors	同源策略
+N268	CORS 允许任意 Origin 并同时携带凭据会带来明显安全风险。	approved	security	tech_blog_v3,cors,credential	CORS 安全建议
+N269	HTTP 204 响应不应再携带业务 JSON，客户端也不该依赖响应体。	approved	network	tech_blog_v3,http,status	HTTP 状态码
+N270	TCP 粘包不是数据被破坏，应用层需要自己定义消息边界。	approved	network	tech_blog_v3,tcp,protocol	TCP 粘包
+N271	WebSocket 断线重连要增加退避，否则服务恢复时可能出现请求洪峰。	approved	network	tech_blog_v3,websocket,retry	WebSocket 重连
+N272	DNS 缓存会影响切流速度，降低 TTL 也会增加权威服务器压力。	approved	network	tech_blog_v3,dns,cache	DNS 缓存
+N273	这个 gRPC deadline 由调用方设置，服务端应及时响应取消信号。	approved	network	tech_blog_v3,grpc,deadline	gRPC deadline
+N274	向量检索的召回率提高后，仍要观察重排阶段的准确率变化。	approved	ai	tech_blog_v3,embedding,retrieval	向量检索
+N275	余弦相似度只比较方向，向量长度本身不会影响最终分数。	approved	ai	tech_blog_v3,cosine,math	余弦相似度
+N276	模型出现幻觉时应返回引用来源，而不是把生成内容当成事实。	approved	ai	tech_blog_v3,llm,hallucination	大模型幻觉
+N277	提示词注入是文章讨论的安全风险，作者建议隔离工具权限。	approved	ai_security	tech_blog_v3,prompt_injection,defense	提示词注入防御
+N278	RAG 检索到文档不代表答案正确，还要验证文档版本和相关性。	approved	ai	tech_blog_v3,rag,retrieval	RAG 讨论
+N279	官方 API 文档在 https://go.dev/doc/，后半篇的错误处理示例也很实用。	approved	technical_link	tech_blog_v3,official_url,mixed_clause	官方链接加普通评价
+N280	单元测试使用 13800138000 验证脱敏。这段表驱动写法很清楚。	approved	code_context	tech_blog_v3,test_phone,mixed_clause	测试号码加普通评价
+N281	README 中的 user@example.com 是占位地址；部署章节建议补充环境变量说明。	approved	technical_link	tech_blog_v3,email,documentation	示例邮箱加普通评价
+N282	文档展示 vx:test_user 作为反垃圾样例，随后解释了匹配边界。	approved	code_context	tech_blog_v3,contact,test	联系方式测试样例
+N283	安全公告提到“低价出售账号”是已拦截样本，并要求用户不要联系发布者。	approved	governance	tech_blog_v3,account,warning	账号交易治理公告
+N284	你这水准也敢出来教人？6⃣️了	approved	sharp_technical_opinion	reclassified_v3,competence,emoji	尖锐能力质疑允许过审
+N285	装大佬装得飞起，实际啥也不懂	approved	sarcastic_technical_opinion	reclassified_v3,mockery,competence	讽刺技术能力允许过审
+N286	纯纯骗流量的，别再误导新人了	approved	sharp_technical_opinion	reclassified_v3,content,accusation	批评内容误导允许过审
+N287	这教程写得跟💩一样，真的服	approved	sharp_technical_opinion	reclassified_v3,content,emoji	粗俗评价教程质量允许过审
+N288	别zhuang懂了好吗，看得脑壳疼	approved	sarcastic_technical_opinion	reclassified_v3,pinyin,mockery	拼音讽刺允许过审
+N289	懂个🔨还在这指导别人	approved	sharp_technical_opinion	reclassified_v3,emoji,competence	粗俗能力批评允许过审
+N290	这文章我看完只能说：yyds，反向教学	approved	sarcastic_technical_opinion	reclassified_v3,sarcasm,content	反讽文章质量允许过审
+N291	真🐮🍺，连自己代码都没跑过	approved	sharp_technical_opinion	reclassified_v3,emoji,code	批评代码未运行允许过审
+N292	你这水平去面试，怕是第一轮都过不了	approved	sharp_technical_opinion	reclassified_v3,competence,interview	技术能力质疑允许过审
+N293	这人是真能装，满篇都是“我很懂”	approved	sarcastic_technical_opinion	reclassified_v3,mockery,style	讽刺表达姿态允许过审
+N294	垃圾文章，纯纯的流量密码	approved	sharp_technical_opinion	reclassified_v3,content,traffic	负面内容评价允许过审
+N295	这种内容发出来不嫌丢人吗	approved	sharp_technical_opinion	reclassified_v3,content,criticism	尖锐内容评价允许过审
+N296	根本没搞明白就在这教别人，笑死	approved	sarcastic_technical_opinion	reclassified_v3,competence,sarcasm	讽刺理解不足允许过审
+N297	别再祸害新人了，真的求你了	approved	sharp_technical_opinion	reclassified_v3,content,warning	批评教程误导允许过审
+N298	这篇文章看着就像复制粘贴AI生成的	approved	sharp_technical_opinion	reclassified_v3,content,ai	质疑文章原创性允许过审
+N299	一股子“懂王”味儿，实际上啥也不会	approved	sarcastic_technical_opinion	reclassified_v3,mockery,competence	讽刺技术能力允许过审
+N300	ni zhe shui ping 也敢出来教别人？	approved	sharp_technical_opinion	reclassified_v3,pinyin,competence	拼音能力质疑允许过审
+N301	zhuang da shen zhuang gou le，实际啥也不懂	approved	sarcastic_technical_opinion	reclassified_v3,pinyin,mockery	拼音讽刺允许过审
+N302	bu dong zhuang dong，还在这里误导新人	approved	sharp_technical_opinion	reclassified_v3,pinyin,content	拼音批评误导允许过审
+N303	gen ben mei zuo guo kai fa ba，一看就是瞎写	approved	sharp_technical_opinion	reclassified_v3,pinyin,competence	质疑开发经验允许过审
+N304	pian liu liang 也不用这么明显吧	approved	sarcastic_technical_opinion	reclassified_v3,pinyin,traffic	质疑骗流量允许过审
+N305	wu ren zi di 的教程就别继续发了	approved	sharp_technical_opinion	reclassified_v3,pinyin,content	批评教程误导允许过审
+N306	zhen e xin，这种内容看着就烦	approved	sharp_technical_opinion	reclassified_v3,pinyin,content	负面内容感受允许过审
+N307	dong ge chui zi 还出来指点别人	approved	sharp_technical_opinion	reclassified_v3,pinyin,competence	粗俗能力批评允许过审
+N308	lian shi xi sheng du bu ru，还好意思教人	approved	sharp_technical_opinion	reclassified_v3,pinyin,competence	实习生对比允许过审
+N309	di ji de cuo wu 都能犯，真服	approved	sharp_technical_opinion	reclassified_v3,pinyin,error	批评低级错误允许过审
+N310	别出来 wu dao xin ren 了，容易把人带沟里	approved	sharp_technical_opinion	reclassified_v3,pinyin,content	批评误导新人允许过审
+N311	zhuan men chu lai wu dao xin ren 是吧	approved	sarcastic_technical_opinion	reclassified_v3,pinyin,content	讽刺误导行为允许过审
+N312	这水平还敢出来带新人？建议先把自己那套半吊子东西删了	approved	sharp_technical_opinion	reclassified_v3,competence,advice	能力质疑与建议允许过审
+N313	别搁这儿一本正经地胡说八道了，稍微懂点的人都看得出来	approved	sharp_technical_opinion	reclassified_v3,content,criticism	否定技术观点允许过审
+N314	拿别人的文章改几个标题就当原创，吃相未免太难看	approved	sharp_technical_opinion	reclassified_v3,plagiarism,accusation	原创性质疑允许过审
+N315	看得出来你和专业两个字完全不熟，别再浪费读者时间了。	approved	sharp_technical_opinion	reclassified_v3,manual_edge,competence,reader	技术能力质疑允许过审
+N316	这篇东西唯一的价值，就是证明门槛再低也有人进不去。	approved	sarcastic_technical_opinion	reclassified_v3,manual_edge,sarcasm,competence	隐喻讽刺允许过审
+N317	作者大概把键盘敲响就当成会编程了，属实可笑。	approved	sarcastic_technical_opinion	reclassified_v3,manual_edge,sarcasm,code	编程能力讽刺允许过审
+N318	这文章的代码像垃圾堆一样，作者根本不配教别人。	approved	sharp_technical_opinion	reclassified_v3,code,qualification	代码与教学资格评价允许过审
+N319	别再发教程了，你的理解能力连实习生都不如。	approved	sharp_technical_opinion	reclassified_v3,competence,tutorial	尖锐能力比较允许过审
+N320	教程有错误可以讨论，但这个作者本人就是个骗子。	approved	sharp_technical_opinion	reclassified_v3,opinion,accusation	用户确认可过审的观点表达

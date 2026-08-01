@@ -144,6 +144,7 @@ type CommentModerationLexiconConfig struct {
 	UseBuiltin         bool                               `mapstructure:"use_builtin"`
 	StrictBuiltinMatch bool                               `mapstructure:"strict_builtin_match"`
 	CustomWords        CommentModerationCustomWordsConfig `mapstructure:"custom_words"`
+	Fuzzy              CommentModerationFuzzyConfig       `mapstructure:"fuzzy"`
 }
 
 // CommentModerationCustomWordsConfig 描述后续微调用的自定义词库。
@@ -152,9 +153,23 @@ type CommentModerationCustomWordsConfig struct {
 	Review map[string][]string `mapstructure:"review"`
 }
 
+// CommentModerationFuzzyConfig 描述受限候选集上的模糊词匹配。
+type CommentModerationFuzzyConfig struct {
+	Disabled       bool                `mapstructure:"disabled"`
+	MaxDistance    int                 `mapstructure:"max_distance"`
+	MinWordRunes   int                 `mapstructure:"min_word_runes"`
+	CandidateWords map[string][]string `mapstructure:"candidate_words"`
+}
+
 // CommentModerationLevelRuleConfig 描述只有处置等级的规则配置。
 type CommentModerationLevelRuleConfig struct {
 	Level string `mapstructure:"level"`
+}
+
+// CommentModerationStructurePatternsConfig 描述结构检测层的业务风险词形。
+type CommentModerationStructurePatternsConfig struct {
+	RiskPhrases  []string `mapstructure:"risk_phrases"`
+	RiskPatterns []string `mapstructure:"risk_patterns"`
 }
 
 // CommentModerationBehaviorThresholdConfig 描述评论审核行为阈值规则。
@@ -169,6 +184,18 @@ type CommentModerationBehaviorRulesConfig struct {
 	UserFrequency    CommentModerationBehaviorThresholdConfig `mapstructure:"user_frequency"`
 	IPFrequency      CommentModerationBehaviorThresholdConfig `mapstructure:"ip_frequency"`
 	DuplicateContent CommentModerationBehaviorThresholdConfig `mapstructure:"duplicate_content"`
+	NearDuplicate    CommentModerationNearDuplicateConfig     `mapstructure:"near_duplicate"`
+}
+
+// CommentModerationNearDuplicateConfig 描述 SimHash 近重复检测边界。
+type CommentModerationNearDuplicateConfig struct {
+	Disabled                   bool  `mapstructure:"disabled"`
+	WindowSeconds              int64 `mapstructure:"window_seconds"`
+	ReviewThreshold            int64 `mapstructure:"review_threshold"`
+	MaxHammingDistance         int   `mapstructure:"max_hamming_distance"`
+	MinContentRunes            int   `mapstructure:"min_content_runes"`
+	MaxSamples                 int64 `mapstructure:"max_samples"`
+	MaxLengthDifferencePercent int   `mapstructure:"max_length_difference_percent"`
 }
 
 // CommentModerationCategoryDecisionConfig 描述分类级处置覆盖。
@@ -184,8 +211,8 @@ type CommentModerationDecisionConfig struct {
 	CategoryOverrides map[string]CommentModerationCategoryDecisionConfig `mapstructure:"category_overrides"`
 }
 
-// CommentModerationContextRuleConfig 描述“主体词 + 行为词”组合规则。
-type CommentModerationContextRuleConfig struct {
+// CommentModerationCombinationRuleConfig 描述片段内“主体词 + 行为词”组合规则。
+type CommentModerationCombinationRuleConfig struct {
 	ID         string   `mapstructure:"id"`
 	Name       string   `mapstructure:"name"`
 	Category   string   `mapstructure:"category"`
@@ -194,30 +221,40 @@ type CommentModerationContextRuleConfig struct {
 	Predicates []string `mapstructure:"predicates"`
 }
 
-// CommentModerationSemanticRulesConfig 描述命中风险规则后的轻量语义复判策略。
-type CommentModerationSemanticRulesConfig struct {
-	Disabled      bool                                     `mapstructure:"disabled"`
-	BenignContext CommentModerationBenignContextRuleConfig `mapstructure:"benign_context"`
+// CommentModerationSemanticContextConfig 描述片段语义分类词族。
+type CommentModerationSemanticContextConfig struct {
+	ReportingMarkers         []string `mapstructure:"reporting_markers"`
+	RejectionMarkers         []string `mapstructure:"rejection_markers"`
+	TechnicalMarkers         []string `mapstructure:"technical_markers"`
+	UnambiguousBenignMarkers []string `mapstructure:"unambiguous_benign_markers"`
+	ActionableMarkers        []string `mapstructure:"actionable_markers"`
+	ActionablePatterns       []string `mapstructure:"actionable_patterns"`
 }
 
-// CommentModerationBenignContextRuleConfig 描述引用、讨论、反驳、测试等低风险语境。
-type CommentModerationBenignContextRuleConfig struct {
-	Markers            []string `mapstructure:"markers"`
-	SuppressSources    []string `mapstructure:"suppress_sources"`
-	SuppressRuleIDs    []string `mapstructure:"suppress_rule_ids"`
-	SuppressCategories []string `mapstructure:"suppress_categories"`
+// CommentModerationAbusePolicyConfig 描述需要保留人工复核的严重攻击标记。
+type CommentModerationAbusePolicyConfig struct {
+	Disabled      bool     `mapstructure:"disabled"`
+	SevereMarkers []string `mapstructure:"severe_markers"`
+}
+
+// CommentModerationSemanticRulesConfig 描述片段语义分类与信号修正规则。
+type CommentModerationSemanticRulesConfig struct {
+	Disabled    bool                                   `mapstructure:"disabled"`
+	Contexts    CommentModerationSemanticContextConfig `mapstructure:"contexts"`
+	AbusePolicy CommentModerationAbusePolicyConfig     `mapstructure:"abuse_policy"`
 }
 
 // CommentModerationConfig 描述前台评论审核策略。
 type CommentModerationConfig struct {
-	Disabled        bool                                        `mapstructure:"disabled"`
-	ReportThreshold int64                                       `mapstructure:"report_threshold"`
-	Lexicon         CommentModerationLexiconConfig              `mapstructure:"lexicon"`
-	StructureRules  map[string]CommentModerationLevelRuleConfig `mapstructure:"structure_rules"`
-	ContextRules    []CommentModerationContextRuleConfig        `mapstructure:"context_rules"`
-	SemanticRules   CommentModerationSemanticRulesConfig        `mapstructure:"semantic_rules"`
-	BehaviorRules   CommentModerationBehaviorRulesConfig        `mapstructure:"behavior_rules"`
-	Decision        CommentModerationDecisionConfig             `mapstructure:"decision"`
+	Disabled          bool                                        `mapstructure:"disabled"`
+	ReportThreshold   int64                                       `mapstructure:"report_threshold"`
+	Lexicon           CommentModerationLexiconConfig              `mapstructure:"lexicon"`
+	StructureRules    map[string]CommentModerationLevelRuleConfig `mapstructure:"structure_rules"`
+	StructurePatterns CommentModerationStructurePatternsConfig    `mapstructure:"structure_patterns"`
+	CombinationRules  []CommentModerationCombinationRuleConfig    `mapstructure:"combination_rules"`
+	SemanticRules     CommentModerationSemanticRulesConfig        `mapstructure:"semantic_rules"`
+	BehaviorRules     CommentModerationBehaviorRulesConfig        `mapstructure:"behavior_rules"`
+	Decision          CommentModerationDecisionConfig             `mapstructure:"decision"`
 }
 
 // RateLimitConfig 描述后端应用级限流配置。
@@ -339,17 +376,20 @@ func (c *Config) CommentModerationSnapshot() CommentModerationConfig {
 	}
 	snapshot := *c.CommentModerationConfig
 	snapshot.Lexicon.CustomWords = cloneCommentModerationCustomWordsConfig(snapshot.Lexicon.CustomWords)
+	snapshot.Lexicon.Fuzzy.CandidateWords = cloneStringSliceMap(snapshot.Lexicon.Fuzzy.CandidateWords)
 	snapshot.StructureRules = cloneCommentModerationLevelRuleConfigMap(snapshot.StructureRules)
-	snapshot.ContextRules = cloneCommentModerationContextRuleConfigSlice(snapshot.ContextRules)
-	snapshot.SemanticRules.BenignContext.Markers = cloneStringSlice(snapshot.SemanticRules.BenignContext.Markers)
-	snapshot.SemanticRules.BenignContext.SuppressSources = cloneStringSlice(
-		snapshot.SemanticRules.BenignContext.SuppressSources,
-	)
-	snapshot.SemanticRules.BenignContext.SuppressRuleIDs = cloneStringSlice(
-		snapshot.SemanticRules.BenignContext.SuppressRuleIDs,
-	)
-	snapshot.SemanticRules.BenignContext.SuppressCategories = cloneStringSlice(
-		snapshot.SemanticRules.BenignContext.SuppressCategories,
+	snapshot.StructurePatterns.RiskPhrases = cloneStringSlice(snapshot.StructurePatterns.RiskPhrases)
+	snapshot.StructurePatterns.RiskPatterns = cloneStringSlice(snapshot.StructurePatterns.RiskPatterns)
+	snapshot.CombinationRules = cloneCommentModerationCombinationRuleConfigSlice(snapshot.CombinationRules)
+	contexts := &snapshot.SemanticRules.Contexts
+	contexts.ReportingMarkers = cloneStringSlice(contexts.ReportingMarkers)
+	contexts.RejectionMarkers = cloneStringSlice(contexts.RejectionMarkers)
+	contexts.TechnicalMarkers = cloneStringSlice(contexts.TechnicalMarkers)
+	contexts.UnambiguousBenignMarkers = cloneStringSlice(contexts.UnambiguousBenignMarkers)
+	contexts.ActionableMarkers = cloneStringSlice(contexts.ActionableMarkers)
+	contexts.ActionablePatterns = cloneStringSlice(contexts.ActionablePatterns)
+	snapshot.SemanticRules.AbusePolicy.SevereMarkers = cloneStringSlice(
+		snapshot.SemanticRules.AbusePolicy.SevereMarkers,
 	)
 	snapshot.Decision.RuleScores = cloneIntMap(snapshot.Decision.RuleScores)
 	snapshot.Decision.CategoryOverrides = cloneCommentModerationCategoryDecisionConfigMap(snapshot.Decision.CategoryOverrides)
@@ -402,13 +442,13 @@ func cloneIntMap(src map[string]int) map[string]int {
 	return dst
 }
 
-func cloneCommentModerationContextRuleConfigSlice(
-	src []CommentModerationContextRuleConfig,
-) []CommentModerationContextRuleConfig {
+func cloneCommentModerationCombinationRuleConfigSlice(
+	src []CommentModerationCombinationRuleConfig,
+) []CommentModerationCombinationRuleConfig {
 	if len(src) == 0 {
 		return nil
 	}
-	dst := make([]CommentModerationContextRuleConfig, len(src))
+	dst := make([]CommentModerationCombinationRuleConfig, len(src))
 	for i, item := range src {
 		dst[i] = item
 		dst[i].Subjects = cloneStringSlice(item.Subjects)

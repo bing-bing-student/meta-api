@@ -1,0 +1,364 @@
+id	text	expected	category	tags	note
+V001	想要内部资料的看我主页，别在评论区问。	risk	spam_fraud	resource,profile	implicit resource diversion
+V002	资源放在头像签名里了，懂的自己去拿。	risk	spam_fraud	resource,profile	implicit resource diversion
+V003	需要账号的私下说，价格比官方低很多。	risk	spam_fraud	account_trade,private	account sale
+V004	有偿帮查个人信息，能查到不少公开渠道没有的东西。	risk	illegal_privacy	privacy,paid	paid personal information query
+V005	需要快速上分的可以找我，真人操作稳定。	risk	spam_fraud	boosting,game	boosting service
+V006	不方便明说，想看的去我主页第一个动态。	risk	spam_fraud	profile,implicit	implicit diversion
+V007	课程资料打包好了，留个暗号我发你。	risk	spam_fraud	resource,code_word	resource delivery
+V008	有些平台会员我这边长期有，走老方式。	risk	spam_fraud	account_trade	membership account sale
+V009	想要刺激内容的别公开问，私下发。	risk	sexual	private,resource	sexual content diversion
+V010	可代做项目和作业，时间紧也能安排。	risk	spam_fraud	academic_cheating	assignment outsourcing
+V011	那个网站地址不能直接发，去签名里看缩写。	risk	spam_fraud	url_obfuscation,profile	hidden URL diversion
+V012	需要贷款渠道的可以聊，资料不全也能做。	risk	spam_fraud	loan,gray_channel	loan gray channel
+V013	有一批实名账号，适合测试用，懂的来。	risk	spam_fraud	account_trade	real-name account trade
+V014	想查住址电话的别问细节，能做但要收费。	risk	illegal_privacy	privacy,paid	paid address phone query
+V015	论文和毕业设计都能处理，保证不查重。	risk	spam_fraud	academic_cheating	academic cheating
+V016	看不懂文章的可以加我，顺便送一套资料。	risk	spam_fraud	contact,resource	resource diversion
+V017	有些资源不适合放评论区，进群再说。	risk	spam_fraud	group,resource	group diversion
+V018	想要特殊陪聊渠道的，自己看我昵称。	risk	sexual	channel,nickname	sexual gray channel
+V019	这类东西不能明说，懂的人自然知道怎么联系。	risk	spam_fraud	implicit_contact	implicit contact
+V020	可以帮忙处理差评和负面内容，按条收费。	risk	spam_fraud	paid_service	paid reputation manipulation
+V021	需要刷评论、收藏、关注的可以安排真实账号。	risk	spam_fraud	brush,account	engagement manipulation
+V022	有渠道能弄到开房记录，只做熟人介绍。	risk	illegal_privacy	privacy,channel	privacy data query
+V023	成人站会员便宜出，别公开回复。	risk	sexual	account_trade	adult account sale
+V024	游戏账号和会员账号都有，安全稳定。	risk	spam_fraud	account_trade	account sale
+V025	想线下教训那个人的可以组个局，别在这里细聊。	risk	violence	offline,threat	offline violence invitation
+V026	这作者脑子是不是有🕳️，这都能写错	risk	abuse	insult,emoji	evasive insult with emoji
+V032	真d0g啊，这种低级错误也能犯	risk	abuse	insult,leet	leet abuse
+V040	作者这脸皮也是没谁了	risk	abuse	insult	insult
+V046	mianfei领资料，进群就有全套	risk	spam_fraud	pinyin,resource,group	pinyin obfuscated resource diversion
+V047	免费领，真的不要米，懂的来	risk	spam_fraud	resource,obfuscation	free resource diversion
+V048	编程zi源包，想要的私我	risk	spam_fraud	pinyin,resource,private	pinyin obfuscated resource diversion
+V049	内部jiaocheng，老用户都知道	risk	spam_fraud	pinyin,course	evasive course material promotion
+V050	低价出ChatGPT，ckx的别来	risk	spam_fraud	account_trade	account sale
+V051	Claude号还有几个，y要的私	risk	spam_fraud	account_trade,private	account sale
+V052	chatgpt账号便宜甩，官方价打骨折	risk	spam_fraud	account_trade	account sale
+V053	bihua出号，长期稳，不会的教你	risk	spam_fraud	account_trade,obfuscation	account sale
+V054	论文d写，b业d设，啥专业都能接	risk	spam_fraud	academic_cheating,obfuscation	academic cheating
+V055	毕设不会搞？d做，速度快	risk	spam_fraud	academic_cheating,obfuscation	academic cheating
+V056	考试da案有，懂得私	risk	spam_fraud	academic_cheating,pinyin	exam answer sale
+V057	作业不会？d做，别熬夜了	risk	spam_fraud	academic_cheating,obfuscation	assignment outsourcing
+V058	游戏d练d打，刷f、刷p都接	risk	spam_fraud	boosting,obfuscation	game boosting
+V059	想快速上f的来，包效率	risk	spam_fraud	boosting,obfuscation	game boosting
+V060	刷l刷z，真人号操作，数据好看	risk	spam_fraud	brush,obfuscation	engagement manipulation
+V061	评论、点赞、收藏、关注，一条龙	risk	spam_fraud	brush	engagement manipulation
+V062	快速上热门，数据不好看可以给你“优化”	risk	spam_fraud	brush,traffic	engagement manipulation
+V063	投资q拉人，内部qd，懂的都懂	risk	spam_fraud	investment,obfuscation	investment group diversion
+V064	稳赚不赔，🈚️风险，真有项目	risk	spam_fraud	investment,emoji	investment scam
+V065	贷款急用的来，sfz发我，秒批	risk	illegal_privacy	loan,privacy,obfuscation	loan with ID data
+V066	身份证照片发过来，今天就能办	risk	illegal_privacy	privacy,loan	ID photo request
+V067	成.人.网.站会员，懂的来	risk	sexual	account_trade,obfuscation	adult account sale
+V068	高.清.无.码资源，私发	risk	sexual	resource,obfuscation	sexual resource
+V069	无m资源还有，想看的私	risk	sexual	resource,obfuscation	sexual resource
+V070	私m资源，+我好友直接发	risk	sexual	resource,contact,obfuscation	sexual resource diversion
+V071	博彩号，赌z下注的来	risk	gambling	account_trade,obfuscation	gambling account
+V072	下注技巧内部教，稳赚不赔	risk	gambling	investment,gambling	gambling instruction
+V073	博彩账号现成的，进群就能玩	risk	gambling	account_trade,group	gambling account group
+V074	Claude账号还有几个，要的私	risk	spam_fraud	account_trade,private	account sale with private contact
+V075	项目代做，有现成案例，Java Python 都行	risk	spam_fraud	academic_cheating,project_outsourcing	project outsourcing service
+V076	nao zi you wen ti ba，这种东西也敢发出来	risk	abuse	insult,pinyin	pinyin obfuscated personal attack
+V084	ni ma de，这都能写错也是没谁了	risk	abuse	insult,pinyin	pinyin obfuscated profanity
+V087	xiao xue mei bi ye 就开始教别人了？	risk	abuse	insult,pinyin	pinyin obfuscated education insult
+V091	mian fei ling qu 全套资料，想要的私聊	risk	spam_fraud	resource,contact,pinyin	pinyin obfuscated resource diversion
+V092	mian fei song 课程，进 qun 就能拿	risk	spam_fraud	resource,group,pinyin	pinyin obfuscated course diversion
+V093	编程 zi yuan bao 有没有人要？内部的	risk	spam_fraud	resource,pinyin	pinyin obfuscated resource promotion
+V094	nei bu jiao cheng，懂的来	risk	spam_fraud	course,pinyin	pinyin obfuscated course promotion
+V095	di jia chu shou 各种账号，量大优惠	risk	spam_fraud	account_trade,pinyin	pinyin obfuscated account sale
+V096	chu shou chatgpt zhang hao，价格比官方低	risk	spam_fraud	account_trade,pinyin	pinyin obfuscated account sale
+V097	claude zhang hao 还有几个，要的私	risk	spam_fraud	account_trade,private,pinyin	pinyin obfuscated account sale with private contact
+V098	pian yi de chatgpt zhang hao 要不要？很便宜	risk	spam_fraud	account_trade,pinyin	pinyin obfuscated account sale
+V099	jia ge bi guan fang di，长期稳定	risk	spam_fraud	account_trade,pinyin	pinyin obfuscated low-price account promotion
+V100	lun wen dai xie，什么专业都能搞	risk	spam_fraud	academic_cheating,pinyin	pinyin obfuscated paper writing service
+V101	fu fei lun wen dai xie，急单当天交	risk	spam_fraud	academic_cheating,pinyin	pinyin obfuscated paid paper writing service
+V102	bi ye lun wen 和 bi ye she ji 都能 dai zuo	risk	spam_fraud	academic_cheating,pinyin	pinyin obfuscated thesis and project outsourcing
+V103	xiang mu dou ke yi dai zuo，不会的直接找我	risk	spam_fraud	academic_cheating,project_outsourcing,pinyin	pinyin obfuscated project outsourcing
+V104	dai zuo 作业也接，学生党来	risk	spam_fraud	academic_cheating,pinyin	pinyin obfuscated homework outsourcing
+V105	kao shi da an 有现成的，需要直接说	risk	spam_fraud	academic_cheating,pinyin	pinyin obfuscated exam answer sale
+V106	you xi dai lian dai da，刷分刷排名都可以	risk	spam_fraud	boosting,pinyin	pinyin obfuscated game boosting
+V107	shua fen shua pai ming，快速上分	risk	spam_fraud	boosting,pinyin	pinyin obfuscated boosting
+V108	kuai su shang fen，想省时间的来	risk	spam_fraud	boosting,pinyin	pinyin obfuscated fast rank boosting
+V109	shua liang fu wu，点赞评论收藏关注都能做	risk	spam_fraud	brush,pinyin	pinyin obfuscated engagement manipulation
+V110	shua ping lun 真人账号操作，数据好看	risk	spam_fraud	brush,pinyin	pinyin obfuscated comment brushing
+V111	kuai su shang re men，有需要的私	risk	spam_fraud	brush,private,pinyin	pinyin obfuscated hot-rank manipulation
+V112	tou zi qun 拉人，nei bu qu dao，懂的进	risk	spam_fraud	investment,pinyin	pinyin obfuscated investment group diversion
+V113	bao zheng shou yi，稳赚不赔的项目	risk	spam_fraud	investment,pinyin	pinyin obfuscated guaranteed return scam
+V114	shen fen zheng zhao pian 可以办理贷款，kuai su ban li	risk	illegal_privacy	loan,privacy,pinyin	pinyin obfuscated ID photo loan request
+V115	kuai su ban li dai kuan，不看征信	risk	spam_fraud	loan,pinyin	pinyin obfuscated loan promotion
+V116	cheng ren wang zhan hui yuan 有人要吗	risk	sexual	account_trade,pinyin	pinyin obfuscated adult site membership sale
+V117	gao qing wu ma zi yuan，想看的私	risk	sexual	resource,private,pinyin	pinyin obfuscated sexual resource diversion
+V118	wu ma zi yuan 还有，完整的都有	risk	sexual	resource,pinyin	pinyin obfuscated sexual resource
+V119	bo cai zhang hao 出售，赌博下注的来	risk	gambling	account_trade,pinyin	pinyin obfuscated gambling account sale
+V120	du bo xia zhu 群，内部有下注技巧	risk	gambling	group,pinyin	pinyin obfuscated gambling group
+V121	xia zhu ji qiao 每天更新，稳赚不赔	risk	gambling	instruction,pinyin	pinyin obfuscated gambling instruction
+V122	wan quan zi yuan 私发，jia hao you 就给	risk	spam_fraud	resource,contact,pinyin	pinyin obfuscated resource diversion with contact
+V125	评论区都有人指出问题了还死鸭子嘴硬，脸是真的大	risk	abuse	insult,shaming	shaming and personal insult
+V127	想找现成成品的可以私我，学生作业、实验报告、课程设计都能处理	risk	spam_fraud	academic_cheating,private	academic cheating service diversion
+V128	不会写实验报告的别熬夜了，给我题目和要求，直接帮你弄完	risk	spam_fraud	academic_cheating	academic report ghostwriting
+V129	论文降重、润色、改格式都接，查重报告也能一起安排	risk	spam_fraud	academic_cheating	paper polishing and plagiarism report service
+V130	毕业材料急着交的可以来，资料整理、图表制作、格式修改都能做	risk	spam_fraud	academic_cheating	graduation material outsourcing service
+V131	有人要现成的驾考题库吗？内部整理版，省得自己慢慢找	risk	spam_fraud	exam_material,resource	internal exam bank promotion
+V132	考试前想要重点题型的私聊，押题资料可以给你	risk	spam_fraud	exam_material,private	exam prediction material diversion
+V133	某平台会员低价开通，年卡月卡都有，渠道价不是官网价	risk	spam_fraud	account_trade,membership	low-price platform membership service
+V134	流媒体会员可以代开，家庭组、共享组都能安排，价格很香	risk	spam_fraud	account_trade,membership	shared streaming membership service
+V135	需要国外服务订阅的可以找我，代充代开都行，省事很多	risk	spam_fraud	account_trade,subscription	foreign service subscription charging service
+V136	想买二手账号的注意了，老号、实名号、带等级的都有，具体私聊	risk	spam_fraud	account_trade,private	second-hand verified account sale
+V137	游戏里的稀有道具可以直接交易，不想慢慢刷的来，效率高得多	risk	spam_fraud	game_trade	game item trading diversion
+V138	有人想要代刷成就吗？挂机、任务、排名都能弄，自己玩太累了	risk	spam_fraud	boosting	achievement boosting service
+V139	直播间人气上不去的可以找我，在线人数、互动、热度都能做	risk	spam_fraud	brush,livestream	livestream engagement manipulation
+V140	想让帖子看起来热闹一点的也可以做，评论区互动一整套	risk	spam_fraud	brush,comment	comment engagement manipulation
+V141	需要删差评的来，指定平台指定内容都能处理，成功后再结算	risk	spam_fraud	negative_content_removal	paid negative review removal
+V142	网上那些个人信息查询我这边也能弄，手机号、住址之类的都可以查	risk	illegal_privacy	privacy_query	paid personal information query
+V143	有人想查前任最近住哪儿的吗？给个姓名就能帮你问问，价格好说	risk	illegal_privacy	stalking,privacy_query	stalking and address lookup service
+V144	手机定位、通话记录这种东西也不是完全没办法，懂的自然懂	risk	illegal_privacy	privacy_query	phone location and call record query
+V145	遇到欠钱不还的别只会发朋友圈，地址和联系方式我可以帮你找出来	risk	illegal_privacy	doxxing,privacy_query	address and contact doxxing service
+V146	想搞别人账号的别乱找教程，我这边有现成工具，拿过去自己研究	risk	illegal_privacy	hacking,account_attack	account attack tool promotion
+V147	网站后台权限、数据库账号之类的如果丢了，别急着找官方，我有办法进去	risk	illegal_privacy	hacking,credential	unauthorized backend and database access
+V148	有人需要看现场事故原片的吗？网上那些都处理过了，我这里是完整版本	risk	gore	graphic_content,resource	graphic accident footage resource promotion
+V149	vx：bingbingstudent	risk	spam_fraud	contact,wechat	wechat account label diversion
+V150	微信：bingbingstudent	risk	spam_fraud	contact,wechat	wechat account label diversion
+V151	qq：b i n g b i n g s t u d e n t	risk	spam_fraud	contact,qq,spaced_account	qq account label diversion with spaced account token
+V152	有想看完整版的吗，入口还是老地方，昵称里自己找。	risk	spam_fraud	manual_edge,false_negative	隐式资源引流
+V153	手里还有几份稀缺材料，不在这里细说，懂的人自然会来。	risk	spam_fraud	manual_edge,false_negative	规避资料和联系方式关键词
+V154	预算不多也能安排长期使用的智能助手席位，想省钱的留言。	risk	account_trade	manual_edge,false_negative	隐晦出售 AI 账号
+V155	官方价格嫌贵的话我这里有共享位置，按月结。	risk	account_trade	manual_edge,false_negative	隐晦会员共享交易
+V156	作业来不及的把要求发过来，剩下的我处理，交付后再付。	risk	academic_cheating	manual_edge,false_negative	不使用代写代做关键词
+V157	选题、代码、文档、答辩稿可以一起包圆，时间紧也没事。	risk	academic_cheating	manual_edge,false_negative	毕业项目一条龙的隐晦表达
+V158	考试前想少走弯路的来，重点范围已经整理好了，命中率很高。	risk	exam_cheating	manual_edge,false_negative	隐晦押题资料
+V159	段位卡住的把号给我，睡一觉起来就能看到变化。	risk	game_boosting	manual_edge,false_negative	不出现代练和上分
+V160	直播间冷清可以补点真人氛围，数量和时长都能谈。	risk	engagement_manipulation	manual_edge,false_negative	隐晦直播刷量
+V161	帖子没人互动的话我能安排一批不同风格的回复，看着很自然。	risk	engagement_manipulation	manual_edge,false_negative	隐晦刷评论
+V162	店铺那几条不好看的评价可以处理掉，见效以后再算钱。	risk	reputation_manipulation	manual_edge,false_negative	隐晦删差评
+V163	急用周转的不用看征信，当天能有结果，具体条件单独聊。	risk	loan_fraud	manual_edge,false_negative	规避贷款关键词
+V164	只要姓名和大概地区，就能补全对方现在住哪以及常用号码。	risk	illegal_privacy	manual_edge,false_negative	隐晦人肉查询
+V165	想知道对象最近和谁联系，我这里能看到一些普通人看不到的记录。	risk	illegal_privacy	manual_edge,false_negative	隐晦通话记录查询
+V166	后台进不去不用找管理员，把地址和用户名给我就能想办法进去。	risk	unauthorized_access	manual_edge,false_negative	未明确使用攻击工具
+V167	数据表口令忘了也能绕过去恢复访问，不需要走官方流程。	risk	unauthorized_access	manual_edge,false_negative	隐晦绕过认证
+V168	那些没处理过的事故原片我还留着，想看完整画面的说一声。	risk	gore	manual_edge,false_negative	隐晦传播血腥内容
+V169	晚上有成年人专属的刺激节目，入口不会公开放出来。	risk	sexual	manual_edge,false_negative	隐晦成人内容引流
+V170	同城想找点特别安排的可以留意头像，规矩都写在那里。	risk	sexual	manual_edge,false_negative	隐晦性交易引流
+V171	未满十八别点，完整合集在另一个地方，名字和这里一样。	risk	sexual	manual_edge,false_negative	跨平台隐式引流
+V172	今天这场胜负我有内部方向，跟着下的人连续几天都吃到了。	risk	gambling	manual_edge,false_negative	规避赌博下注关键词
+V173	盘口变化提前知道，想一起做的看签名，不公开拉人。	risk	gambling	manual_edge,false_negative	博彩黑话和隐式引流
+V174	本金放着也是放着，我这边每天固定回报，想了解再说。	risk	investment_fraud	manual_edge,false_negative	规避保证收益关键词
+V175	不用懂技术，每天点几下就返钱，先到先占名额。	risk	spam_fraud	manual_edge,false_negative	可疑返利兼职
+V176	那个人明晚会经过老地方，想让他长记性的跟我碰个面。	risk	violence	manual_edge,false_negative	隐晦组织线下伤害
+V177	欠钱不还就别讲道理了，我认识几个人能让他主动闭嘴。	risk	violence	manual_edge,false_negative	隐晦暴力讨债
+V178	把他单位和家庭情况发出来，大家一起去给他点压力。	risk	doxxing	manual_edge,false_negative	煽动曝光隐私
+V179	别直接骂，盯着他的每条动态反复举报，直到账号消失。	risk	harassment	manual_edge,false_negative	组织恶意举报
+V180	这种人就应该被全网围着羞辱，越多人参与越好。	risk	cyberbullying	manual_edge,false_negative	煽动网暴
+V181	作者这理解能力建议回炉重造，正常人写不出这种东西。	risk	abuse	manual_edge,false_negative	词库外人格羞辱
+V185	资源在首字母为 V 的绿色软件里，账号就是头像下面那串。	risk	contact_evasion	manual_edge,false_negative	规避微信关键词
+V186	企鹅那边搜昵称同名用户，验证写“教程”就会通过。	risk	contact_evasion	manual_edge,false_negative	规避 QQ 和联系方式关键词
+V187	一三八〇〇一三八〇〇〇，晚上联系，白天不回。	risk	contact_evasion	manual_edge,false_negative	中文数字电话号码
+V188	看图里的小字，扫一下就能进，不方便把入口打出来。	risk	contact_evasion	manual_edge,false_negative	图片和二维码隐式引流
+V189	hxxps://example[.]top/promo 去掉两个符号就能打开完整版。	risk	url_evasion	manual_edge,false_negative	变形 URL
+V190	example点vip斜杠free，自己替换成正常符号。	risk	url_evasion	manual_edge,false_negative	中文描述域名
+V191	aHR0cHM6Ly9leGFtcGxlLnRvcC9wcm9tbw== 解开以后就是入口。	risk	url_evasion	manual_edge,false_negative	Base64 URL
+V192	成 人 专 区今晚更新，想看的按昵称去另一个平台找。	risk	sexual	manual_edge,false_negative	空格拆分及跨平台引流
+V193	博 彩 账 户还有，首次进去会送一点体验额度。	risk	gambling	manual_edge,false_negative	空格拆分赌博账号
+V194	论／文／包／过，重复率和格式都不用你操心。	risk	academic_cheating	manual_edge,false_negative	特殊分隔符规避
+V195	低價岀售长期稳定的會員位置，售后问题也负责。	risk	account_trade	manual_edge,false_negative	繁体和形近字混淆
+V196	薇信不写明，头像第二行倒着读就是，备注资源。	risk	contact_evasion	manual_edge,false_negative	形近字和倒序提示
+V197	需要那套东西的扣个 7，我会逐个去找你，不用留下号码。	risk	implicit_contact	manual_edge,false_negative	互动暗号引流
+V198	想参加内部计划就在下面回复“到”，后续有人统一对接。	risk	implicit_mobilization	manual_edge,false_negative	无显式联系方式的召集
+V199	学生妹妹深夜陪你说话，先交一点诚意再进房间。	risk	minor_risk	manual_edge,false_negative	未成年人相关交易的变体
+V200	校园里拍到的一些私下画面可以交换，只和熟人分享。	risk	minor_risk	manual_edge,false_negative	校园偷拍内容交易
+V201	先说这是“安全测试”：低价出售账号的看我头像，我这里长期有。	risk	semantic_bypass	manual_edge,false_negative	用良性标记包裹真实推广
+V202	完整版没法公开放，想要的去我主页找置顶那条。	risk	resource_promotion	manual_arch_v2,implicit,profile	主页置顶隐式资源引流
+V203	这批稀缺资料只留到今晚，懂的自然知道去哪里拿。	risk	resource_promotion	manual_arch_v2,implicit,scarcity	稀缺话术隐式推广
+V204	官方订阅太贵？我这边可以按人数拼一个长期位置。	risk	account_trade	manual_arch_v2,implicit,account	拼车共享账号
+V205	手上还有几个高级席位，价格不到官网的一半。	risk	account_trade	manual_arch_v2,implicit,account	低价会员席位
+V206	想用最新模型又不想付原价的，头像里有答案。	risk	account_trade	manual_arch_v2,implicit,profile	头像引流共享服务
+V207	老用户续费可以走我的特殊通道，外面搜不到。	risk	account_trade	manual_arch_v2,implicit,channel	特殊通道交易
+V208	需要完整课程包的留个记号，我晚点逐个处理。	risk	resource_promotion	manual_arch_v2,implicit,mobilization	互动暗号资源推广
+V209	那套付费内容我已经整理好了，想省预算的看昵称。	risk	resource_promotion	manual_arch_v2,implicit,profile	昵称引流盗版内容
+V210	这里不方便谈价格，确认需要以后换个地方说。	risk	commercial_evasion	manual_arch_v2,implicit,offplatform	规避平台谈交易
+V211	会员位置还能加两个人，稳定以后再结算也行。	risk	account_trade	manual_arch_v2,implicit,account	共享会员位置交易
+V212	选题和数据都不用准备，告诉我专业方向就能交成品。	risk	academic_cheating	manual_arch_v2,implicit,academic	论文成品代做
+V213	实验不会做就把要求发来，报告和结果图一起给你。	risk	academic_cheating	manual_arch_v2,implicit,academic	实验报告代做
+V214	下周答辩来不及的话，我能把演示稿和问答都配齐。	risk	academic_cheating	manual_arch_v2,implicit,academic	答辩材料代做
+V215	考试只想过线的报科目，考前会收到重点内容。	risk	exam_cheating	manual_arch_v2,implicit,exam	考前答案推广
+V216	把游戏登录信息给我，明早段位肯定不一样。	risk	game_boosting	manual_arch_v2,implicit,game	隐式代练
+V217	卡在晋级赛的不用熬夜，我替你把最后几场打完。	risk	game_boosting	manual_arch_v2,implicit,game	代打晋级赛
+V218	直播没人说话可以加一批活跃观众，在线时长可选。	risk	engagement_manipulation	manual_arch_v2,implicit,engagement	直播虚假人气
+V219	新帖需要热度的话能安排不同账号轮流讨论。	risk	engagement_manipulation	manual_arch_v2,implicit,engagement	虚假评论互动
+V220	店铺评分不好看可以做一轮优化，达到目标再付款。	risk	reputation_manipulation	manual_arch_v2,implicit,reputation	操纵店铺评分
+V221	竞争对手那条热评可以压下去，我有人能操作。	risk	reputation_manipulation	manual_arch_v2,implicit,reputation	操纵评论排名
+V222	最近手头紧的可以试试，不查记录，今天就能到账。	risk	loan_fraud	manual_arch_v2,implicit,finance	隐晦免征信贷款
+V223	资金放我这里每天都有固定增长，随时想拿都可以。	risk	investment_fraud	manual_arch_v2,implicit,finance	固定收益承诺
+V224	不用学习也不用拉人，手机每天点几次就有收入。	risk	task_fraud	manual_arch_v2,implicit,finance	轻松返利骗局
+V225	内部名额还剩三个，先交保证金就能锁定高收益。	risk	investment_fraud	manual_arch_v2,implicit,finance	保证金高收益骗局
+V226	征信花了也能安排，具体额度只对有意向的人说。	risk	loan_fraud	manual_arch_v2,implicit,finance	贷款诈骗引流
+V227	跟着我的节奏做，连续一个月都没有亏过。	risk	investment_fraud	manual_arch_v2,implicit,finance	稳赚投资暗示
+V228	这个项目不公开募集，只接受熟人转介绍加入。	risk	investment_fraud	manual_arch_v2,implicit,finance	私募骗局引流
+V229	先投一点试试看，第二天就能看到回款记录。	risk	investment_fraud	manual_arch_v2,implicit,finance	快速回款诱导
+V230	有银行卡就能办理，工作和收入证明都可以省掉。	risk	loan_fraud	manual_arch_v2,implicit,finance	违规贷款办理
+V231	想把欠款快速抹平的来聊，我有系统里的特殊办法。	risk	financial_fraud	manual_arch_v2,implicit,finance	非法消除欠款
+V232	给我姓名和学校，我可以补出他的家庭地址。	risk	illegal_privacy	manual_arch_v2,implicit,privacy	非法查询住址
+V233	只知道手机号也没关系，常用地点和关系人都能查。	risk	illegal_privacy	manual_arch_v2,implicit,privacy	手机号反查信息
+V234	怀疑对象有事？我能提供最近的通话和出行记录。	risk	illegal_privacy	manual_arch_v2,implicit,privacy	非法查询伴侣记录
+V235	把那个人照片发来，可以定位他现在大概在哪。	risk	illegal_privacy	manual_arch_v2,implicit,privacy	照片定位隐私
+V236	后台权限过期不用申请，把用户名给我可以恢复进去。	risk	unauthorized_access	manual_arch_v2,implicit,access	绕过后台权限
+V237	数据库只读也能改，我有不经过审批的方式。	risk	unauthorized_access	manual_arch_v2,implicit,access	绕过数据库权限
+V238	验证码拿不到就跳过那一步，照样能登录别人的号。	risk	unauthorized_access	manual_arch_v2,implicit,access	绕过验证码登录
+V239	公司内部通讯录有人可以导出来，按条数算。	risk	illegal_privacy	manual_arch_v2,implicit,privacy	交易内部通讯录
+V240	需要查入住记录的准备姓名和证件后四位。	risk	illegal_privacy	manual_arch_v2,implicit,privacy	非法查询入住记录
+V241	被封的管理账号可以重新开权限，不需要原管理员同意。	risk	unauthorized_access	manual_arch_v2,implicit,access	非法恢复管理权限
+V242	今晚有只给成年人的节目，想进的按头像提示操作。	risk	sexual_promotion	manual_arch_v2,implicit,sexual	成人节目头像引流
+V243	同城可以安排私下见面，要求和价格换地方谈。	risk	sexual_promotion	manual_arch_v2,implicit,sexual	同城色情交易
+V244	未满十八不要看，剩下的合集都在昵称对应的平台。	risk	sexual_promotion	manual_arch_v2,implicit,sexual	成人资源跨平台引流
+V245	新拍的私密内容不公开发，只对付费的人开放。	risk	sexual_promotion	manual_arch_v2,implicit,sexual	付费私密内容
+V246	学生模样的也有，先付诚意再发预览。	risk	minor_sexual	manual_arch_v2,implicit,minor	疑似未成年人色情交易
+V247	校园偷拍合集可以换资源，别在公开区问。	risk	minor_risk	manual_arch_v2,implicit,minor	校园偷拍资源交换
+V248	想找年纪小的陪聊，规则写在个人介绍里。	risk	minor_risk	manual_arch_v2,implicit,minor	未成年人陪聊引流
+V249	只接成年客户，特殊服务内容见个人签名。	risk	sexual_promotion	manual_arch_v2,implicit,sexual	特殊服务签名引流
+V250	房间密码不直接发，付款截图通过后单独给。	risk	sexual_promotion	manual_arch_v2,implicit,sexual	付费房间引流
+V251	高清版本今晚更新，名字不变，去别的平台搜。	risk	sexual_promotion	manual_arch_v2,implicit,sexual	跨平台色情资源引流
+V252	今晚这场结果有人提前给了方向，想一起吃的看签名。	risk	gambling	manual_arch_v2,implicit,gambling	赛事下注引流
+V253	数字走势已经算好，跟三期不中就退。	risk	gambling	manual_arch_v2,implicit,gambling	彩票预测推广
+V254	新盘刚开有体验额度，进去以后再决定要不要跟。	risk	gambling	manual_arch_v2,implicit,gambling	赌博平台体验金
+V255	不公开拉群，主页最后一行就是进场方式。	risk	gambling	manual_arch_v2,implicit,gambling	赌博群主页引流
+V256	手里有稳定上岸的方法，每天照着号码下就行。	risk	gambling	manual_arch_v2,implicit,gambling	博彩号码推荐
+V257	筹码可以代充，到账以后再收服务费。	risk	gambling	manual_arch_v2,implicit,gambling	赌博筹码代充
+V258	这个粉末提神很快，想试的私下问来源。	risk	drugs	manual_arch_v2,implicit,drugs	疑似毒品交易
+V259	国外带回来的小药片还有，效果比酒强。	risk	drugs	manual_arch_v2,implicit,drugs	可疑药物交易
+V260	需要特殊植物种子的留言，包装看不出是什么。	risk	drugs	manual_arch_v2,implicit,drugs	违禁植物种子交易
+V261	检测不会显示的那种我能拿到，数量多有优惠。	risk	drugs	manual_arch_v2,implicit,drugs	规避检测违禁品交易
+V262	他明天会从侧门出来，想让他记住教训的到那里等。	risk	violence	manual_arch_v2,implicit,violence	线下暴力召集
+V263	欠钱不还就去他家门口堵，地址我稍后发。	risk	violence	manual_arch_v2,implicit,violence	堵门威胁并泄露地址
+V264	别报警，我们几个人过去就能让他把话收回去。	risk	violence	manual_arch_v2,implicit,violence	群体威胁
+V265	把他的单位贴出来，大家每天打电话让他没法工作。	risk	harassment	manual_arch_v2,implicit,harassment	人肉与电话骚扰
+V266	盯着她所有账号轮流举报，直到她不敢再出现。	risk	harassment	manual_arch_v2,implicit,harassment	持续网络骚扰
+V267	这种人不配活在这里，所有人都应该排挤他。	risk	hate	manual_arch_v2,implicit,hate	群体排斥煽动
+V268	作者的脑子大概只够按开机键，别再出来丢人。	risk	abuse	manual_arch_v2,implicit,abuse	直接人格侮辱
+V269	看完只能确认你完全没有正常人的理解能力。	risk	abuse	manual_arch_v2,implicit,abuse	贬损智力
+V270	去他每篇帖子下面复制这段话，让所有人一起嘲笑。	risk	cyberbullying	manual_arch_v2,implicit,bullying	组织网络霸凌
+V271	找到他孩子学校以后发出来，看他还敢不敢说话。	risk	doxxing	manual_arch_v2,implicit,doxxing	以未成年人信息威胁
+V272	绿色软件搜同音昵称，头像是蓝色山峰的那个就是我。	risk	contact_evasion	manual_arch_v2,evasion,contact	颜色代称社交软件
+V273	企鹅号不写全：八二零，再接四个六。	risk	contact_evasion	manual_arch_v2,evasion,contact	中文数字拆分 QQ
+V274	微后面加个信，账号在每句话的首字连起来。	risk	contact_evasion	manual_arch_v2,evasion,contact	藏头联系方式
+V275	扫图右下角的小方块，进去后备注“资料”。	risk	contact_evasion	manual_arch_v2,evasion,qrcode	二维码隐式引流
+V276	地址是 demo 点 top，后面接斜杠 vip，自行替换。	risk	url_evasion	manual_arch_v2,evasion,url	中文符号混淆域名
+V277	hxxp冒号双斜杠free横杠box点cc，浏览器里改一下。	risk	url_evasion	manual_arch_v2,evasion,url	文字描述混淆 URL
+V278	网址分三段发：best、deal、vip，按顺序拼起来。	risk	url_evasion	manual_arch_v2,evasion,url	分段域名引流
+V279	邮箱不方便直写，用户名是offer，后面接常见谷歌邮箱。	risk	contact_evasion	manual_arch_v2,evasion,email	描述式邮箱规避
+V280	看个人简介第二行，把三个大写字母搜到聊天软件。	risk	contact_evasion	manual_arch_v2,evasion,profile	个人简介跨平台引流
+V281	回复任意数字，我会用另一个号主动找到你。	risk	contact_evasion	manual_arch_v2,evasion,mobilization	互动后主动联系
+V282	低伽出兽高級會圓帳戸，售后长期在。	risk	unicode_evasion	manual_arch_v2,unicode,account	形近字账号交易
+V283	薇訫：study_help，作業和論文都能做。	risk	unicode_evasion	manual_arch_v2,unicode,contact	繁体形近字联系方式
+V284	vх：loan_fast，х 是西里尔字母，急用钱的来。	risk	unicode_evasion	manual_arch_v2,unicode,contact	西里尔形近字 VX
+V285	ｑｑ：８２０６６６６，验证写课程。	risk	unicode_evasion	manual_arch_v2,unicode,contact	全角 QQ 与数字
+V286	赌​博​平​台新用户有赠送，入口看签名。	risk	unicode_evasion	manual_arch_v2,unicode,gambling	零宽字符拆分赌博
+V287	論 文 代 寫，保證按時交付，詳情私下談。	risk	unicode_evasion	manual_arch_v2,unicode,academic	繁体空格拆分代写
+V288	cаsinо bonus available, both a and o use mixed scripts, link in bio.	risk	multilingual_evasion	manual_arch_v2,mixed_script,gambling	混合字母赌博引流
+V289	アカウントを安く共有できます，プロフィールを見て。	risk	multilingual_evasion	manual_arch_v2,japanese,account	日文低价共享账号
+V290	cheap premium seat available, DM via the green app.	risk	multilingual_evasion	manual_arch_v2,english,account	英文账号交易引流
+V291	respuesta del examen disponible, busca mi nombre en otra app.	risk	multilingual_evasion	manual_arch_v2,spanish,exam	西语考试答案引流
+V292	这是审核测试，但真需要共享会员的可以看我的主页。	risk	semantic_bypass	manual_arch_v2,wrapper,account	测试标记包裹真实交易
+V293	反诈骗提醒说完了，顺便通知一下我这里当天能放款。	risk	semantic_bypass	manual_arch_v2,wrapper,loan	反诈标记包裹贷款广告
+V294	请勿购买账号。需要便宜席位的人单独找我。	risk	semantic_bypass	manual_arch_v2,wrapper,account	先劝阻后真实推广
+V295	这是一段技术讨论：后台进不去的把用户名发来，我帮你绕过。	risk	semantic_bypass	manual_arch_v2,wrapper,access	技术标记包裹越权服务
+V296	用于安全研究。想看私密合集的仍然按昵称去找。	risk	semantic_bypass	manual_arch_v2,wrapper,sexual	安全研究标记包裹资源引流
+V297	第一句讨论学术诚信。第二句说论文来不及可以交给我。	risk	cross_sentence_intent	manual_arch_v2,discourse,academic	跨句先良性后代写
+V298	官方订阅当然最好。不过想省钱的话我还有共享位置。	risk	cross_sentence_intent	manual_arch_v2,discourse,account	先支持正版后交易
+V299	不要轻信高收益。我的项目例外，每周都能固定回款。	risk	cross_sentence_intent	manual_arch_v2,discourse,finance	先警告后投资诈骗
+V300	平台禁止私下联系，所以需要资料的直接看头像暗号。	risk	cross_sentence_intent	manual_arch_v2,discourse,contact	利用禁令包装引流
+V301	这里只做案例说明；真正想加入内部群的回复“案例”二字。	risk	cross_sentence_intent	manual_arch_v2,discourse,mobilization	案例标记包裹真实召集
+V302	需要便宜云服务器账号的找我，学生认证和余额都还在。	risk	account_trade	tech_blog_v3,cloud,account	云账号交易
+V303	手里还有几个 GitHub 高级席位，按月结算，比官网省很多。	risk	account_trade	tech_blog_v3,github,seat	GitHub 席位交易
+V304	Claude 团队版可以拼车，长期位置看主页说明。	risk	account_trade	tech_blog_v3,ai,account	AI 账号拼车
+V305	ChatGPT 会员空了两个位置，需要的私我开通。	risk	account_trade	tech_blog_v3,ai,account	ChatGPT 会员交易
+V306	低价出 JetBrains 全家桶账号，支持远程登录和售后。	risk	account_trade	tech_blog_v3,software,account	开发工具账号交易
+V307	有闲置 Apple 开发者账号，可以直接转给需要上架的人。	risk	account_trade	tech_blog_v3,apple,developer	开发者账号交易
+V308	企业签名证书还有效，想打包应用的单独联系。	risk	illegal_service	tech_blog_v3,certificate,contact	证书灰产引流
+V309	正版太贵的话我这有破解 IDE，装好就能永久使用。	risk	piracy	tech_blog_v3,software,crack	破解软件推广
+V310	付费课程已经全部下载，想要完整压缩包的看昵称。	risk	piracy	tech_blog_v3,course,resource	盗版课程资源
+V311	内部架构课录像和讲义都齐了，留个暗号发你。	risk	piracy	tech_blog_v3,course,evasion	内部课程引流
+V312	最新面试题库带答案，覆盖大厂后端岗位，需要的回复。	risk	exam_cheating	tech_blog_v3,interview,answers	面试答案交易
+V313	公司内部代码规范和项目模板可以打包，按份收费。	risk	data_leak	tech_blog_v3,internal,source	内部资料售卖
+V314	生产环境日志样本我能导出来，里面有真实用户数据。	risk	data_leak	tech_blog_v3,log,privacy	生产数据泄露
+V315	有一批可用 API key，调用额度充足，数量多价格还能谈。	risk	credential_trade	tech_blog_v3,api_key,trade	API Key 交易
+V316	云厂商代金券来源稳定，充值后确认到账再付款。	risk	fraud	tech_blog_v3,cloud,coupon	云代金券灰产
+V317	域名备案主体可以借用，急着上线的项目来聊。	risk	illegal_service	tech_blog_v3,domain,filing	备案主体租借
+V318	应用商店审核包过，资料不全也能走特殊渠道。	risk	illegal_service	tech_blog_v3,app_store,channel	应用审核灰产
+V319	需要下载站流量的可以安排弹窗推广，按安装量结算。	risk	spam_fraud	tech_blog_v3,traffic,installation	恶意推广服务
+V320	开源项目 Star 太少可以补一批真人号，看效果再结算。	risk	engagement_manipulation	tech_blog_v3,github,stars	GitHub 刷星
+V321	技术文章阅读量上不去我能做热度，评论内容也可以定制。	risk	engagement_manipulation	tech_blog_v3,blog,traffic	博客刷量
+V322	毕业设计后端来不及写的发需求，我可以整套交付。	risk	academic_cheating	tech_blog_v3,project,ghostwriting	毕设代做
+V323	课程实验只要给题目，代码、截图和报告都能配齐。	risk	academic_cheating	tech_blog_v3,lab,ghostwriting	实验作业代做
+V324	算法作业不会写没关系，我按测试用例帮你做到通过。	risk	academic_cheating	tech_blog_v3,algorithm,homework	算法作业代做
+V325	数据库课程设计可以代做，表结构和答辩稿一起给。	risk	academic_cheating	tech_blog_v3,database,project	数据库课程代做
+V326	论文代码复现交给我，结果图保证和原文接近。	risk	academic_cheating	tech_blog_v3,paper,reproduction	论文实验代做
+V327	查重太高可以处理，降到学校要求后再付尾款。	risk	academic_cheating	tech_blog_v3,plagiarism,service	论文降重服务
+V328	英文论文润色包过编辑初审，具体价格私下说。	risk	academic_cheating	tech_blog_v3,paper,service	论文违规服务
+V329	线上考试需要答案的报科目，开考前统一发送。	risk	exam_cheating	tech_blog_v3,exam,answers	考试答案
+V330	认证考试题库是内部整理版，命中率很高，想要的来。	risk	exam_cheating	tech_blog_v3,certification,answers	认证考试题库
+V331	面试时可以远程提示答案，只要提前装好工具。	risk	exam_cheating	tech_blog_v3,interview,cheating	面试作弊服务
+V332	在线编程考试我能替你做，账号提前发来测试环境。	risk	exam_cheating	tech_blog_v3,coding,impersonation	编程考试代考
+V333	简历项目经历可以包装，没做过也能准备一套话术。	risk	fraud	tech_blog_v3,resume,fabrication	简历造假服务
+V334	大模型课程作业直接把 prompt 发我，今晚给你成品。	risk	academic_cheating	tech_blog_v3,llm,homework	AI 作业代做
+V335	训练报告不会写就交给我，指标和图表都能补出来。	risk	academic_cheating	tech_blog_v3,ml,report	机器学习报告代写
+V336	数据集不够我可以生成一份，保证老师看不出是合成的。	risk	academic_cheating	tech_blog_v3,dataset,fabrication	伪造实验数据
+V337	论文实验结果不好看可以调，达到预期再整理报告。	risk	academic_cheating	tech_blog_v3,research,fabrication	篡改实验结果
+V338	开题答辩问题已经整理好，付费后发完整回答模板。	risk	academic_cheating	tech_blog_v3,defense,answers	答辩答案交易
+V339	实习周报和总结都能代写，告诉我技术栈就行。	risk	academic_cheating	tech_blog_v3,internship,ghostwriting	实习材料代写
+V340	需要项目证书的可以代办，不用真的参加开发。	risk	fraud	tech_blog_v3,certificate,fabrication	项目证明造假
+V341	这是学习交流，不会写论文的仍然可以把要求发我处理。	risk	semantic_bypass	tech_blog_v3,academic,wrapper	学习语境包装代写
+V342	忘记后台密码也能进去，把域名和用户名发我。	risk	unauthorized_access	tech_blog_v3,admin,access	后台越权服务
+V343	数据库没有权限没关系，我有办法绕过只读限制。	risk	unauthorized_access	tech_blog_v3,database,bypass	数据库越权
+V344	公司 Git 仓库进不去的找我，可以跳过统一认证。	risk	unauthorized_access	tech_blog_v3,git,auth	代码仓库越权
+V345	验证码收不到也能登录别人的号，具体方法单独教。	risk	unauthorized_access	tech_blog_v3,otp,bypass	验证码绕过
+V346	云控制台权限被收回了我能恢复，不需要管理员审批。	risk	unauthorized_access	tech_blog_v3,cloud,permission	云权限越权
+V347	给我手机号就能查到他常用 IP 和登录地点。	risk	illegal_privacy	tech_blog_v3,phone,tracking	查询登录地点
+V348	知道 GitHub 用户名就行，我可以补出真实姓名和单位。	risk	illegal_privacy	tech_blog_v3,github,doxxing	开发者身份查询
+V349	想查同事访问了哪些网站，我这里能拿到网关记录。	risk	illegal_privacy	tech_blog_v3,log,privacy	非法查询浏览记录
+V350	内部通讯录可以导出，按公司人数计算价格。	risk	illegal_privacy	tech_blog_v3,directory,trade	通讯录售卖
+V351	有真实手机号和邮箱数据，适合做短信推广测试。	risk	data_trade	tech_blog_v3,dataset,privacy	个人数据售卖
+V352	生产数据库脱敏前的备份我有，需要样本的联系。	risk	data_leak	tech_blog_v3,database,backup	未脱敏数据泄露
+V353	可以帮忙删掉服务器审计日志，不留操作记录。	risk	unauthorized_access	tech_blog_v3,audit,coverup	删除审计日志
+V354	被封的开发者账号能解，后台有人可以改状态。	risk	corruption	tech_blog_v3,account,insider	内部改账号状态
+V355	软件授权校验可以去掉，发二进制过来帮你处理。	risk	piracy	tech_blog_v3,license,bypass	破解授权服务
+V356	想做压测的把目标地址发来，我可以用大量节点打流量。	risk	cyber_abuse	tech_blog_v3,ddos,service	攻击流量服务
+V357	竞争对手网站可以让它暂时打不开，按持续时间收费。	risk	cyber_abuse	tech_blog_v3,ddos,commercial	拒绝服务攻击
+V358	有现成钓鱼页面模板，登录数据会自动回传。	risk	cyber_abuse	tech_blog_v3,phishing,kit	钓鱼工具推广
+V359	远控程序免杀版本刚更新，想测试的私下拿。	risk	malware	tech_blog_v3,malware,evasion	恶意软件传播
+V360	浏览器 Cookie 导出工具可以拿到别人会话，教程收费。	risk	credential_theft	tech_blog_v3,cookie,theft	会话窃取教程
+V361	先说不要攻击别人，不过我这里确实能提供打站服务。	risk	semantic_bypass	tech_blog_v3,cyber,wrapper	同句劝阻包装攻击服务
+V362	联系方式不直接写，绿色聊天软件搜我的博客同名。	risk	contact_evasion	tech_blog_v3,profile,contact	跨平台搜索引流
+V363	企鹅号按十六进制发：33 31 34 31 35 39，自己转一下。	risk	contact_evasion	tech_blog_v3,encoding,qq	编码 QQ 规避
+V364	微后面加信，ID 是 dev 下划线 help，验证写代码。	risk	contact_evasion	tech_blog_v3,word_split,wechat	拆词微信引流
+V365	v x 中间去掉空格，后面接 cloud2026。	risk	contact_evasion	tech_blog_v3,spacing,vx	空格 VX 引流
+V366	邮箱前缀是 service，域名用谷歌家的，私下报价。	risk	contact_evasion	tech_blog_v3,email,description	描述式邮箱
+V367	主页置顶仓库的最后一行有联系方式，照着加就行。	risk	contact_evasion	tech_blog_v3,repository,profile	仓库隐藏联系方式
+V368	扫描文章配图右下角的码，备注“源码”自动通过。	risk	contact_evasion	tech_blog_v3,qrcode,resource	二维码引流
+V369	回复一个句号，我会换小号主动联系你。	risk	contact_evasion	tech_blog_v3,reply,alternate	互动后联系
+V370	聊天账号藏在代码块每行首字母里，连起来搜索。	risk	contact_evasion	tech_blog_v3,code,steganography	代码藏联系方式
+V371	地址不方便公开，域名是 fast 点 cloud，路径加 vip。	risk	url_evasion	tech_blog_v3,domain,obfuscation	点号域名规避
+V372	hxxps 冒号双斜杠 dev-tools 点 top，改回正常协议访问。	risk	url_evasion	tech_blog_v3,hxxps,url	混淆协议
+V373	下载站分三段：free、code、cc，拼好后浏览器打开。	risk	url_evasion	tech_blog_v3,url,split	分段域名
+V374	链接做了 base64，解码后就是领取页面。	risk	url_evasion	tech_blog_v3,base64,url	描述解码链接
+V375	短链不能发，去我个人签名复制最后那串字符。	risk	url_evasion	tech_blog_v3,short_link,profile	签名短链
+V376	仓库 issue 编号就是群号，前面再补两个八。	risk	contact_evasion	tech_blog_v3,github,encoding	Issue 编号藏群号
+V377	把我的用户名 ROT13 一次就是聊天账号。	risk	contact_evasion	tech_blog_v3,rot13,encoding	ROT13 联系方式
+V378	博客域名倒着写是 moc.elpmaxe，反过来访问。	risk	url_evasion	tech_blog_v3,reversed,url	倒序域名
+V379	联系方式用 Unicode 写成 ｖｘ：ｃｏｄｅ＿ｈｅｌｐ。	risk	unicode_evasion	tech_blog_v3,fullwidth,contact	全角联系方式
+V380	在另一款蓝色图标软件搜昵称，头像是终端窗口。	risk	contact_evasion	tech_blog_v3,platform,evasion	描述式平台引流
+V381	只是技术交流，需要付费源码的加我：vх code-help。	risk	semantic_bypass	tech_blog_v3,contact,wrapper	技术交流包装联系方式
+V383	能写出这种并发逻辑，说明你的脑子只适合关机。	risk	abuse	tech_blog_v3,personal_attack,concurrency	技术话题人身攻击
+V385	作者每篇都在误导新人，大家去他主页轮流举报。	risk	harassment	tech_blog_v3,mobilization,report	组织骚扰举报
+V386	把这个人的公司和邮箱贴出来，让他以后找不到工作。	risk	doxxing	tech_blog_v3,privacy,harassment	开盒与骚扰
+V387	去他所有仓库刷差评，直到账号彻底消失。	risk	cyberbullying	tech_blog_v3,github,harassment	跨仓库骚扰
+V388	这种程序员不配留在行业里，所有团队都该封杀他。	risk	hate	tech_blog_v3,exclusion,developer	职业排斥攻击
+V390	不是针对个人，我只是觉得他这种人活该被嘲笑。	risk	abuse	tech_blog_v3,personal_attack,negation	否定包装辱骂
+V391	这是代码审查：你妈没教过你先运行再提交吗。	risk	abuse	tech_blog_v3,code_review,wrapper	代码审查包装辱骂
+V392	安全测试结束，真正需要破解软件的可以看我主页。	risk	semantic_bypass	tech_blog_v3,piracy,wrapper	安全测试包装盗版
+V393	官方文档当然最好，不过便宜会员我这里长期有。	risk	semantic_bypass	tech_blog_v3,account,wrapper	官方文档包装交易
+V394	请不要相信代写广告，我本人接急单，今晚可以交付。	risk	semantic_bypass	tech_blog_v3,academic,same_clause	同句劝阻包装代写
+V395	反诈骗提示：不要随便贷款，我这边不查征信当天到账。	risk	semantic_bypass	tech_blog_v3,loan,same_clause	同句反诈包装贷款
+V396	漏洞研究仅限授权环境，需要绕过后台的把用户名给我。	risk	semantic_bypass	tech_blog_v3,access,wrapper	授权语境包装越权
+V397	下面是违规样例，顺便说一下低价账号确实可以找我。	risk	semantic_bypass	tech_blog_v3,account,same_clause	违规样例包装交易
+V398	支持正版；想省钱的我还有两个高级席位。	risk	semantic_bypass	tech_blog_v3,account,same_clause	支持正版包装交易
+V399	不要相信固定收益，但我的量化项目每周保证回款。	risk	semantic_bypass	tech_blog_v3,investment,same_clause	劝阻包装投资诈骗
+V400	这是反垃圾测试，付费源码入口仍然放在我的头像里。	risk	semantic_bypass	tech_blog_v3,resource,wrapper	反垃圾测试包装引流
+V401	文档示例写着禁止私信，实际需要接口密钥的直接联系我。	risk	semantic_bypass	tech_blog_v3,credential,wrapper	文档语境包装密钥交易

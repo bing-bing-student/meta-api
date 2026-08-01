@@ -16,6 +16,12 @@ import (
 	"meta-api/common/loggers"
 	"meta-api/common/utils"
 	"meta-api/config"
+	adminModel "meta-api/app/model/admin"
+	articleModel "meta-api/app/model/article"
+	commentModel "meta-api/app/model/comment"
+	linkModel "meta-api/app/model/link"
+	tagModel "meta-api/app/model/tag"
+	userModel "meta-api/app/model/user"
 )
 
 // ConnectMySQLClient 初始化MySQL客户端
@@ -119,4 +125,22 @@ func initMySQL(cfg *MySQLConfig) (db *gorm.DB) {
 	}
 
 	return db
+}
+
+func autoMigrateMySQL(db *gorm.DB) error {
+	if db == nil {
+		return fmt.Errorf("mysql db is nil")
+	}
+	if err := db.AutoMigrate(
+		&adminModel.Admin{},
+		&tagModel.Tag{},
+		&articleModel.Article{},
+		&linkModel.Link{},
+		&userModel.User{},
+		&commentModel.Comment{},
+		&commentModel.CommentReport{},
+	); err != nil {
+		return fmt.Errorf("auto migrate mysql tables: %w", err)
+	}
+	return nil
 }

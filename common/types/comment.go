@@ -137,6 +137,7 @@ type AdminCommentModerationTextView struct {
 	Raw          string   `json:"raw"`
 	Normalized   string   `json:"normalized"`
 	Compact      string   `json:"compact"`
+	Confusable   string   `json:"confusable,omitempty"`
 	PinyinFolded string   `json:"pinyinFolded,omitempty"`
 	DecodedTexts []string `json:"decodedTexts,omitempty"`
 }
@@ -150,6 +151,19 @@ type AdminCommentModerationSignal struct {
 	ReasonText string `json:"reasonText,omitempty"`
 	Evidence   string `json:"evidence,omitempty"`
 	RuleID     string `json:"ruleID,omitempty"`
+	ClauseID   int    `json:"clauseID,omitempty"`
+}
+
+type AdminCommentModerationClause struct {
+	ID   int                            `json:"id"`
+	Text AdminCommentModerationTextView `json:"text"`
+}
+
+type AdminCommentModerationTrace struct {
+	Clauses           []AdminCommentModerationClause `json:"clauses"`
+	DetectorSignals   []AdminCommentModerationSignal `json:"detectorSignals,omitempty"`
+	SuppressedSignals []AdminCommentModerationSignal `json:"suppressedSignals,omitempty"`
+	BehaviorEvaluated bool                           `json:"behaviorEvaluated"`
 }
 
 type AdminPreviewCommentModerationItem struct {
@@ -163,6 +177,7 @@ type AdminPreviewCommentModerationItem struct {
 	RawReasons     []string                       `json:"rawReasons,omitempty"`
 	Signals        []AdminCommentModerationSignal `json:"signals,omitempty"`
 	Text           AdminCommentModerationTextView `json:"text"`
+	Trace          AdminCommentModerationTrace    `json:"trace"`
 	BehaviorDryRun bool                           `json:"behaviorDryRun"`
 }
 

@@ -36,7 +36,7 @@ func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) (*gin.Engine
 	r.Use(
 		middlewares.TimeoutMiddleware(
 			3*time.Second,
-			middlewares.TimeoutOverride{Prefix: "/user/auth/oauth/", Timeout: 12 * time.Second},
+			middlewares.TimeoutOverride{Prefix: "/user/auth/oauth/", Timeout: 35 * time.Second},
 			middlewares.TimeoutOverride{Prefix: "/user/bug-feedback", Timeout: 10 * time.Second},
 		),
 		middlewares.GinLogger(logger),

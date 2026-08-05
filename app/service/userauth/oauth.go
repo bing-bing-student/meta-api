@@ -25,7 +25,10 @@ import (
 	"meta-api/common/utils"
 )
 
-const oauthStateTTL = 5 * time.Minute
+const (
+	oauthStateTTL       = 5 * time.Minute
+	oauthRequestTimeout = 15 * time.Second
+)
 
 type oauthStatePayload struct {
 	Provider     string `json:"provider"`
@@ -295,7 +298,7 @@ func fetchOAuthUser(ctx context.Context, provider *oauthProviderConfig, accessTo
 }
 
 func doOAuthRequest(req *http.Request) ([]byte, error) {
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := &http.Client{Timeout: oauthRequestTimeout}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err

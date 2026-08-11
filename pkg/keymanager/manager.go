@@ -13,6 +13,8 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"go.uber.org/zap"
+
+	"meta-api/common/utils"
 )
 
 // 默认配置常量。
@@ -45,8 +47,9 @@ const (
 //  1. 读取 KEY_DIR（默认 ./keys），尝试加载 current（私钥必需）与 previous（可选）
 //  2. 启动 fsnotify watcher 监听 keyDir 目录，goroutine 收到 private_key.pem 的
 //     Create / Write / Rename 事件后，经 debounce 触发 reload
-//  3. 任何加载失败仅记录 Warn 日志，返回的 Manager 仍可调用，但 Decrypt 会返回 ErrNotReady
-func New(logger *zap.Logger) *Manager {
+//  3. 本地环境加载失败仅记录 Warn，返回的 Manager 仍可调用，但 Decrypt 会返回 ErrNotReady
+//  4. 生产环境加载 current 私钥失败时返回错误，避免启动后所有加密链路不可用
+func New(logger *zap.Logger) (*Manager, error) {
 	keyDir := os.Getenv(envKeyDir)
 	if keyDir == "" {
 		keyDir = defaultKeyDir
@@ -61,6 +64,9 @@ func New(logger *zap.Logger) *Manager {
 	if cur, err := loadPrivateKey(filepath.Join(keyDir, privateKeyFile)); err != nil {
 		logger.Warn("keyManager disabled: load current key failed",
 			zap.String("key_dir", keyDir), zap.Error(err))
+		if utils.IsProductionEnv() {
+			return nil, fmt.Errorf("load current private key: %w", err)
+		}
 	} else {
 		m.current = cur
 		logger.Info("keyManager loaded current key", zap.String("key_dir", keyDir))
@@ -82,7 +88,7 @@ func New(logger *zap.Logger) *Manager {
 		logger.Warn("keyManager watcher disabled", zap.String("key_dir", keyDir), zap.Error(err))
 	}
 
-	return m
+	return m, nil
 }
 
 // startWatcher 启动 fsnotify 监听 keyDir 目录，并在收到 private_key.pem 相关事件时触发 reload。

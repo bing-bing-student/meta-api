@@ -32,6 +32,9 @@ type MySQLConfig struct {
 	MaxOpenConn     int           `mapstructure:"max_open_conn"`
 	MaxIdleConn     int           `mapstructure:"max_idle_conn"`
 	ConnMaxLifetime time.Duration `mapstructure:"conn_max_lifetime"`
+	ConnMaxIdleTime time.Duration `mapstructure:"conn_max_idle_time"`
+	LogFullSQL      bool          `mapstructure:"log_full_sql"`
+	SlowThreshold   time.Duration `mapstructure:"slow_threshold"`
 }
 
 // RedisConfig 定义 redis 配置文件结构体

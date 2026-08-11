@@ -3,19 +3,18 @@ package edgeone
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 	teo "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/teo/v20220901"
 	"go.uber.org/zap"
+
+	"meta-api/common/utils"
 )
 
 // purgeType 与 EdgeOne CreatePurgeTask 接口的 Type 字段对齐。
 // purge_url 表示精确 URL 刷新；官方语义是直接删除匹配 URL 的节点缓存。
 const purgeType = "purge_url"
-
-const productionEnv = "production"
 
 const (
 	purgeJobIDFilterName = "job-id"
@@ -40,7 +39,7 @@ func (c *Client) PurgeArticles(articleIDs ...string) error {
 		return nil
 	}
 	if !c.enabled() {
-		if os.Getenv("APP_ENV") == productionEnv {
+		if utils.IsProductionEnv() {
 			return fmt.Errorf("edgeOne purge disabled in production")
 		}
 		return nil

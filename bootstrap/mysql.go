@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"os"
+	"strings"
 	"time"
 
 	"gorm.io/driver/mysql"
@@ -13,19 +13,39 @@ import (
 	"gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
 
-	"meta-api/common/loggers"
-	"meta-api/common/utils"
-	"meta-api/config"
 	adminModel "meta-api/app/model/admin"
 	articleModel "meta-api/app/model/article"
 	commentModel "meta-api/app/model/comment"
 	linkModel "meta-api/app/model/link"
 	tagModel "meta-api/app/model/tag"
 	userModel "meta-api/app/model/user"
+	"meta-api/common/loggers"
+	"meta-api/common/utils"
+	"meta-api/config"
+)
+
+const (
+	envMySQLUsername = "MYSQL_USERNAME"
+	envMySQLPassword = "MYSQL_WORK_PASSWORD"
+	envMySQLHost     = "MYSQL_HOST"
+	envMySQLPort     = "MYSQL_PORT"
+	envMySQLDBName   = "MYSQL_DB_NAME"
+)
+
+const (
+	defaultMySQLMaxOpenConns  = 40
+	defaultMySQLMaxIdleConns  = 10
+	defaultMySQLConnLifetime  = 30 * time.Minute
+	defaultMySQLConnIdleTime  = 5 * time.Minute
+	defaultMySQLSlowThreshold = 100 * time.Millisecond
 )
 
 // ConnectMySQLClient 初始化MySQL客户端
 func ConnectMySQLClient(ctx context.Context, config mysql.Config, logger logger.Interface, cfg *config.MySQLConfig) (*gorm.DB, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("mysql connection config is nil")
+	}
+
 	db, err := gorm.Open(mysql.New(config), &gorm.Config{
 		Logger:         logger,
 		NamingStrategy: schema.NamingStrategy{SingularTable: true},
@@ -41,9 +61,7 @@ func ConnectMySQLClient(ctx context.Context, config mysql.Config, logger logger.
 		return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
 	}
 
-	sqlDB.SetMaxOpenConns(cfg.MaxOpenConn)
-	sqlDB.SetMaxIdleConns(cfg.MaxIdleConn)
-	sqlDB.SetConnMaxLifetime(cfg.ConnMaxLifetime)
+	applyMySQLPoolConfig(sqlDB, cfg)
 
 	if err = sqlDB.PingContext(ctx); err != nil {
 		// Ping 失败时显式关闭无效连接池，与 redis 路径保持一致：
@@ -63,20 +81,34 @@ type MySQLConfig struct {
 	RetryConfig *config.RetryConfig
 }
 
+type mysqlEnv struct {
+	username string
+	password string
+	host     string
+	port     string
+	dbName   string
+}
+
 // MySql 初始化数据库
-func initMySQL(cfg *MySQLConfig) (db *gorm.DB) {
+func initMySQL(cfg *MySQLConfig) (*gorm.DB, error) {
+	if err := validateMySQLConfig(cfg); err != nil {
+		return nil, err
+	}
+
+	env, err := mysqlEnvFromEnv()
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	password := utils.NewSecureString(os.Getenv("MYSQL_WORK_PASSWORD"))
+	password := utils.NewSecureString(env.password)
 	defer password.Clear()
 
-	username := os.Getenv("MYSQL_USERNAME") // 账号
-	host := os.Getenv("MYSQL_HOST")         // 数据库地址
-	port := os.Getenv("MYSQL_PORT")         // 数据库端口
-	dbName := os.Getenv("MYSQL_DB_NAME")    // 数据库名
 	// dsn := "用户名:密码@tcp(地址:端口)/数据库名"
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local", username, password.Get(), host, port, dbName)
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+		env.username, password.Get(), env.host, env.port, env.dbName)
 
 	// 配置 Gorm 连接到 MySQL
 	mysqlConfig := mysql.Config{
@@ -85,23 +117,81 @@ func initMySQL(cfg *MySQLConfig) (db *gorm.DB) {
 		SkipInitializeWithVersion: false, // 根据当前 MySQL 版本自动配置
 	}
 
-	// 创建全量 SQL 日志记录器
-	fullLogger := logger.New(
-		log.New(GetLogWriter(cfg.LogConfig, cfg.LogConfig.MySQLFullLog), "\r\n", log.LstdFlags),
-		logger.Config{
-			SlowThreshold:             0, // 记录所有SQL，无论快慢
-			LogLevel:                  logger.Info,
-			IgnoreRecordNotFoundError: true,
-			Colorful:                  false,
-			ParameterizedQueries:      true,
-		},
-	)
+	mysqlLogger := newMySQLLogger(cfg)
 
-	// 创建慢 SQL 日志记录器
+	// 连接 MySQL
+	var db *gorm.DB
+	if err = utils.WithBackoff(ctx, cfg.RetryConfig, func() error {
+		db, err = ConnectMySQLClient(ctx, mysqlConfig, mysqlLogger, cfg.MySQLConfig)
+		return err
+	}); err != nil {
+		return nil, fmt.Errorf("mysql connection failed: %w", err)
+	}
+
+	return db, nil
+}
+
+func validateMySQLConfig(cfg *MySQLConfig) error {
+	if cfg == nil {
+		return fmt.Errorf("mysql config is nil")
+	}
+	if cfg.MySQLConfig == nil {
+		return fmt.Errorf("mysql connection config is nil")
+	}
+	if cfg.LogConfig == nil {
+		return fmt.Errorf("mysql log config is nil")
+	}
+	if cfg.RetryConfig == nil {
+		return fmt.Errorf("mysql retry config is nil")
+	}
+	return nil
+}
+
+func applyMySQLPoolConfig(sqlDB interface {
+	SetMaxOpenConns(int)
+	SetMaxIdleConns(int)
+	SetConnMaxLifetime(time.Duration)
+	SetConnMaxIdleTime(time.Duration)
+}, cfg *config.MySQLConfig) {
+	maxOpenConns := cfg.MaxOpenConn
+	if maxOpenConns <= 0 {
+		maxOpenConns = defaultMySQLMaxOpenConns
+	}
+
+	maxIdleConns := cfg.MaxIdleConn
+	if maxIdleConns <= 0 {
+		maxIdleConns = defaultMySQLMaxIdleConns
+	}
+	if maxIdleConns > maxOpenConns {
+		maxIdleConns = maxOpenConns
+	}
+
+	connMaxLifetime := cfg.ConnMaxLifetime
+	if connMaxLifetime <= 0 {
+		connMaxLifetime = defaultMySQLConnLifetime
+	}
+
+	connMaxIdleTime := cfg.ConnMaxIdleTime
+	if connMaxIdleTime <= 0 {
+		connMaxIdleTime = defaultMySQLConnIdleTime
+	}
+
+	sqlDB.SetMaxOpenConns(maxOpenConns)
+	sqlDB.SetMaxIdleConns(maxIdleConns)
+	sqlDB.SetConnMaxLifetime(connMaxLifetime)
+	sqlDB.SetConnMaxIdleTime(connMaxIdleTime)
+}
+
+func newMySQLLogger(cfg *MySQLConfig) logger.Interface {
+	slowThreshold := cfg.MySQLConfig.SlowThreshold
+	if slowThreshold <= 0 {
+		slowThreshold = defaultMySQLSlowThreshold
+	}
+
 	slowLogger := logger.New(
 		log.New(GetLogWriter(cfg.LogConfig, cfg.LogConfig.MySQLSlowLog), "\r\n", log.LstdFlags),
 		logger.Config{
-			SlowThreshold:             50 * time.Millisecond, // 只记录超过50ms的SQL
+			SlowThreshold:             slowThreshold,
 			LogLevel:                  logger.Warn,
 			IgnoreRecordNotFoundError: true,
 			Colorful:                  false,
@@ -109,22 +199,45 @@ func initMySQL(cfg *MySQLConfig) (db *gorm.DB) {
 		},
 	)
 
-	// 组合日志记录器
-	compositeLogger := &loggers.CompositeLogger{
+	if !cfg.MySQLConfig.LogFullSQL {
+		return slowLogger
+	}
+
+	fullLogger := logger.New(
+		log.New(GetLogWriter(cfg.LogConfig, cfg.LogConfig.MySQLFullLog), "\r\n", log.LstdFlags),
+		logger.Config{
+			SlowThreshold:             0,
+			LogLevel:                  logger.Info,
+			IgnoreRecordNotFoundError: true,
+			Colorful:                  false,
+			ParameterizedQueries:      true,
+		},
+	)
+
+	return &loggers.CompositeLogger{
 		FullLogger: fullLogger,
 		SlowLogger: slowLogger,
 	}
+}
 
-	// 连接 MySQL
-	var err error
-	if err = utils.WithBackoff(ctx, cfg.RetryConfig, func() error {
-		db, err = ConnectMySQLClient(ctx, mysqlConfig, compositeLogger, cfg.MySQLConfig)
-		return err
-	}); err != nil {
-		panic("MySQL connection failed: " + err.Error())
+func mysqlEnvFromEnv() (*mysqlEnv, error) {
+	values, err := requiredEnvValues(
+		envMySQLUsername,
+		envMySQLPassword,
+		envMySQLHost,
+		envMySQLPort,
+		envMySQLDBName,
+	)
+	if err != nil {
+		return nil, err
 	}
-
-	return db
+	return &mysqlEnv{
+		username: strings.TrimSpace(values[envMySQLUsername]),
+		password: values[envMySQLPassword],
+		host:     strings.TrimSpace(values[envMySQLHost]),
+		port:     strings.TrimSpace(values[envMySQLPort]),
+		dbName:   strings.TrimSpace(values[envMySQLDBName]),
+	}, nil
 }
 
 func autoMigrateMySQL(db *gorm.DB) error {

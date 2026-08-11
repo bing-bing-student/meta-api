@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"log"
 	"os"
 	"strings"
 	"time"
@@ -84,13 +85,21 @@ func (b *Bootstrap) InitConfig() *Bootstrap {
 
 // InitLogger 初始化日志
 func (b *Bootstrap) InitLogger() *Bootstrap {
-	b.Logger = initLog(b.Config.LogConfig)
+	logger, err := initLog(b.Config.LogConfig)
+	if err != nil {
+		log.Panicf("init logger failed: %v", err)
+	}
+	b.Logger = logger
 	return b
 }
 
 // InitIDGenerator 初始化雪花ID生成器
 func (b *Bootstrap) InitIDGenerator() *Bootstrap {
-	b.IDGenerator = initIDGenerator(b.Logger)
+	idGenerator, err := initIDGenerator(b.Logger)
+	if err != nil {
+		b.Logger.Panic("init id generator failed", zap.Error(err))
+	}
+	b.IDGenerator = idGenerator
 	return b
 }
 
@@ -108,7 +117,11 @@ func (b *Bootstrap) InitMySQL() *Bootstrap {
 		RetryConfig: b.Config.RetryConfig,
 	}
 
-	b.MySQL = initMySQL(mySQLConfig)
+	mySQL, err := initMySQL(mySQLConfig)
+	if err != nil {
+		b.Logger.Panic("init mysql failed", zap.Error(err))
+	}
+	b.MySQL = mySQL
 	if err := autoMigrateMySQL(b.MySQL); err != nil {
 		b.Logger.Panic("auto migrate mysql failed", zap.Error(err))
 	}
@@ -121,19 +134,30 @@ func (b *Bootstrap) InitRedis() *Bootstrap {
 		RedisConfig: b.Config.RedisConfig,
 		RetryConfig: b.Config.RetryConfig,
 	}
-	b.Redis = initRedis(redisConfig)
+	redisClient, err := initRedis(redisConfig)
+	if err != nil {
+		b.Logger.Panic("init redis failed", zap.Error(err))
+	}
+	b.Redis = redisClient
 	return b
 }
 
 // InitKeyManager 创建密钥管理器
 func (b *Bootstrap) InitKeyManager() *Bootstrap {
-	b.KeyManager = keymanager.New(b.Logger)
+	keyManager, err := keymanager.New(b.Logger)
+	if err != nil {
+		b.Logger.Panic("init key manager failed", zap.Error(err))
+	}
+	b.KeyManager = keyManager
 	return b
 }
 
 // Start 启动所有服务组件
 // 业务定时任务由 app 层 / service 层各自注册到 b.Cron 后再调用本方法启动调度器
 func (b *Bootstrap) Start() {
+	if b.Cron == nil {
+		return
+	}
 	b.Cron.Start()
 }
 
@@ -148,6 +172,9 @@ func (b *Bootstrap) Stop() {
 
 // StopCron 停止定时任务调度器
 func (b *Bootstrap) StopCron(ctx context.Context) {
+	if b.Cron == nil {
+		return
+	}
 	if b.CronEntryIDList != nil {
 		for _, entryID := range *b.CronEntryIDList {
 			b.Cron.Remove(entryID)
@@ -157,7 +184,9 @@ func (b *Bootstrap) StopCron(ctx context.Context) {
 	select {
 	case <-stopCtx.Done():
 	case <-ctx.Done():
-		b.Logger.Error("cron shutdown timed out", zap.Error(ctx.Err()))
+		if b.Logger != nil {
+			b.Logger.Error("cron shutdown timed out", zap.Error(ctx.Err()))
+		}
 	}
 }
 
@@ -170,23 +199,31 @@ func (b *Bootstrap) CloseResources() {
 	// 关闭 KeyManager 文件监听，释放 fsnotify fd
 	if b.KeyManager != nil {
 		if err := b.KeyManager.Close(); err != nil {
-			b.Logger.Error("failed to close keyManager", zap.Error(err))
+			b.logCloseError("failed to close keyManager", err)
 		}
 	}
 
 	// 关闭 MySQL 数据库连接
-	if sqlDB, err := b.MySQL.DB(); err == nil {
-		if err = sqlDB.Close(); err != nil {
-			b.Logger.Error("failed to close MySQL connection", zap.Error(err))
+	if b.MySQL != nil {
+		if sqlDB, err := b.MySQL.DB(); err == nil {
+			if err = sqlDB.Close(); err != nil {
+				b.logCloseError("failed to close MySQL connection", err)
+			}
+		} else {
+			b.logCloseError("failed to get MySQL DB instance", err)
 		}
-	} else {
-		b.Logger.Error("failed to get MySQL DB instance", zap.Error(err))
 	}
 
 	// 关闭 Redis 连接
 	if b.Redis != nil {
 		if err := b.Redis.Close(); err != nil {
-			b.Logger.Error("failed to close Redis connection", zap.Error(err))
+			b.logCloseError("failed to close Redis connection", err)
 		}
+	}
+}
+
+func (b *Bootstrap) logCloseError(message string, err error) {
+	if b.Logger != nil {
+		b.Logger.Error(message, zap.Error(err))
 	}
 }

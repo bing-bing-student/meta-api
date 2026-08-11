@@ -1,7 +1,9 @@
 package bootstrap
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"go.uber.org/zap"
@@ -12,7 +14,14 @@ import (
 )
 
 // initLog 日志初始化
-func initLog(config *config.LogConfig) *zap.Logger {
+func initLog(config *config.LogConfig) (*zap.Logger, error) {
+	if config == nil {
+		return nil, fmt.Errorf("log config is nil")
+	}
+	if err := prepareLogFiles(config); err != nil {
+		return nil, err
+	}
+
 	infoLogWriter := GetLogWriter(config, config.HTTPInfoLog)
 	warnLogWriter := GetLogWriter(config, config.HTTPWarnLog)
 	errLogWriter := GetLogWriter(config, config.HTTPErrLog)
@@ -33,7 +42,46 @@ func initLog(config *config.LogConfig) *zap.Logger {
 
 	core := zapcore.NewTee(infoCore, warnCore, errCore)
 	logger := zap.New(core, zap.AddCaller())
-	return logger
+	return logger, nil
+}
+
+func prepareLogFiles(config *config.LogConfig) error {
+	paths := []string{
+		config.MySQLFullLog,
+		config.MySQLSlowLog,
+		config.HTTPInfoLog,
+		config.HTTPWarnLog,
+		config.HTTPErrLog,
+	}
+	for _, path := range paths {
+		if err := prepareLogFile(path); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func prepareLogFile(path string) error {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return fmt.Errorf("log path is empty")
+	}
+
+	dir := filepath.Dir(path)
+	if dir != "." && dir != "" {
+		if err := os.MkdirAll(dir, 0750); err != nil {
+			return fmt.Errorf("create log dir %q: %w", dir, err)
+		}
+	}
+
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+		return fmt.Errorf("open log file %q: %w", path, err)
+	}
+	if err = file.Close(); err != nil {
+		return fmt.Errorf("close log file %q: %w", path, err)
+	}
+	return nil
 }
 
 // getInfoLevelEncoder 获取INFO日志的编码器

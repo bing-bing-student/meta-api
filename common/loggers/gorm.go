@@ -13,9 +13,10 @@ type CompositeLogger struct {
 }
 
 func (c *CompositeLogger) LogMode(level logger.LogLevel) logger.Interface {
-	c.FullLogger.LogMode(level)
-	c.SlowLogger.LogMode(level)
-	return c
+	return &CompositeLogger{
+		FullLogger: c.FullLogger.LogMode(level),
+		SlowLogger: c.SlowLogger.LogMode(level),
+	}
 }
 
 func (c *CompositeLogger) Info(ctx context.Context, msg string, data ...any) {

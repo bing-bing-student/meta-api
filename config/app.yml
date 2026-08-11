@@ -11,14 +11,17 @@ log:
 
 retry:
   max_retries: 3
-  initial_delay: 1
-  max_delay: 60
+  initial_delay: 1s
+  max_delay: 60s
   jitter_factor: 0.3
 
 mysql:
-  max_open_conn: 100
-  max_idle_conn: 20
-  conn_max_lifetime: 3
+  max_open_conn: 40
+  max_idle_conn: 10
+  conn_max_lifetime: 30m
+  conn_max_idle_time: 5m
+  log_full_sql: false
+  slow_threshold: 100ms
 
 redis:
   db: 0

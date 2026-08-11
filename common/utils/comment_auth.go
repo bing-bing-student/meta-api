@@ -74,19 +74,19 @@ func ParseCommentUserToken(tokenString string) (*types.PublicUserClaims, error) 
 }
 
 func SetCommentAuthCookie(c *gin.Context, token string) {
-	secure := isProd()
+	secure := IsProductionEnv()
 	c.SetSameSite(commentAuthSameSiteMode())
 	c.SetCookie(CommentAccessTokenCookie, token, commentAuthCookieMaxAge, commentAuthCookiePath, "", secure, true)
 }
 
 func ClearCommentAuthCookie(c *gin.Context) {
-	secure := isProd()
+	secure := IsProductionEnv()
 	c.SetSameSite(commentAuthSameSiteMode())
 	c.SetCookie(CommentAccessTokenCookie, "", -1, commentAuthCookiePath, "", secure, true)
 }
 
 func commentAuthSameSiteMode() http.SameSite {
-	if isProd() {
+	if IsProductionEnv() {
 		return http.SameSiteLaxMode
 	}
 	return http.SameSiteLaxMode

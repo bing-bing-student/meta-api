@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -13,13 +14,30 @@ import (
 	"meta-api/config"
 )
 
+const (
+	envRedisAddress    = "REDIS_ADDRESS"
+	envRedisMasterName = "REDIS_MASTER_NAME"
+	envRedisPassword   = "REDIS_PASSWORD"
+)
+
 // ConnectRedisClient 初始化Redis客户端
 func ConnectRedisClient(ctx context.Context, cfg *RedisConfig) (*redis.Client, error) {
+	if err := validateRedisConfig(cfg); err != nil {
+		return nil, err
+	}
+	env, err := redisEnvFromEnv()
+	if err != nil {
+		return nil, err
+	}
+	return connectRedisClient(ctx, cfg, env)
+}
+
+func connectRedisClient(ctx context.Context, cfg *RedisConfig, env *redisEnv) (*redis.Client, error) {
 	client := redis.NewFailoverClient(&redis.FailoverOptions{
-		Password:      os.Getenv("REDIS_PASSWORD"),
+		Password:      env.password,
 		DB:            cfg.RedisConfig.DB,
-		MasterName:    os.Getenv("REDIS_MASTER_NAME"),
-		SentinelAddrs: strings.Split(os.Getenv("REDIS_ADDRESS"), ","),
+		MasterName:    env.masterName,
+		SentinelAddrs: env.sentinelAddrs,
 	})
 
 	// Ping 失败时必须显式关闭 client：
@@ -43,19 +61,69 @@ type RedisConfig struct {
 	RetryConfig *config.RetryConfig
 }
 
+type redisEnv struct {
+	password      string
+	masterName    string
+	sentinelAddrs []string
+}
+
 // Redis 初始化Redis
-func initRedis(cfg *RedisConfig) *redis.Client {
+func initRedis(cfg *RedisConfig) (*redis.Client, error) {
+	if err := validateRedisConfig(cfg); err != nil {
+		return nil, err
+	}
+
+	env, err := redisEnvFromEnv()
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
 	var client *redis.Client
-	var err error
 	if err = utils.WithBackoff(ctx, cfg.RetryConfig, func() error {
-		client, err = ConnectRedisClient(ctx, cfg)
+		client, err = connectRedisClient(ctx, cfg, env)
 		return err
 	}); err != nil {
-		panic("Redis connection failed: " + err.Error())
+		return nil, fmt.Errorf("redis connection failed: %w", err)
 	}
 
-	return client
+	return client, nil
+}
+
+func validateRedisConfig(cfg *RedisConfig) error {
+	if cfg == nil {
+		return fmt.Errorf("redis config is nil")
+	}
+	if cfg.RedisConfig == nil {
+		return fmt.Errorf("redis connection config is nil")
+	}
+	if cfg.RetryConfig == nil {
+		return fmt.Errorf("redis retry config is nil")
+	}
+	return nil
+}
+
+func redisEnvFromEnv() (*redisEnv, error) {
+	values, err := requiredEnvValues(envRedisMasterName)
+	if err != nil {
+		return nil, err
+	}
+
+	sentinelAddrs, err := splitEnvList(envRedisAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	password := strings.TrimSpace(os.Getenv(envRedisPassword))
+	if password == "" && utils.IsProductionEnv() {
+		return nil, fmt.Errorf("missing required environment variable: %s", envRedisPassword)
+	}
+
+	return &redisEnv{
+		password:      password,
+		masterName:    values[envRedisMasterName],
+		sentinelAddrs: sentinelAddrs,
+	}, nil
 }

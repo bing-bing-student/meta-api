@@ -56,6 +56,13 @@ type AdminDeleteArticleRequest struct {
 	ID string `json:"id" binding:"required,lte=19"`
 }
 
+type AdminUploadArticleImageResponse struct {
+	URL      string `json:"url"`
+	FileName string `json:"fileName"`
+	Size     int64  `json:"size"`
+	Mime     string `json:"mime"`
+}
+
 type UserGetArticleListRequest struct {
 	Page     int `form:"page" binding:"required,gte=1"`
 	PageSize int `form:"pageSize" binding:"required,gte=1,lte=10"`

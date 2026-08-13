@@ -11,7 +11,7 @@ import (
 	"meta-api/app/model/tag"
 	"meta-api/common/types"
 	"meta-api/config"
-	"meta-api/pkg/edgeone"
+	"meta-api/pkg/cdn"
 	"meta-api/pkg/sitemap"
 )
 
@@ -33,13 +33,13 @@ type tagService struct {
 	redis        *redis.Client
 	tagModel     tag.Model
 	articleModel article.Model
-	edgeone      *edgeone.Client
+	cdn          *cdn.Client
 	sitemap      *sitemap.Client
 }
 
 // NewService 创建服务实例
 func NewService(config *config.Config, logger *zap.Logger, idGenerator *sonyflake.Sonyflake, redis *redis.Client,
-	tagModel tag.Model, articleModel article.Model, eo *edgeone.Client, sm *sitemap.Client) Service {
+	tagModel tag.Model, articleModel article.Model, cdnClient *cdn.Client, sm *sitemap.Client) Service {
 	return &tagService{
 		config:       config,
 		logger:       logger,
@@ -47,7 +47,7 @@ func NewService(config *config.Config, logger *zap.Logger, idGenerator *sonyflak
 		redis:        redis,
 		tagModel:     tagModel,
 		articleModel: articleModel,
-		edgeone:      eo,
+		cdn:          cdnClient,
 		sitemap:      sm,
 	}
 }

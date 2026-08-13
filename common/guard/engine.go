@@ -9,7 +9,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"meta-api/pkg/keymanager"
+	"meta-api/common/guard/keymanager"
 )
 
 // Engine 风控守卫评估引擎。

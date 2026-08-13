@@ -1,4 +1,4 @@
-package edgeone
+package cdn
 
 import (
 	"context"

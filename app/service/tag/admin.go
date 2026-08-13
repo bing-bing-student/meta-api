@@ -245,8 +245,8 @@ func (t *tagService) AdminUpdateTag(ctx context.Context, request *types.AdminUpd
 	// 刷新 sitemap 内部缓存，让标签 URL 和文章归属变更尽快反映到 sitemap.xml。
 	t.sitemap.RefreshArticles(request.ArticleIDList...)
 
-	// 清理 EdgeOne CDN 上受影响文章详情 HTML 缓存，避免页面继续展示旧标签。
-	if err = t.edgeone.PurgeArticles(request.ArticleIDList...); err != nil {
+	// 清理 CDN 上受影响文章详情 HTML 缓存，避免页面继续展示旧标签。
+	if err = t.cdn.PurgeArticles(request.ArticleIDList...); err != nil {
 		t.logger.Error("failed to purge article CDN cache",
 			zap.Strings("article_ids", request.ArticleIDList), zap.Error(err))
 		return fmt.Errorf("failed to purge article CDN cache: %w", err)

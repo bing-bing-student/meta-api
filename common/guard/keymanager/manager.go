@@ -75,8 +75,7 @@ func New(logger *zap.Logger) (*Manager, error) {
 	if prev, err := loadPrivateKey(filepath.Join(keyDir, previousKeyFile)); err != nil {
 		// .prev 不存在是正常的（首次部署），不打 warn
 		if !errors.Is(err, os.ErrNotExist) {
-			logger.Warn("keyManager load previous key failed",
-				zap.String("key_dir", keyDir), zap.Error(err))
+			logger.Warn("keyManager load previous key failed", zap.String("key_dir", keyDir), zap.Error(err))
 		}
 	} else {
 		m.previous = prev

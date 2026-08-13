@@ -39,6 +39,7 @@ func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) (*gin.Engine
 			middlewares.TimeoutOverride{Prefix: "/user/auth/oauth/", Timeout: 35 * time.Second},
 			middlewares.TimeoutOverride{Prefix: "/admin/auth/article/update", Timeout: 35 * time.Second},
 			middlewares.TimeoutOverride{Prefix: "/admin/auth/article/delete", Timeout: 35 * time.Second},
+			middlewares.TimeoutOverride{Prefix: "/admin/auth/article/image/upload", Timeout: 10 * time.Second},
 			middlewares.TimeoutOverride{Prefix: "/admin/auth/tag/update", Timeout: 35 * time.Second},
 			middlewares.TimeoutOverride{Prefix: "/user/bug-feedback", Timeout: 10 * time.Second},
 		),
@@ -115,6 +116,7 @@ func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) (*gin.Engine
 		authAdminGroup.POST("/article/add", articleHandler.AdminAddArticle)
 		authAdminGroup.PUT("/article/update", articleHandler.AdminUpdateArticle)
 		authAdminGroup.DELETE("/article/delete", articleHandler.AdminDeleteArticle)
+		authAdminGroup.POST("/article/image/upload", articleHandler.AdminUploadArticleImage)
 
 		// 标签管理
 		authAdminGroup.GET("/tag/list", tagHandler.AdminGetTagList)

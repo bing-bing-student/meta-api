@@ -13,6 +13,7 @@ type Handler interface {
 	AdminAddArticle(c *gin.Context)
 	AdminUpdateArticle(c *gin.Context)
 	AdminDeleteArticle(c *gin.Context)
+	AdminUploadArticleImage(c *gin.Context)
 
 	UserGetArticleList(c *gin.Context)
 	UserGetArticleDetail(c *gin.Context)

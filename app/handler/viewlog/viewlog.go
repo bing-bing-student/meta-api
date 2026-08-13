@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"meta-api/app/service/viewlog"
+	"meta-api/common/codes"
 	"meta-api/common/guard"
 	"meta-api/common/types"
 )
@@ -105,7 +106,7 @@ func (h *viewLogHandler) handleByGuard(c *gin.Context, articleID string, body []
 	if err != nil {
 		// engine 返回 error 仅在内部异常（参数 nil 等）发生，按 500 兜底
 		h.logger.Error("guard evaluate unexpected error", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 5000, "message": "internal error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": codes.InternalServerError, "message": "internal error"})
 		return
 	}
 
@@ -121,15 +122,15 @@ func (h *viewLogHandler) handleByGuard(c *gin.Context, articleID string, body []
 		// 静默拒：返回 204 不暴露细节
 		c.Status(http.StatusNoContent)
 	case guard.DecisionRateLimited:
-		c.JSON(http.StatusTooManyRequests, types.Response{Code: 4290, Message: "rate limited"})
+		c.JSON(http.StatusTooManyRequests, types.Response{Code: codes.TooManyRequests, Message: "rate limited"})
 	case guard.DecisionNotFound:
-		c.JSON(http.StatusNotFound, types.Response{Code: 4040, Message: "article not found"})
+		c.JSON(http.StatusNotFound, types.Response{Code: codes.NotFound, Message: "article not found"})
 	case guard.DecisionInternal:
-		c.JSON(http.StatusInternalServerError, types.Response{Code: 5000, Message: "internal error"})
+		c.JSON(http.StatusInternalServerError, types.Response{Code: codes.InternalServerError, Message: "internal error"})
 	case guard.DecisionBadRequest:
 		fallthrough
 	default:
-		c.JSON(http.StatusBadRequest, types.Response{Code: 4000, Message: "invalid token"})
+		c.JSON(http.StatusBadRequest, types.Response{Code: codes.BadRequest, Message: "invalid token"})
 	}
 }
 

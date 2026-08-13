@@ -58,9 +58,7 @@ func (c *Client) do(payload revalidatePayload) {
 	}()
 
 	if resp.StatusCode != http.StatusOK {
-		c.logger.Warn("sitemap revalidate non-200",
-			zap.Int("status", resp.StatusCode),
-			zap.Strings("paths", payload.Paths))
+		c.logger.Warn("sitemap revalidate non-200", zap.Int("status", resp.StatusCode), zap.Strings("paths", payload.Paths))
 		return
 	}
 }

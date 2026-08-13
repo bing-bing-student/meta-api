@@ -12,7 +12,8 @@ import (
 	"meta-api/app/model/tag"
 	"meta-api/common/types"
 	"meta-api/config"
-	"meta-api/pkg/edgeone"
+	"meta-api/pkg/cdn"
+	"meta-api/pkg/cos"
 	"meta-api/pkg/sitemap"
 )
 
@@ -23,6 +24,7 @@ type Service interface {
 	AdminAddArticle(ctx context.Context, request *types.AdminAddArticleRequest) (*types.AdminSaveArticleResponse, error)
 	AdminUpdateArticle(ctx context.Context, request *types.AdminUpdateArticleRequest) (*types.AdminSaveArticleResponse, error)
 	AdminDeleteArticle(ctx context.Context, request *types.AdminDeleteArticleRequest) error
+	AdminUploadArticleImage(ctx context.Context, fileName string, contentType string, content []byte) (*types.AdminUploadArticleImageResponse, error)
 
 	UserGetArticleList(ctx context.Context, request *types.UserGetArticleListRequest) (*types.UserGetArticleListResponse, error)
 	UserGetArticleDetail(ctx context.Context, request *types.UserGetArticleDetailRequest) (*types.UserGetArticleDetailResponse, error)
@@ -43,7 +45,8 @@ type articleService struct {
 	redis        *redis.Client
 	articleModel article.Model
 	tagModel     tag.Model
-	edgeone      *edgeone.Client
+	cdn          *cdn.Client
+	imageStore   *cos.Client
 	sitemap      *sitemap.Client
 }
 
@@ -51,7 +54,7 @@ type articleService struct {
 func NewService(config *config.Config, logger *zap.Logger,
 	idGenerator *sonyflake.Sonyflake, redis *redis.Client,
 	articleModel article.Model, tagModel tag.Model,
-	eo *edgeone.Client, sm *sitemap.Client) Service {
+	cdnClient *cdn.Client, imageStore *cos.Client, sm *sitemap.Client) Service {
 
 	return &articleService{
 		config:       config,
@@ -60,7 +63,8 @@ func NewService(config *config.Config, logger *zap.Logger,
 		redis:        redis,
 		articleModel: articleModel,
 		tagModel:     tagModel,
-		edgeone:      eo,
+		cdn:          cdnClient,
+		imageStore:   imageStore,
 		sitemap:      sm,
 	}
 }

@@ -45,3 +45,10 @@ bug_feedback:
     username: "liubing.xyz@qq.com"
     from: ""
     from_name: JSON Tool Feedback
+
+article_image:
+  cos:
+    bucket: "liubing-1314895948"
+    region: "ap-chengdu"
+    directory: "img"
+    public_base_url: "https://liubing-1314895948.cos.ap-chengdu.myqcloud.com/img"

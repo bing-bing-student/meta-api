@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"meta-api/common/codes"
 	"meta-api/common/guard"
 	"meta-api/common/types"
 )
@@ -37,14 +38,14 @@ func (h *shareHandler) Precheck(c *gin.Context) {
 
 	targetID := c.Query(targetIDQueryKey)
 	if targetID == "" || len(targetID) > targetIDMaxLen {
-		c.JSON(http.StatusBadRequest, types.Response{Code: 4000, Message: "invalid token"})
+		c.JSON(http.StatusBadRequest, types.Response{Code: codes.BadRequest, Message: "invalid token"})
 		return
 	}
 
 	body, err := readLimitedBody(c.Request.Body, h.logger, guard.MaxBodyBytes)
 	if err != nil {
 		h.logger.Debug("share precheck read body failed", zap.Error(err))
-		c.JSON(http.StatusBadRequest, types.Response{Code: 4000, Message: "invalid token"})
+		c.JSON(http.StatusBadRequest, types.Response{Code: codes.BadRequest, Message: "invalid token"})
 		return
 	}
 
@@ -67,7 +68,7 @@ func (h *shareHandler) Precheck(c *gin.Context) {
 	out, err := h.service.Precheck(c.Request.Context(), req)
 	if err != nil {
 		h.logger.Error("share precheck unexpected error", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, types.Response{Code: 5000, Message: "internal error"})
+		c.JSON(http.StatusInternalServerError, types.Response{Code: codes.InternalServerError, Message: "internal error"})
 		return
 	}
 
@@ -102,7 +103,7 @@ func (h *shareHandler) Consume(c *gin.Context) {
 	out, err := h.service.Consume(c.Request.Context(), token)
 	if err != nil {
 		h.logger.Error("share consume unexpected error", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, types.Response{Code: 5000, Message: "internal error"})
+		c.JSON(http.StatusInternalServerError, types.Response{Code: codes.InternalServerError, Message: "internal error"})
 		return
 	}
 

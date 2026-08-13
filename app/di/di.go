@@ -37,9 +37,10 @@ import (
 
 	"meta-api/bootstrap"
 	"meta-api/common/guard"
+	"meta-api/common/guard/keymanager"
 	"meta-api/config"
-	"meta-api/pkg/edgeone"
-	"meta-api/pkg/keymanager"
+	"meta-api/pkg/cdn"
+	"meta-api/pkg/cos"
 	"meta-api/pkg/sitemap"
 )
 
@@ -55,7 +56,10 @@ func BuildContainer(bs *bootstrap.Bootstrap) (*dig.Container, error) {
 		func() *gorm.DB { return bs.MySQL },
 		func() *redis.Client { return bs.Redis },
 		func() *keymanager.Manager { return bs.KeyManager },
-		func(logger *zap.Logger) *edgeone.Client { return edgeone.New(logger, bs.Context()) },
+		func(logger *zap.Logger) *cdn.Client { return cdn.New(logger, bs.Context()) },
+		func(cfg *config.Config, logger *zap.Logger) *cos.Client {
+			return cos.New(cfg.ArticleImageCOSSnapshot(), logger)
+		},
 		func(logger *zap.Logger) *sitemap.Client { return sitemap.New(logger, bs.Context()) },
 		func(rdb *redis.Client, logger *zap.Logger) guard.Store { return guard.NewRedisStore(rdb, logger) },
 		newGuardEngine,

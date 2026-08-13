@@ -14,8 +14,8 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 
+	"meta-api/common/guard/keymanager"
 	"meta-api/config"
-	"meta-api/pkg/keymanager"
 )
 
 // init 初始化环境变量

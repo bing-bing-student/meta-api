@@ -1,5 +1,7 @@
 package sitemap
 
+import "strings"
+
 // articleDetailPathPrefix 文章详情前端路由段，与 portal-web 路由保持一致。
 const articleDetailPathPrefix = "/article-detail/"
 
@@ -14,8 +16,8 @@ func articleDetailPath(articleID string) string {
 // firstNonEmpty 返回第一个非空字符串。
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
-		if value != "" {
-			return value
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
 		}
 	}
 	return ""

@@ -1,10 +1,10 @@
-package edgeone
+package cdn
 
 // articleDetailRoutePrefix 文章详情前端路由段，与 portal-web
 // pages/article-detail/[id].vue 对齐。
 const articleDetailRoutePrefix = "/article-detail/"
 
-// articleDetailURL 把文章 ID 拼成 EdgeOne purge_url 接受的精确目标 URL。
+// articleDetailURL 把文章 ID 拼成 CDN purge_url 接受的精确目标 URL。
 //
 // 形态固定为 <domain>/article-detail/<id>，与 portal-web 的 Nuxt 路由、
 // canonical URL 和 sitemap URL 保持一致。

@@ -23,6 +23,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"meta-api/common/codes"
 	"meta-api/common/guard"
 )
 
@@ -110,7 +111,7 @@ func (s *shareService) Precheck(ctx context.Context, req *guard.RiskRequest) (*P
 		s.logger.Error("share precheck engine error", zap.Error(err))
 		return &PrecheckOutcome{
 			HTTPStatus: http.StatusInternalServerError,
-			Code:       5000,
+			Code:       codes.InternalServerError,
 			Message:    "internal error",
 		}, nil
 	}
@@ -123,13 +124,13 @@ func (s *shareService) Precheck(ctx context.Context, req *guard.RiskRequest) (*P
 			s.logger.Error("share precheck issue token failed", zap.Error(err))
 			return &PrecheckOutcome{
 				HTTPStatus: http.StatusInternalServerError,
-				Code:       5000,
+				Code:       codes.InternalServerError,
 				Message:    "internal error",
 			}, nil
 		}
 		return &PrecheckOutcome{
 			HTTPStatus: http.StatusOK,
-			Code:       2000,
+			Code:       codes.Success,
 			Message:    "ok",
 			Token:      token,
 			ExpiresIn:  int(tokenTTL / time.Second),
@@ -142,31 +143,31 @@ func (s *shareService) Precheck(ctx context.Context, req *guard.RiskRequest) (*P
 		// 故沿用 viewlog 的"silent = 看不出差异"约定。
 		return &PrecheckOutcome{
 			HTTPStatus: http.StatusOK,
-			Code:       2000,
+			Code:       codes.Success,
 			Message:    "ok",
 		}, nil
 	case guard.DecisionRateLimited:
 		return &PrecheckOutcome{
 			HTTPStatus: http.StatusTooManyRequests,
-			Code:       4290,
+			Code:       codes.TooManyRequests,
 			Message:    "rate limited",
 		}, nil
 	case guard.DecisionBadRequest:
 		return &PrecheckOutcome{
 			HTTPStatus: http.StatusBadRequest,
-			Code:       4000,
+			Code:       codes.BadRequest,
 			Message:    "invalid token",
 		}, nil
 	case guard.DecisionInternal:
 		return &PrecheckOutcome{
 			HTTPStatus: http.StatusInternalServerError,
-			Code:       5000,
+			Code:       codes.InternalServerError,
 			Message:    "internal error",
 		}, nil
 	default:
 		return &PrecheckOutcome{
 			HTTPStatus: http.StatusBadRequest,
-			Code:       4000,
+			Code:       codes.BadRequest,
 			Message:    "invalid token",
 		}, nil
 	}
@@ -177,7 +178,7 @@ func (s *shareService) Consume(ctx context.Context, tokenHex string) (*ConsumeOu
 	if !isValidTokenHex(tokenHex) {
 		return &ConsumeOutcome{
 			HTTPStatus: http.StatusUnauthorized,
-			Code:       4010,
+			Code:       codes.Unauthorized,
 			Message:    "invalid token",
 		}, nil
 	}
@@ -187,7 +188,7 @@ func (s *shareService) Consume(ctx context.Context, tokenHex string) (*ConsumeOu
 		s.logger.Warn("share consume token redis error", zap.Error(err))
 		return &ConsumeOutcome{
 			HTTPStatus: http.StatusInternalServerError,
-			Code:       5000,
+			Code:       codes.InternalServerError,
 			Message:    "internal error",
 		}, nil
 	}
@@ -195,7 +196,7 @@ func (s *shareService) Consume(ctx context.Context, tokenHex string) (*ConsumeOu
 		// 未命中：已被消费 / 已过期 / 不存在。统一 401。
 		return &ConsumeOutcome{
 			HTTPStatus: http.StatusUnauthorized,
-			Code:       4010,
+			Code:       codes.Unauthorized,
 			Message:    "invalid token",
 		}, nil
 	}
@@ -204,14 +205,14 @@ func (s *shareService) Consume(ctx context.Context, tokenHex string) (*ConsumeOu
 		s.logger.Warn("share consume token bad fingerprint", zap.String("fp_len", lenStr(fp)))
 		return &ConsumeOutcome{
 			HTTPStatus: http.StatusUnauthorized,
-			Code:       4010,
+			Code:       codes.Unauthorized,
 			Message:    "invalid token",
 		}, nil
 	}
 
 	return &ConsumeOutcome{
 		HTTPStatus:  http.StatusOK,
-		Code:        2000,
+		Code:        codes.Success,
 		Message:     "ok",
 		Fingerprint: fp,
 	}, nil

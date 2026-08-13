@@ -74,6 +74,19 @@ type BugFeedbackConfig struct {
 	SMTP BugFeedbackSMTPConfig `mapstructure:"smtp"`
 }
 
+// ArticleImageCOSConfig 描述文章图片上传到腾讯云 COS 的非敏感配置。
+type ArticleImageCOSConfig struct {
+	Bucket        string `mapstructure:"bucket"`
+	Region        string `mapstructure:"region"`
+	Directory     string `mapstructure:"directory"`
+	PublicBaseURL string `mapstructure:"public_base_url"`
+}
+
+// ArticleImageConfig 描述文章图片资源配置。
+type ArticleImageConfig struct {
+	COS ArticleImageCOSConfig `mapstructure:"cos"`
+}
+
 // GuardConfig 风控守卫引擎配置。
 type GuardConfig struct {
 	BuildHashes       []string `mapstructure:"build_hashes"`
@@ -279,6 +292,7 @@ type Config struct {
 	OAuthConfig             *OAuthConfig             `mapstructure:"oauth"`
 	AdminInfoConfig         *AdminInfoConfig         `mapstructure:"admin_info"`
 	BugFeedbackConfig       *BugFeedbackConfig       `mapstructure:"bug_feedback"`
+	ArticleImageConfig      *ArticleImageConfig      `mapstructure:"article_image"`
 	GuardConfig             *GuardConfig             `mapstructure:"guard"`
 	RateLimitConfig         *RateLimitConfig         `mapstructure:"rate_limit"`
 	CommentModerationConfig *CommentModerationConfig `mapstructure:"comment_moderation"`
@@ -299,6 +313,7 @@ func (c *Config) Replace(next *Config) {
 	c.OAuthConfig = next.OAuthConfig
 	c.AdminInfoConfig = next.AdminInfoConfig
 	c.BugFeedbackConfig = next.BugFeedbackConfig
+	c.ArticleImageConfig = next.ArticleImageConfig
 	c.GuardConfig = next.GuardConfig
 	c.RateLimitConfig = next.RateLimitConfig
 	c.CommentModerationConfig = next.CommentModerationConfig
@@ -348,6 +363,19 @@ func (c *Config) BugFeedbackSnapshot() BugFeedbackConfig {
 		return BugFeedbackConfig{}
 	}
 	return *c.BugFeedbackConfig
+}
+
+// ArticleImageCOSSnapshot 返回文章图片 COS 配置快照。
+func (c *Config) ArticleImageCOSSnapshot() ArticleImageCOSConfig {
+	if c == nil {
+		return ArticleImageCOSConfig{}
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.ArticleImageConfig == nil {
+		return ArticleImageCOSConfig{}
+	}
+	return c.ArticleImageConfig.COS
 }
 
 // RateLimitSnapshot 返回限流配置快照。

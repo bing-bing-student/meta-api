@@ -1,4 +1,4 @@
-package edgeone
+package cdn
 
 import (
 	"context"
@@ -26,7 +26,7 @@ const (
 	purgeStatusCanceled   = "canceled"
 )
 
-// PurgeArticles 同步清理 EdgeOne 上指定文章详情页的 CDN 缓存。
+// PurgeArticles 同步清理 CDN 上指定文章详情页的缓存。
 //
 // 入参为文章主键 ID 列表（即雪花 ID 的字符串形式），包内部按
 // `<domain>/article-detail/<id>` 拼成精确 URL 清理 target。
@@ -40,7 +40,7 @@ func (c *Client) PurgeArticles(articleIDs ...string) error {
 	}
 	if !c.enabled() {
 		if utils.IsProductionEnv() {
-			return fmt.Errorf("edgeOne purge disabled in production")
+			return fmt.Errorf("cdn purge disabled in production")
 		}
 		return nil
 	}
@@ -78,21 +78,21 @@ func (c *Client) createPurgeTask(ctx context.Context, targets []string) (string,
 
 	resp, err := c.purger.CreatePurgeTaskWithContext(ctx, req)
 	if err != nil {
-		c.logger.Warn("edgeOne purge call failed", zap.Strings("targets", targets), zap.Error(err))
-		return "", fmt.Errorf("edgeOne purge call failed: %w", err)
+		c.logger.Warn("cdn purge call failed", zap.Strings("targets", targets), zap.Error(err))
+		return "", fmt.Errorf("cdn purge call failed: %w", err)
 	}
 	if resp == nil || resp.Response == nil {
-		c.logger.Warn("edgeOne purge empty response", zap.Strings("targets", targets))
-		return "", fmt.Errorf("edgeOne purge empty response")
+		c.logger.Warn("cdn purge empty response", zap.Strings("targets", targets))
+		return "", fmt.Errorf("cdn purge empty response")
 	}
 	if len(resp.Response.FailedList) > 0 {
-		c.logger.Warn("edgeOne purge partial failed", zap.Strings("targets", targets), zap.Int("failed_count", len(resp.Response.FailedList)))
-		return "", fmt.Errorf("edgeOne purge partial failed: failed_count=%d", len(resp.Response.FailedList))
+		c.logger.Warn("cdn purge partial failed", zap.Strings("targets", targets), zap.Int("failed_count", len(resp.Response.FailedList)))
+		return "", fmt.Errorf("cdn purge partial failed: failed_count=%d", len(resp.Response.FailedList))
 	}
 	jobID := ptrValue(resp.Response.JobId)
 	if jobID == "" {
-		c.logger.Warn("edgeOne purge empty job id", zap.Strings("targets", targets))
-		return "", fmt.Errorf("edgeOne purge empty job id")
+		c.logger.Warn("cdn purge empty job id", zap.Strings("targets", targets))
+		return "", fmt.Errorf("cdn purge empty job id")
 	}
 	return jobID, nil
 }
@@ -111,21 +111,21 @@ func (c *Client) waitPurgeTask(ctx context.Context, jobID string, targets []stri
 		case purgeStatusSuccess:
 			return nil
 		case purgeStatusFailed, purgeStatusTimeout, purgeStatusCanceled:
-			c.logger.Warn("edgeOne purge task failed",
+			c.logger.Warn("cdn purge task failed",
 				zap.String("job_id", jobID),
 				zap.String("status", status),
 				zap.Strings("targets", targets))
-			return fmt.Errorf("edgeOne purge task failed: job_id=%s status=%s", jobID, status)
+			return fmt.Errorf("cdn purge task failed: job_id=%s status=%s", jobID, status)
 		}
 
 		select {
 		case <-ctx.Done():
-			c.logger.Warn("edgeOne purge task wait timeout",
+			c.logger.Warn("cdn purge task wait timeout",
 				zap.String("job_id", jobID),
 				zap.String("status", status),
 				zap.Strings("targets", targets),
 				zap.Error(ctx.Err()))
-			return fmt.Errorf("edgeOne purge task wait timeout: job_id=%s: %w", jobID, ctx.Err())
+			return fmt.Errorf("cdn purge task wait timeout: job_id=%s: %w", jobID, ctx.Err())
 		case <-ticker.C:
 		}
 	}
@@ -145,12 +145,12 @@ func (c *Client) describePurgeTaskStatus(ctx context.Context, jobID string) (str
 
 	resp, err := c.purger.DescribePurgeTasksWithContext(ctx, req)
 	if err != nil {
-		c.logger.Warn("edgeOne describe purge task failed", zap.String("job_id", jobID), zap.Error(err))
-		return "", fmt.Errorf("edgeOne describe purge task failed: %w", err)
+		c.logger.Warn("cdn describe purge task failed", zap.String("job_id", jobID), zap.Error(err))
+		return "", fmt.Errorf("cdn describe purge task failed: %w", err)
 	}
 	if resp == nil || resp.Response == nil {
-		c.logger.Warn("edgeOne describe purge task empty response", zap.String("job_id", jobID))
-		return "", fmt.Errorf("edgeOne describe purge task empty response")
+		c.logger.Warn("cdn describe purge task empty response", zap.String("job_id", jobID))
+		return "", fmt.Errorf("cdn describe purge task empty response")
 	}
 	if len(resp.Response.Tasks) == 0 || resp.Response.Tasks[0] == nil {
 		return purgeStatusProcessing, nil

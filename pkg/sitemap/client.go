@@ -23,15 +23,6 @@ const (
 
 	// envSecretFile sitemap 刷新接口共享密钥文件路径所在的环境变量名。
 	envSecretFile = "SITEMAP_REVALIDATE_SECRET_FILE"
-
-	// legacyEnvEndpoint 兼容旧 Nuxt revalidate endpoint 环境变量。
-	legacyEnvEndpoint = "NUXT_REVALIDATE_ENDPOINT"
-
-	// legacyEnvSecret 兼容 portal-web 现有 revalidate secret 环境变量。
-	legacyEnvSecret = "NUXT_REVALIDATE_SECRET"
-
-	// legacyEnvSecretFile 兼容 portal-web 现有 revalidate secret file 环境变量。
-	legacyEnvSecretFile = "NUXT_REVALIDATE_SECRET_FILE"
 )
 
 // Client 用来调用 portal-web /api/_revalidate 刷新 sitemap 内部缓存。
@@ -46,12 +37,10 @@ type Client struct {
 
 // New 构造 sitemap 刷新客户端。
 func New(logger *zap.Logger, ctx context.Context) *Client {
-	endpoint := firstNonEmpty(os.Getenv(envEndpoint), os.Getenv(legacyEnvEndpoint))
+	endpoint := strings.TrimSpace(os.Getenv(envEndpoint))
 	secret := firstNonEmpty(
 		readSecretFile(os.Getenv(envSecretFile), logger),
 		os.Getenv(envSecret),
-		readSecretFile(os.Getenv(legacyEnvSecretFile), logger),
-		os.Getenv(legacyEnvSecret),
 	)
 	c := &Client{
 		endpoint: endpoint,
@@ -62,9 +51,7 @@ func New(logger *zap.Logger, ctx context.Context) *Client {
 		ctx:      ctx,
 	}
 	if !c.enabled() {
-		logger.Warn("sitemap revalidate disabled: endpoint or secret missing",
-			zap.Bool("endpoint_loaded", endpoint != ""),
-			zap.Bool("secret_loaded", secret != ""))
+		logger.Warn("sitemap revalidate disabled: endpoint or secret missing", zap.Bool("endpoint_loaded", endpoint != ""), zap.Bool("secret_loaded", secret != ""))
 	}
 	return c
 }
@@ -76,6 +63,7 @@ func (c *Client) enabled() bool {
 
 // readSecretFile 从指定文件读取共享密钥并去除首尾空白
 func readSecretFile(path string, logger *zap.Logger) string {
+	path = strings.TrimSpace(path)
 	if path == "" {
 		return ""
 	}

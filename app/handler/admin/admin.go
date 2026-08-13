@@ -41,7 +41,6 @@ func (a *adminHandler) RefreshToken(c *gin.Context) {
 	doubleToken, err := a.service.RefreshToken(ctx, refreshToken)
 	if err != nil {
 		a.logger.Error("refreshToken failed", zap.Error(err))
-		// refresh token 无效 / 过期，清除 Cookie 并返回 4010，前端跳转登录页
 		utils.ClearAuthCookies(c)
 		c.JSON(http.StatusOK, types.Response{Code: codes.Unauthorized, Message: "无效的 Token", Data: nil})
 		return

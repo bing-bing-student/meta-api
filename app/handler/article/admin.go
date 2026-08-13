@@ -1,6 +1,8 @@
 package article
 
 import (
+	"errors"
+	"io"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -113,4 +115,57 @@ func (a *articleHandler) AdminDeleteArticle(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: nil})
+}
+
+// AdminUploadArticleImage 上传文章图片。
+func (a *articleHandler) AdminUploadArticleImage(c *gin.Context) {
+	ctx := c.Request.Context()
+	if err := c.Request.ParseMultipartForm(constants.MaxArticleImageSize); err != nil {
+		a.logger.Warn("article image multipart parse error", zap.Error(err))
+		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "图片上传参数无效", Data: nil})
+		return
+	}
+
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		a.logger.Warn("article image file missing", zap.Error(err))
+		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "请选择要上传的图片", Data: nil})
+		return
+	}
+	if fileHeader.Size <= 0 || fileHeader.Size > constants.MaxArticleImageSize {
+		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "图片大小不能超过10MB", Data: nil})
+		return
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		a.logger.Error("article image open error", zap.Error(err))
+		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "读取图片失败", Data: nil})
+		return
+	}
+	defer file.Close()
+
+	content, err := io.ReadAll(io.LimitReader(file, constants.MaxArticleImageSize+1))
+	if err != nil {
+		a.logger.Error("article image read error", zap.Error(err))
+		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "读取图片失败", Data: nil})
+		return
+	}
+	if int64(len(content)) > constants.MaxArticleImageSize {
+		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: "图片大小不能超过10MB", Data: nil})
+		return
+	}
+
+	response, err := a.service.AdminUploadArticleImage(ctx, fileHeader.Filename, fileHeader.Header.Get("Content-Type"), content)
+	if err != nil {
+		a.logger.Warn("article image upload failed", zap.Error(err))
+		message := "图片上传失败"
+		if errors.Is(err, ctx.Err()) {
+			message = "图片上传已取消"
+		}
+		c.JSON(http.StatusOK, types.Response{Code: codes.BadRequest, Message: message, Data: nil})
+		return
+	}
+
+	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: response})
 }

@@ -1,4 +1,4 @@
-package edgeone
+package cdn
 
 import (
 	"context"
@@ -41,7 +41,7 @@ const (
 	envPurgeDomain = "EDGEONE_PURGE_DOMAIN"
 )
 
-// Client 用来调用 EdgeOne 清缓存任务接口。
+// Client 用来调用 CDN 清缓存任务接口。
 //
 // 实例由 DI 容器构造，单例复用 SDK 内部 http 连接池。
 // 当任一必备 env 缺失或 SDK 初始化失败，所有调用立即返回，不发起任何 API 请求。
@@ -55,7 +55,7 @@ type Client struct {
 	ctx          context.Context
 }
 
-// New 构造一个 EdgeOne 清缓存客户端。
+// New 构造一个 CDN 清缓存客户端。
 func New(logger *zap.Logger, ctx context.Context) *Client {
 	secretID := os.Getenv(envSecretID)
 	secretKey := os.Getenv(envSecretKey)
@@ -63,7 +63,7 @@ func New(logger *zap.Logger, ctx context.Context) *Client {
 	domain := strings.TrimRight(os.Getenv(envPurgeDomain), "/")
 
 	if secretID == "" || secretKey == "" || zoneID == "" || domain == "" {
-		logger.Warn("edgeOne disabled: required env missing",
+		logger.Warn("cdn disabled: required env missing",
 			zap.Bool("secret_id_loaded", secretID != ""),
 			zap.Bool("secret_key_loaded", secretKey != ""),
 			zap.Bool("zone_id_loaded", zoneID != ""),
@@ -78,7 +78,7 @@ func New(logger *zap.Logger, ctx context.Context) *Client {
 
 	sdkClient, err := teo.NewClient(cred, "", cpf)
 	if err != nil {
-		logger.Warn("edgeOne sdk init failed", zap.Error(err))
+		logger.Warn("cdn sdk init failed", zap.Error(err))
 		return newDisabledClient(logger, ctx)
 	}
 

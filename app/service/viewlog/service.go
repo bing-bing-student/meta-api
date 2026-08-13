@@ -22,6 +22,7 @@ import (
 	"go.uber.org/zap"
 
 	articleModel "meta-api/app/model/article"
+	"meta-api/common/codes"
 )
 
 // Service 浏览量打点服务接口。专供新链路（guard.Engine）调用 EnsureArticleExists / Increment。
@@ -58,16 +59,16 @@ func NewService(logger *zap.Logger, rdb *redis.Client, am articleModel.Model) Se
 func (s *viewLogService) EnsureArticleExists(ctx context.Context, articleIDStr string) *Outcome {
 	id, err := parseArticleID(articleIDStr)
 	if err != nil {
-		return &Outcome{HTTPStatus: 404, Code: codeNotFound, Message: "article not found"}
+		return &Outcome{HTTPStatus: 404, Code: codes.NotFound, Message: "article not found"}
 	}
 	if _, err = s.articleModel.GetArticleDetailByID(ctx, id); err != nil {
 		// 与现有代码一致：MySQL 未命中既可能是 sql.ErrNoRows，也可能 GORM 返回字符串 "record not found"
 		if isNotFoundErr(err) {
-			return &Outcome{HTTPStatus: 404, Code: codeNotFound, Message: "article not found"}
+			return &Outcome{HTTPStatus: 404, Code: codes.NotFound, Message: "article not found"}
 		}
 		s.logger.Error("view-log article exists check failed",
 			zap.String("article_id", articleIDStr), zap.Error(err))
-		return &Outcome{HTTPStatus: 500, Code: codeInternalError, Message: "internal error"}
+		return &Outcome{HTTPStatus: 500, Code: codes.InternalServerError, Message: "internal error"}
 	}
 	return nil
 }

@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/joho/godotenv"
+
 	"meta-api/common/utils"
 )
 
@@ -16,6 +18,7 @@ const (
 
 	defaultHTTPHost = "0.0.0.0"
 	defaultHTTPPort = "8080"
+	localDotEnvFile = ".env"
 )
 
 // RuntimeEnv 是启动阶段读取并标准化后的运行时环境变量。
@@ -25,6 +28,34 @@ const (
 type RuntimeEnv struct {
 	HTTPHost string
 	HTTPPort string
+}
+
+// LoadStartupRuntimeEnv 加载启动期运行环境。
+//
+// 本地开发允许从 .env 补齐环境变量；生产环境必须由容器/进程管理器显式注入，
+// 避免线上进程意外读取工作目录中的 .env。
+func LoadStartupRuntimeEnv() (*RuntimeEnv, error) {
+	if err := LoadLocalDotEnv(); err != nil {
+		return nil, err
+	}
+	return LoadRuntimeEnv()
+}
+
+// LoadLocalDotEnv 仅在非生产环境加载本地 .env。
+func LoadLocalDotEnv() error {
+	if utils.IsProductionEnv() {
+		return nil
+	}
+	if _, err := os.Stat(localDotEnvFile); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("stat local %s: %w", localDotEnvFile, err)
+	}
+	if err := godotenv.Load(localDotEnvFile); err != nil {
+		return fmt.Errorf("load local %s: %w", localDotEnvFile, err)
+	}
+	return nil
 }
 
 // LoadRuntimeEnv 集中校验启动所需环境变量，并返回标准化后的运行时配置。

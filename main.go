@@ -12,7 +12,7 @@ var runtimeEnv *bootstrap.RuntimeEnv
 // 初始化并校验环境变量
 func init() {
 	var err error
-	runtimeEnv, err = bootstrap.LoadRuntimeEnv()
+	runtimeEnv, err = bootstrap.LoadStartupRuntimeEnv()
 	if err != nil {
 		log.Fatalf("validate environment failed: %v", err)
 	}

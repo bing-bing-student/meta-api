@@ -13,8 +13,8 @@ import (
 	adminHandler "meta-api/app/handler/admin"
 	articleHandler "meta-api/app/handler/article"
 	commentHandler "meta-api/app/handler/comment"
+	jsonshareHandler "meta-api/app/handler/jsonshare"
 	linkHandler "meta-api/app/handler/link"
-	shareHandler "meta-api/app/handler/share"
 	tagHandler "meta-api/app/handler/tag"
 	userAuthHandler "meta-api/app/handler/userauth"
 	viewLogHandler "meta-api/app/handler/viewlog"
@@ -29,8 +29,8 @@ import (
 	adminService "meta-api/app/service/admin"
 	articleService "meta-api/app/service/article"
 	commentService "meta-api/app/service/comment"
+	jsonshareService "meta-api/app/service/jsonshare"
 	linkService "meta-api/app/service/link"
-	shareService "meta-api/app/service/share"
 	tagService "meta-api/app/service/tag"
 	userAuthService "meta-api/app/service/userauth"
 	viewLogService "meta-api/app/service/viewlog"
@@ -75,8 +75,8 @@ func BuildContainer(bs *bootstrap.Bootstrap) (*dig.Container, error) {
 		adminHandler.NewHandler,
 		articleHandler.NewHandler,
 		commentHandler.NewHandler,
+		jsonshareHandler.NewHandler,
 		linkHandler.NewHandler,
-		shareHandler.NewHandler,
 		tagHandler.NewHandler,
 		userAuthHandler.NewHandler,
 		viewLogHandler.NewHandler,
@@ -107,8 +107,8 @@ func BuildContainer(bs *bootstrap.Bootstrap) (*dig.Container, error) {
 		adminService.NewService,
 		articleService.NewService,
 		commentService.NewService,
+		jsonshareService.NewService,
 		linkService.NewService,
-		shareService.NewService,
 		tagService.NewService,
 		userAuthService.NewService,
 		viewLogService.NewService,

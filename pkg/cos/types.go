@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	envArticleImageCOSSecretID  = "ARTICLE_IMAGE_COS_SECRET_ID"
-	envArticleImageCOSSecretKey = "ARTICLE_IMAGE_COS_SECRET_KEY"
+	envCOSSecretID  = "COS_SECRET_ID"
+	envCOSSecretKey = "COS_SECRET_KEY"
 
 	defaultTimeout = 15 * time.Second
 )

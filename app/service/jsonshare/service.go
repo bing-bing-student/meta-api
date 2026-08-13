@@ -1,4 +1,4 @@
-// Package share 实现 JSON 工具"分享创建"链路的风控守卫预检与一次性 token 签发/消费。
+// Package jsonshare 实现 JSON 工具分享创建链路的风控守卫预检与一次性 token 签发/消费。
 //
 // 设计要点：
 //  1. Go 侧只做"是否真人"的风控判定（guard.Engine），不接管真正的 JSON 存储；
@@ -11,7 +11,7 @@
 // 文件分布：
 //
 //	service.go —— Service 接口 + impl 主流程（Precheck / Consume）
-package share
+package jsonshare
 
 import (
 	"context"
@@ -64,7 +64,7 @@ type ConsumeOutcome struct {
 	Fingerprint string
 }
 
-// Service 分享创建场景的风控守卫编排。
+// Service JSON 分享创建场景的风控守卫编排。
 //
 // 与 viewlog.Service 的差异：
 //   - 不直接执行业务（写 JSON），仅签发"通行证"；
@@ -82,16 +82,16 @@ type Service interface {
 	Consume(ctx context.Context, tokenHex string) (*ConsumeOutcome, error)
 }
 
-// shareService Service 的具体实现。
-type shareService struct {
+// jsonShareService Service 的具体实现。
+type jsonShareService struct {
 	logger *zap.Logger
 	engine guard.Engine
 	store  guard.Store
 }
 
-// NewService 构造 share 风控服务实例。engine / store 必填。
+// NewService 构造 JSON 分享风控服务实例。engine / store 必填。
 func NewService(logger *zap.Logger, engine guard.Engine, store guard.Store) Service {
-	return &shareService{
+	return &jsonShareService{
 		logger: logger,
 		engine: engine,
 		store:  store,
@@ -102,13 +102,13 @@ func NewService(logger *zap.Logger, engine guard.Engine, store guard.Store) Serv
 //  1. 调 guard.Engine.Evaluate（与 view-log 共用同一引擎）
 //  2. Decision != Accept → 按映射返回 HTTP 状态
 //  3. Decision == Accept → 生成 token + SETNX 写 Redis → 返回给前端
-func (s *shareService) Precheck(ctx context.Context, req *guard.RiskRequest) (*PrecheckOutcome, error) {
+func (s *jsonShareService) Precheck(ctx context.Context, req *guard.RiskRequest) (*PrecheckOutcome, error) {
 	if req == nil {
-		return nil, errors.New("share: nil request")
+		return nil, errors.New("jsonshare: nil request")
 	}
 	out, err := s.engine.Evaluate(ctx, req)
 	if err != nil {
-		s.logger.Error("share precheck engine error", zap.Error(err))
+		s.logger.Error("jsonshare precheck engine error", zap.Error(err))
 		return &PrecheckOutcome{
 			HTTPStatus: http.StatusInternalServerError,
 			Code:       codes.InternalServerError,
@@ -121,7 +121,7 @@ func (s *shareService) Precheck(ctx context.Context, req *guard.RiskRequest) (*P
 		// 通过：签发 token
 		token, err := s.issueToken(ctx, out.Fingerprint)
 		if err != nil {
-			s.logger.Error("share precheck issue token failed", zap.Error(err))
+			s.logger.Error("jsonshare precheck issue token failed", zap.Error(err))
 			return &PrecheckOutcome{
 				HTTPStatus: http.StatusInternalServerError,
 				Code:       codes.InternalServerError,
@@ -174,7 +174,7 @@ func (s *shareService) Precheck(ctx context.Context, req *guard.RiskRequest) (*P
 }
 
 // Consume 主流程：原子 GETDEL → 命中返回 fingerprint，未命中 401。
-func (s *shareService) Consume(ctx context.Context, tokenHex string) (*ConsumeOutcome, error) {
+func (s *jsonShareService) Consume(ctx context.Context, tokenHex string) (*ConsumeOutcome, error) {
 	if !isValidTokenHex(tokenHex) {
 		return &ConsumeOutcome{
 			HTTPStatus: http.StatusUnauthorized,
@@ -185,7 +185,7 @@ func (s *shareService) Consume(ctx context.Context, tokenHex string) (*ConsumeOu
 
 	fp, ok, err := s.store.TokenConsume(ctx, guard.SceneShareCreate, tokenHex)
 	if err != nil {
-		s.logger.Warn("share consume token redis error", zap.Error(err))
+		s.logger.Warn("jsonshare consume token redis error", zap.Error(err))
 		return &ConsumeOutcome{
 			HTTPStatus: http.StatusInternalServerError,
 			Code:       codes.InternalServerError,
@@ -202,7 +202,7 @@ func (s *shareService) Consume(ctx context.Context, tokenHex string) (*ConsumeOu
 	}
 	if !isValidFingerprintHex(fp) {
 		// 防御：理论上写入端已校验过；万一 Redis 数据异常，这里再兜一次。
-		s.logger.Warn("share consume token bad fingerprint", zap.String("fp_len", lenStr(fp)))
+		s.logger.Warn("jsonshare consume token bad fingerprint", zap.String("fp_len", lenStr(fp)))
 		return &ConsumeOutcome{
 			HTTPStatus: http.StatusUnauthorized,
 			Code:       codes.Unauthorized,
@@ -219,9 +219,9 @@ func (s *shareService) Consume(ctx context.Context, tokenHex string) (*ConsumeOu
 }
 
 // issueToken 生成 + 落盘一次性 token，最多重试 tokenIssueRetry 次。
-func (s *shareService) issueToken(ctx context.Context, fpHex string) (string, error) {
+func (s *jsonShareService) issueToken(ctx context.Context, fpHex string) (string, error) {
 	if !isValidFingerprintHex(fpHex) {
-		return "", errors.New("share: bad fingerprint from engine")
+		return "", errors.New("jsonshare: bad fingerprint from engine")
 	}
 	for i := 0; i < tokenIssueRetry; i++ {
 		token, err := randomTokenHex()
@@ -237,7 +237,7 @@ func (s *shareService) issueToken(ctx context.Context, fpHex string) (string, er
 		}
 		// SETNX 碰撞：重试。
 	}
-	return "", errors.New("share: token issue retry exceeded")
+	return "", errors.New("jsonshare: token issue retry exceeded")
 }
 
 // randomTokenHex 生成 tokenBytes 字节的 crypto-rand → hex string。

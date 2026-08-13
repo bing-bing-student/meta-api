@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -116,9 +114,12 @@ func redisEnvFromEnv() (*redisEnv, error) {
 		return nil, err
 	}
 
-	password := strings.TrimSpace(os.Getenv(envRedisPassword))
+	password, err := utils.EnvOrFile(envRedisPassword)
+	if err != nil {
+		return nil, err
+	}
 	if password == "" && utils.IsProductionEnv() {
-		return nil, fmt.Errorf("missing required environment variable: %s", envRedisPassword)
+		return nil, fmt.Errorf("missing required secret: %s or %s_FILE", envRedisPassword, envRedisPassword)
 	}
 
 	return &redisEnv{

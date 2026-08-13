@@ -1,4 +1,4 @@
-// Package share HTTP 入口：分享创建场景的风控守卫预检 + 一次性 token 消费。
+// Package jsonshare HTTP 入口：JSON 分享创建场景的风控守卫预检 + 一次性 token 消费。
 //
 // 路由：
 //
@@ -8,17 +8,17 @@
 // 文件分布：
 //
 //	handler.go —— Handler interface + 构造
-//	share.go   —— Precheck / Consume 两个端点的 HTTP 适配
-package share
+//	jsonshare.go —— Precheck / Consume 两个端点的 HTTP 适配
+package jsonshare
 
 import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"meta-api/app/service/share"
+	jsonshareService "meta-api/app/service/jsonshare"
 )
 
-// Handler 分享场景风控守卫 HTTP 入口。
+// Handler JSON 分享场景风控守卫 HTTP 入口。
 type Handler interface {
 	// Precheck POST /user/share/precheck
 	// body: envelope (octet-stream, 最大 16KB，与 guard.MaxBodyBytes 对齐)
@@ -30,14 +30,14 @@ type Handler interface {
 	Consume(c *gin.Context)
 }
 
-type shareHandler struct {
+type jsonShareHandler struct {
 	logger  *zap.Logger
-	service share.Service
+	service jsonshareService.Service
 }
 
-// NewHandler 构造分享场景 handler。service 必填。
-func NewHandler(logger *zap.Logger, service share.Service) Handler {
-	return &shareHandler{
+// NewHandler 构造 JSON 分享场景 handler。service 必填。
+func NewHandler(logger *zap.Logger, service jsonshareService.Service) Handler {
+	return &jsonShareHandler{
 		logger:  logger,
 		service: service,
 	}

@@ -8,7 +8,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"os"
 	"strconv"
 	"time"
 
@@ -131,7 +130,11 @@ func (a *adminService) RevokeRefreshToken(ctx context.Context, refreshToken stri
 func (a *adminService) issueTokenPair(ctx context.Context, userID string, sessionID string,
 	expectedRefreshHash string) (*types.TokenDetails, error) {
 	tokenDetails := &types.TokenDetails{}
-	mySigningKey := []byte(os.Getenv("JWT_SIGNING_KEY"))
+	signingKey, err := utils.RequiredEnvOrFile("JWT_SIGNING_KEY")
+	if err != nil {
+		return nil, err
+	}
+	mySigningKey := []byte(signingKey)
 	now := time.Now()
 	if sessionID == "" {
 		sessionID = uuid.New().String()

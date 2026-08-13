@@ -3,7 +3,6 @@ package utils
 import (
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/golang-jwt/jwt/v5"
 
@@ -17,7 +16,11 @@ const (
 
 // ParseToken 解析Token
 func ParseToken(tokenString string) (*types.UserClaims, error) {
-	mySigningKey := []byte(os.Getenv("JWT_SIGNING_KEY"))
+	signingKey, err := RequiredEnvOrFile("JWT_SIGNING_KEY")
+	if err != nil {
+		return nil, err
+	}
+	mySigningKey := []byte(signingKey)
 
 	token, err := jwt.ParseWithClaims(tokenString, &types.UserClaims{},
 		func(token *jwt.Token) (any, error) {

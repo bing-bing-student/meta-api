@@ -3,11 +3,8 @@ package bootstrap
 import (
 	"context"
 	"log"
-	"os"
-	"strings"
 	"time"
 
-	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 	"github.com/robfig/cron/v3"
 	"github.com/sony/sonyflake"
@@ -18,37 +15,10 @@ import (
 	"meta-api/config"
 )
 
-// init 初始化环境变量
-func init() {
-	// 加载本地 .env 文件；生产镜像允许不存在，不能阻断 Docker Secrets。
-	_ = godotenv.Load()
-
-	// 加载 Docker Secrets
-	files, err := os.ReadDir("/run/secrets")
-	if err != nil {
-		return
-	}
-
-	for _, file := range files {
-		if file.IsDir() {
-			continue
-		}
-
-		content, err := os.ReadFile("/run/secrets/" + file.Name())
-		if err != nil {
-			continue
-		}
-
-		// 将文件名转为大写作为环境变量名
-		if err = os.Setenv(strings.ToUpper(file.Name()), strings.TrimSpace(string(content))); err != nil {
-			return
-		}
-	}
-}
-
 // Bootstrap 应用程序
 type Bootstrap struct {
 	Config          *config.Config       // 配置
+	RuntimeEnv      RuntimeEnv           // 启动期标准化后的运行时环境变量
 	Logger          *zap.Logger          // 日志
 	IDGenerator     *sonyflake.Sonyflake // 雪花 ID 生成器
 	Cron            *cron.Cron           // 定时任务
@@ -56,14 +26,20 @@ type Bootstrap struct {
 	MySQL           *gorm.DB             // MySQL 客户端
 	Redis           *redis.Client        // Redis 客户端
 	KeyManager      *keymanager.Manager  // 密钥管理器
-	lifecycleCtx    context.Context
-	lifecycleCancel context.CancelFunc
+	configWatcher   *ConfigWatcher       // 配置文件监听器
+	lifecycleCtx    context.Context      // 生命周期进程级上下文
+	lifecycleCancel context.CancelFunc   // 生命周期进程级取消函数
 }
 
 // New 创建应用程序
-func New() *Bootstrap {
+func New(runtimeEnv ...*RuntimeEnv) *Bootstrap {
 	ctx, cancel := context.WithCancel(context.Background())
+	env := defaultRuntimeEnv()
+	if len(runtimeEnv) > 0 && runtimeEnv[0] != nil {
+		env = *runtimeEnv[0]
+	}
 	return &Bootstrap{
+		RuntimeEnv:      env,
 		lifecycleCtx:    ctx,
 		lifecycleCancel: cancel,
 	}
@@ -79,7 +55,12 @@ func (b *Bootstrap) Context() context.Context {
 
 // InitConfig 初始化配置
 func (b *Bootstrap) InitConfig() *Bootstrap {
-	b.Config = initConfig()
+	cfg, watcher, err := initConfig()
+	if err != nil {
+		log.Panicf("Read config files error: %v", err)
+	}
+	b.Config = cfg
+	b.configWatcher = watcher
 	return b
 }
 
@@ -196,6 +177,13 @@ func (b *Bootstrap) CloseResources() {
 		b.lifecycleCancel()
 	}
 
+	// 关闭配置文件监听，释放 fsnotify fd
+	if b.configWatcher != nil {
+		if err := b.configWatcher.Close(); err != nil {
+			b.logCloseError("failed to close config watcher", err)
+		}
+	}
+
 	// 关闭 KeyManager 文件监听，释放 fsnotify fd
 	if b.KeyManager != nil {
 		if err := b.KeyManager.Close(); err != nil {
@@ -218,6 +206,12 @@ func (b *Bootstrap) CloseResources() {
 	if b.Redis != nil {
 		if err := b.Redis.Close(); err != nil {
 			b.logCloseError("failed to close Redis connection", err)
+		}
+	}
+
+	if b.Logger != nil {
+		if err := b.Logger.Sync(); err != nil {
+			b.logCloseError("failed to sync logger", err)
 		}
 	}
 }

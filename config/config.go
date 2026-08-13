@@ -1,6 +1,7 @@
 package config
 
 import (
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -298,7 +299,8 @@ type Config struct {
 	CommentModerationConfig *CommentModerationConfig `mapstructure:"comment_moderation"`
 }
 
-// Replace 原子替换可热更新配置。调用方应先反序列化到临时 Config，成功后再替换。
+// Replace 原子替换全部配置。调用方应先反序列化到临时 Config，成功后再替换。
+// 启动后的配置文件热更新应使用 ReplaceHotReloadable，避免替换启动期配置造成误导。
 func (c *Config) Replace(next *Config) {
 	if c == nil || next == nil {
 		return
@@ -315,6 +317,35 @@ func (c *Config) Replace(next *Config) {
 	c.BugFeedbackConfig = next.BugFeedbackConfig
 	c.ArticleImageConfig = next.ArticleImageConfig
 	c.GuardConfig = next.GuardConfig
+	c.RateLimitConfig = next.RateLimitConfig
+	c.CommentModerationConfig = next.CommentModerationConfig
+}
+
+// ReplaceHotReloadable 只替换运行期明确支持热更新的配置段。
+//
+// 支持热更新的配置需要满足两个条件：
+//  1. 请求处理路径通过 Config.*Snapshot 方法按需读取；
+//  2. 替换配置不需要重建 logger、数据库连接池、Redis 客户端、外部客户端或 guard.Engine。
+//
+// 当前支持热更新：
+//   - oauth：OAuth client_id / redirect_uri 等非敏感配置，secret 仍来自 env；
+//   - admin_info：前台 about-me 展示信息；
+//   - bug_feedback：SMTP 非敏感配置，密码仍来自 env / secret file；
+//   - rate_limit：后台登录、评论、反馈等应用级限流规则；
+//   - comment_moderation：评论审核策略。
+//
+// 仅启动期生效，修改后需要重启：
+//   - log、retry、mysql、redis、article_image、guard，以及 HTTP/env
+func (c *Config) ReplaceHotReloadable(next *Config) {
+	if c == nil || next == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.OAuthConfig = next.OAuthConfig
+	c.AdminInfoConfig = next.AdminInfoConfig
+	c.BugFeedbackConfig = next.BugFeedbackConfig
 	c.RateLimitConfig = next.RateLimitConfig
 	c.CommentModerationConfig = next.CommentModerationConfig
 }
@@ -443,9 +474,7 @@ func cloneCommentModerationLevelRuleConfigMap(
 		return nil
 	}
 	dst := make(map[string]CommentModerationLevelRuleConfig, len(src))
-	for key, value := range src {
-		dst[key] = value
-	}
+	maps.Copy(dst, src)
 	return dst
 }
 
@@ -456,9 +485,7 @@ func cloneCommentModerationCategoryDecisionConfigMap(
 		return nil
 	}
 	dst := make(map[string]CommentModerationCategoryDecisionConfig, len(src))
-	for key, value := range src {
-		dst[key] = value
-	}
+	maps.Copy(dst, src)
 	return dst
 }
 
@@ -467,9 +494,7 @@ func cloneIntMap(src map[string]int) map[string]int {
 		return nil
 	}
 	dst := make(map[string]int, len(src))
-	for key, value := range src {
-		dst[key] = value
-	}
+	maps.Copy(dst, src)
 	return dst
 }
 

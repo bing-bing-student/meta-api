@@ -1,13 +1,26 @@
 package main
 
 import (
+	"log"
+
 	"meta-api/app"
 	"meta-api/bootstrap"
 )
 
+var runtimeEnv *bootstrap.RuntimeEnv
+
+// 初始化并校验环境变量
+func init() {
+	var err error
+	runtimeEnv, err = bootstrap.LoadRuntimeEnv()
+	if err != nil {
+		log.Fatalf("validate environment failed: %v", err)
+	}
+}
+
 func main() {
 	// 初始化基础组件
-	bootstrapApp := bootstrap.New()
+	bootstrapApp := bootstrap.New(runtimeEnv)
 	bootstrapApp.InitConfig()      // 初始化配置
 	bootstrapApp.InitLogger()      // 初始化日志
 	bootstrapApp.InitIDGenerator() // 初始化 ID 生成器

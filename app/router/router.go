@@ -10,8 +10,8 @@ import (
 	"meta-api/app/handler/admin"
 	"meta-api/app/handler/article"
 	"meta-api/app/handler/comment"
+	"meta-api/app/handler/jsonshare"
 	"meta-api/app/handler/link"
-	"meta-api/app/handler/share"
 	"meta-api/app/handler/tag"
 	"meta-api/app/handler/userauth"
 	"meta-api/app/handler/viewlog"
@@ -83,10 +83,10 @@ func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) (*gin.Engine
 		return nil, fmt.Errorf("resolve view-log handler: %w", err)
 	}
 
-	// 获取 shareHandler 实例
-	var shareHandler share.Handler
-	if err := container.Invoke(func(h share.Handler) { shareHandler = h }); err != nil {
-		return nil, fmt.Errorf("resolve share handler: %w", err)
+	// 获取 jsonShareHandler 实例
+	var jsonShareHandler jsonshare.Handler
+	if err := container.Invoke(func(h jsonshare.Handler) { jsonShareHandler = h }); err != nil {
+		return nil, fmt.Errorf("resolve jsonshare handler: %w", err)
 	}
 
 	// 获取 userAuthHandler 实例
@@ -181,10 +181,9 @@ func SetUpRouter(bs *bootstrap.Bootstrap, container *dig.Container) (*gin.Engine
 		userGroup.GET("/about-me", adminHandler.UserGetAboutMe)
 		userGroup.POST("/bug-feedback", adminHandler.UserSubmitBugFeedback)
 
-		// 分享风控守卫（v1）：浏览器→precheck（信封风控签发 token）
-		// Nuxt SSR→consume（一次性消费 token，拿到 fingerprint 继续走文件存储）
-		userGroup.POST("/share/precheck", shareHandler.Precheck)
-		userGroup.POST("/share/consume", shareHandler.Consume)
+		// JSON 分享风控守卫（v1）：浏览器→precheck（信封风控签发 token）
+		userGroup.POST("/share/precheck", jsonShareHandler.Precheck)
+		userGroup.POST("/share/consume", jsonShareHandler.Consume)
 	}
 
 	return r, nil

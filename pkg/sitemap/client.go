@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+
+	"meta-api/common/utils"
 )
 
 // 默认配置常量。
@@ -20,9 +22,6 @@ const (
 
 	// envSecret sitemap 刷新接口共享密钥所在的环境变量名。
 	envSecret = "SITEMAP_REVALIDATE_SECRET"
-
-	// envSecretFile sitemap 刷新接口共享密钥文件路径所在的环境变量名。
-	envSecretFile = "SITEMAP_REVALIDATE_SECRET_FILE"
 )
 
 // Client 用来调用 portal-web /api/_revalidate 刷新 sitemap 内部缓存。
@@ -38,10 +37,10 @@ type Client struct {
 // New 构造 sitemap 刷新客户端。
 func New(logger *zap.Logger, ctx context.Context) *Client {
 	endpoint := strings.TrimSpace(os.Getenv(envEndpoint))
-	secret := firstNonEmpty(
-		readSecretFile(os.Getenv(envSecretFile), logger),
-		os.Getenv(envSecret),
-	)
+	secret, err := utils.EnvOrFile(envSecret)
+	if err != nil {
+		logger.Warn("sitemap revalidate disabled: secret file read failed", zap.Error(err))
+	}
 	c := &Client{
 		endpoint: endpoint,
 		secret:   secret,
@@ -59,18 +58,4 @@ func New(logger *zap.Logger, ctx context.Context) *Client {
 // enabled 判定 client 是否处于可调用状态。
 func (c *Client) enabled() bool {
 	return c != nil && c.endpoint != "" && c.secret != "" && c.http != nil
-}
-
-// readSecretFile 从指定文件读取共享密钥并去除首尾空白
-func readSecretFile(path string, logger *zap.Logger) string {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return ""
-	}
-	content, err := os.ReadFile(path)
-	if err != nil {
-		logger.Warn("sitemap revalidate secret file read failed", zap.String("path", path), zap.Error(err))
-		return ""
-	}
-	return strings.TrimSpace(string(content))
 }

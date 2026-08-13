@@ -223,7 +223,6 @@ func newMySQLLogger(cfg *MySQLConfig) logger.Interface {
 func mysqlEnvFromEnv() (*mysqlEnv, error) {
 	values, err := requiredEnvValues(
 		envMySQLUsername,
-		envMySQLPassword,
 		envMySQLHost,
 		envMySQLPort,
 		envMySQLDBName,
@@ -231,9 +230,13 @@ func mysqlEnvFromEnv() (*mysqlEnv, error) {
 	if err != nil {
 		return nil, err
 	}
+	password, err := utils.RequiredEnvOrFile(envMySQLPassword)
+	if err != nil {
+		return nil, err
+	}
 	return &mysqlEnv{
 		username: strings.TrimSpace(values[envMySQLUsername]),
-		password: values[envMySQLPassword],
+		password: password,
 		host:     strings.TrimSpace(values[envMySQLHost]),
 		port:     strings.TrimSpace(values[envMySQLPort]),
 		dbName:   strings.TrimSpace(values[envMySQLDBName]),

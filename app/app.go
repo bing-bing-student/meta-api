@@ -62,7 +62,7 @@ func NewApp(bs *bootstrap.Bootstrap) *Application {
 	if err != nil {
 		bs.Logger.Fatal("failed to setup router", zap.Error(err))
 	}
-	httpServer := bootstrap.NewHTTPServer(os.Getenv("HTTP_HOST"), os.Getenv("HTTP_PORT"), r, bs.Logger)
+	httpServer := bootstrap.NewHTTPServer(bs.RuntimeEnv.HTTPHost, bs.RuntimeEnv.HTTPPort, r, bs.Logger)
 
 	return &Application{
 		bootstrap: bs,

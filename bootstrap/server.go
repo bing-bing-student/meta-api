@@ -20,7 +20,7 @@ type HTTPServer struct {
 // NewHTTPServer 初始化HTTP服务
 func NewHTTPServer(host, port string, handler *gin.Engine, logger *zap.Logger) *HTTPServer {
 	server := &http.Server{
-		Addr:         fmt.Sprintf("%s:%s", host, port),
+		Addr:         net.JoinHostPort(host, port),
 		Handler:      handler,
 		ReadTimeout:  3 * time.Second,  // 读取请求超时时间
 		WriteTimeout: 40 * time.Second, // 写响应超时时间，需要覆盖 OAuth、CDN 清理等长耗时接口

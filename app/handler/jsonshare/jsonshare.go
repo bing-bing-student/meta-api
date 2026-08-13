@@ -1,4 +1,4 @@
-package share
+package jsonshare
 
 import (
 	"errors"
@@ -33,7 +33,7 @@ const tokenHeader = "X-Guard-Token"
 //  2. 从 query 取 target_id（与 envelope 内字段绑定校验）；
 //  3. 调 service.Precheck → guard.Engine.Evaluate；
 //  4. 通过则返回 token；不通过按 service 给出的状态码返回。
-func (h *shareHandler) Precheck(c *gin.Context) {
+func (h *jsonShareHandler) Precheck(c *gin.Context) {
 	c.Header("Cache-Control", "no-store, private")
 
 	targetID := c.Query(targetIDQueryKey)
@@ -44,7 +44,7 @@ func (h *shareHandler) Precheck(c *gin.Context) {
 
 	body, err := readLimitedBody(c.Request.Body, h.logger, guard.MaxBodyBytes)
 	if err != nil {
-		h.logger.Debug("share precheck read body failed", zap.Error(err))
+		h.logger.Debug("jsonshare precheck read body failed", zap.Error(err))
 		c.JSON(http.StatusBadRequest, types.Response{Code: codes.BadRequest, Message: "invalid token"})
 		return
 	}
@@ -67,7 +67,7 @@ func (h *shareHandler) Precheck(c *gin.Context) {
 
 	out, err := h.service.Precheck(c.Request.Context(), req)
 	if err != nil {
-		h.logger.Error("share precheck unexpected error", zap.Error(err))
+		h.logger.Error("jsonshare precheck unexpected error", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, types.Response{Code: codes.InternalServerError, Message: "internal error"})
 		return
 	}
@@ -96,13 +96,13 @@ func (h *shareHandler) Precheck(c *gin.Context) {
 //
 // 注意：此端点仅供内网（Nuxt SSR → meta-api）调用。生产环境应在网关层
 // 或 nginx 层做来源 IP 限制，避免 token 在公网被旁路消费。
-func (h *shareHandler) Consume(c *gin.Context) {
+func (h *jsonShareHandler) Consume(c *gin.Context) {
 	c.Header("Cache-Control", "no-store, private")
 
 	token := c.GetHeader(tokenHeader)
 	out, err := h.service.Consume(c.Request.Context(), token)
 	if err != nil {
-		h.logger.Error("share consume unexpected error", zap.Error(err))
+		h.logger.Error("jsonshare consume unexpected error", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, types.Response{Code: codes.InternalServerError, Message: "internal error"})
 		return
 	}
@@ -130,7 +130,7 @@ func readLimitedBody(rc io.ReadCloser, logger *zap.Logger, maxBytes int64) ([]by
 	}
 	defer func() {
 		if err := rc.Close(); err != nil {
-			logger.Debug("share request body close failed", zap.Error(err))
+			logger.Debug("jsonshare request body close failed", zap.Error(err))
 		}
 	}()
 	return io.ReadAll(io.LimitReader(rc, maxBytes))

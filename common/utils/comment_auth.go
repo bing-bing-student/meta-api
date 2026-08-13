@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -21,6 +20,10 @@ const (
 )
 
 func GenerateCommentUserToken(user *types.PublicUserInfo) (string, error) {
+	signingKey, err := RequiredEnvOrFile("JWT_SIGNING_KEY")
+	if err != nil {
+		return "", err
+	}
 	now := time.Now()
 	claims := &types.PublicUserClaims{
 		UserID:         user.ID,
@@ -37,7 +40,7 @@ func GenerateCommentUserToken(user *types.PublicUserInfo) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte(os.Getenv("JWT_SIGNING_KEY")))
+	tokenString, err := token.SignedString([]byte(signingKey))
 	if err != nil {
 		return "", fmt.Errorf("failed to generate comment user token: %w", err)
 	}
@@ -45,12 +48,16 @@ func GenerateCommentUserToken(user *types.PublicUserInfo) (string, error) {
 }
 
 func ParseCommentUserToken(tokenString string) (*types.PublicUserClaims, error) {
+	signingKey, err := RequiredEnvOrFile("JWT_SIGNING_KEY")
+	if err != nil {
+		return nil, err
+	}
 	token, err := jwt.ParseWithClaims(tokenString, &types.PublicUserClaims{},
 		func(token *jwt.Token) (any, error) {
 			if token.Method.Alg() != jwt.SigningMethodHS256.Alg() {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Method.Alg())
 			}
-			return []byte(os.Getenv("JWT_SIGNING_KEY")), nil
+			return []byte(signingKey), nil
 		},
 	)
 	if err != nil {

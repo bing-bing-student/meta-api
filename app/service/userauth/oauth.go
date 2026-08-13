@@ -209,10 +209,14 @@ func (s *userAuthService) loadOAuthProviderConfig(provider string) (*oauthProvid
 	provider = strings.ToLower(strings.TrimSpace(provider))
 	envPrefix := "OAUTH_" + strings.ToUpper(provider) + "_"
 	providerConfig := s.config.OAuthProviderSnapshot(provider)
+	clientSecret, err := utils.EnvOrFile(envPrefix + "CLIENT_SECRET")
+	if err != nil {
+		return nil, err
+	}
 	config := &oauthProviderConfig{
 		Provider:     provider,
 		ClientID:     envOrConfig(envPrefix+"CLIENT_ID", providerConfig.ClientID),
-		ClientSecret: strings.TrimSpace(os.Getenv(envPrefix + "CLIENT_SECRET")),
+		ClientSecret: clientSecret,
 		RedirectURI:  envOrConfig(envPrefix+"REDIRECT_URI", providerConfig.RedirectURI),
 	}
 	switch provider {

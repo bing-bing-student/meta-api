@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 
 	"meta-api/app/model/link"
+	"meta-api/common/cachekey"
 	"meta-api/common/idutil"
 	"meta-api/common/types"
 )
@@ -19,7 +20,7 @@ import (
 // AdminGetLinkList 获取友链列表
 func (l *linkService) AdminGetLinkList(ctx context.Context) (*types.AdminGetLinkListResponse, error) {
 	response := &types.AdminGetLinkListResponse{}
-	key := "link:ZSet"
+	key := cachekey.LinkZSet().String()
 	// 缓存不存在
 	if exists := l.redis.Exists(ctx, key).Val(); exists == 0 {
 		// 查询所有友链数据
@@ -103,7 +104,7 @@ func (l *linkService) AdminAddLink(ctx context.Context, request *types.AdminAddL
 	}
 
 	// 添加缓存
-	key := "link:ZSet"
+	key := cachekey.LinkZSet().String()
 	item := types.LinkItem{
 		ID:   strconv.Itoa(int(linkInfo.ID)),
 		Name: linkInfo.Name,
@@ -150,7 +151,7 @@ func (l *linkService) AdminUpdateLink(ctx context.Context, request *types.AdminU
 	}
 
 	// 删除缓存
-	key := "link:ZSet"
+	key := cachekey.LinkZSet().String()
 	if err = l.redis.Del(ctx, key).Err(); err != nil {
 		l.logger.Error("failed to delete link list from Redis", zap.Error(err))
 		return fmt.Errorf("failed to delete link list from Redis, err: %w", err)
@@ -173,7 +174,7 @@ func (l *linkService) AdminDeleteLink(ctx context.Context, request *types.AdminD
 	}
 
 	// 删除缓存
-	key := "link:ZSet"
+	key := cachekey.LinkZSet().String()
 	if err = l.redis.Del(ctx, key).Err(); err != nil {
 		l.logger.Error("failed to delete link list from Redis", zap.Error(err))
 		return fmt.Errorf("failed to delete link list from Redis, err: %w", err)

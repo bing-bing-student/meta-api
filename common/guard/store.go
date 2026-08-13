@@ -49,35 +49,12 @@ func NewRedisStore(rdb *redis.Client, logger *zap.Logger) Store {
 	return &redisStore{rdb: rdb, logger: logger}
 }
 
-// 命名空间约定与 cachekey 包风格保持一致：guard:{scene}:{kind}[:...]。
-//
-// 没把这些 key 移到 cachekey 包是因为 guard 包未来会独立演进
-// （按场景配频控阈值），key 的生命周期与 cachekey 包内的业务 key 不耦合。
-const guardKeyPrefix = "guard"
-
-func nonceKey(scene Scene, nonce []byte) string {
-	return guardKeyPrefix + ":" + scene.String() + ":nonce:" + bytesToHex(nonce)
-}
-
-func dedupKey(scene Scene, fpHex, targetID string) string {
-	return guardKeyPrefix + ":" + scene.String() + ":dedup:" + fpHex + ":" + targetID
-}
-
-func tokenKey(scene Scene, tokenHex string) string {
-	return guardKeyPrefix + ":" + scene.String() + ":token:" + tokenHex
-}
-
-// 频控 key 工厂（暂内联使用）。这里特意不暴露 helper 给外部，
-// 所有频控阈值组合都集中在 engine.checkRate 中。
-//
-// 为避免 lint warning（unused），用 _ 关联到 cachekey.Key 的引用习惯。
-var _ = cachekey.Key("")
-
 func (s *redisStore) NonceTrySet(ctx context.Context, scene Scene, nonce []byte, ttl time.Duration) (bool, error) {
 	if len(nonce) == 0 {
 		return false, errors.New("guard: nonce empty")
 	}
-	ok, err := s.rdb.SetNX(ctx, nonceKey(scene, nonce), 1, ttl).Result()
+	key := cachekey.GuardNonce(scene.String(), bytesToHex(nonce)).String()
+	ok, err := s.rdb.SetNX(ctx, key, 1, ttl).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
 		return false, err
 	}
@@ -99,7 +76,8 @@ func (s *redisStore) IncrCheckRate(ctx context.Context, key string, ttl time.Dur
 }
 
 func (s *redisStore) DedupTrySet(ctx context.Context, scene Scene, fpHex, targetID string, ttl time.Duration) (bool, error) {
-	ok, err := s.rdb.SetNX(ctx, dedupKey(scene, fpHex, targetID), 1, ttl).Result()
+	key := cachekey.GuardDedup(scene.String(), fpHex, targetID).String()
+	ok, err := s.rdb.SetNX(ctx, key, 1, ttl).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
 		return false, err
 	}
@@ -114,7 +92,8 @@ func (s *redisStore) TokenIssue(ctx context.Context, scene Scene, tokenHex, fpHe
 	if tokenHex == "" || fpHex == "" {
 		return false, errors.New("guard: token/fp empty")
 	}
-	ok, err := s.rdb.SetNX(ctx, tokenKey(scene, tokenHex), fpHex, ttl).Result()
+	key := cachekey.GuardToken(scene.String(), tokenHex).String()
+	ok, err := s.rdb.SetNX(ctx, key, fpHex, ttl).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
 		return false, err
 	}
@@ -129,7 +108,8 @@ func (s *redisStore) TokenConsume(ctx context.Context, scene Scene, tokenHex str
 	if tokenHex == "" {
 		return "", false, nil
 	}
-	val, err := s.rdb.GetDel(ctx, tokenKey(scene, tokenHex)).Result()
+	key := cachekey.GuardToken(scene.String(), tokenHex).String()
+	val, err := s.rdb.GetDel(ctx, key).Result()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return "", false, nil

@@ -3,8 +3,8 @@
 // 设计要点：
 //  1. Go 侧只做"是否真人"的风控判定（guard.Engine），不接管真正的 JSON 存储；
 //     存储仍由 Nuxt 端的 /api/share-json（文件 + 索引）负责。
-//  2. 预检通过后下发一次性 share-token（hex 64 chars，TTL 120s），写入 Redis：
-//     guard:share-create:token:{tokenHex} → fingerprintHex
+//  2. 预检通过后下发一次性 share-token（hex 64 chars，TTL 120s），Redis key
+//     由 cachekey.GuardToken 统一生成，value 为 fingerprintHex。
 //  3. 业务侧（Nuxt）凭 token 调 /user/share/consume，原子读取并删除 token，
 //     拿到 fingerprint 即可继续走原配额/限流/写文件流程。
 //

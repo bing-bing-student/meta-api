@@ -9,6 +9,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"meta-api/common/cachekey"
 	"meta-api/common/guard/keymanager"
 )
 
@@ -288,10 +289,10 @@ func (e *engine) Evaluate(ctx context.Context, req *RiskRequest) (*Outcome, erro
 //
 // 阈值与 viewlog 现有配置一致；share 暂用更紧的 fp/分钟（防止 1 个浏览器无限刷分享）。
 func (e *engine) checkRate(ctx context.Context, req *RiskRequest, fpHex string) (string, Decision, bool) {
-	prefix := guardKeyPrefix + ":" + req.Scene.String() + ":rate"
+	scene := req.Scene.String()
 
 	// IP / 分钟
-	ipMinKey := prefix + ":ip:" + req.ClientIP + ":1m"
+	ipMinKey := cachekey.GuardRate(scene, "ip", req.ClientIP, "1m").String()
 	if exceeded, err := e.store.IncrCheckRate(ctx, ipMinKey, time.Minute, ipPerMinute(req.Scene)); err != nil {
 		e.logger.Warn("guard rate ip:1m incr failed", zap.Error(err))
 	} else if exceeded {
@@ -299,7 +300,7 @@ func (e *engine) checkRate(ctx context.Context, req *RiskRequest, fpHex string) 
 	}
 
 	// IP / 小时
-	ipHourKey := prefix + ":ip:" + req.ClientIP + ":1h"
+	ipHourKey := cachekey.GuardRate(scene, "ip", req.ClientIP, "1h").String()
 	if exceeded, err := e.store.IncrCheckRate(ctx, ipHourKey, time.Hour, ipPerHour(req.Scene)); err != nil {
 		e.logger.Warn("guard rate ip:1h incr failed", zap.Error(err))
 	} else if exceeded {
@@ -307,7 +308,7 @@ func (e *engine) checkRate(ctx context.Context, req *RiskRequest, fpHex string) 
 	}
 
 	// fingerprint / 分钟
-	fpMinKey := prefix + ":fp:" + fpHex + ":1m"
+	fpMinKey := cachekey.GuardRate(scene, "fp", fpHex, "1m").String()
 	if exceeded, err := e.store.IncrCheckRate(ctx, fpMinKey, time.Minute, fpPerMinute(req.Scene)); err != nil {
 		e.logger.Warn("guard rate fp:1m incr failed", zap.Error(err))
 	} else if exceeded {

@@ -11,12 +11,13 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
+	"meta-api/common/cachekey"
 	"meta-api/common/types"
 )
 
 // UserGetLinkList 获取链接列表
 func (l *linkService) UserGetLinkList(ctx context.Context) (*types.UserGetLinkListResponse, error) {
-	key := "link:ZSet"
+	key := cachekey.LinkZSet().String()
 	response := &types.UserGetLinkListResponse{}
 
 	// 缓存不存在

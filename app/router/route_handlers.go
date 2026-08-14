@@ -26,6 +26,7 @@ type routeHandlers struct {
 	viewLog   viewlog.Handler
 }
 
+// resolveHandlers 注册路由处理函数
 func resolveHandlers(container *dig.Container) (*routeHandlers, error) {
 	handlers := &routeHandlers{}
 	err := container.Invoke(func(

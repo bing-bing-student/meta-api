@@ -9,6 +9,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"meta-api/common/env"
 	"meta-api/common/utils"
 )
 
@@ -16,12 +17,6 @@ import (
 const (
 	// defaultTimeout 调用 portal-web sitemap 刷新接口的整体 HTTP 超时。
 	defaultTimeout = 3 * time.Second
-
-	// envEndpoint sitemap 刷新接口完整 URL 所在的环境变量名。
-	envEndpoint = "SITEMAP_REVALIDATE_ENDPOINT"
-
-	// envSecret sitemap 刷新接口共享密钥所在的环境变量名。
-	envSecret = "SITEMAP_REVALIDATE_SECRET"
 )
 
 // Client 用来调用 portal-web /api/_revalidate 刷新 sitemap 内部缓存。
@@ -36,8 +31,8 @@ type Client struct {
 
 // New 构造 sitemap 刷新客户端。
 func New(logger *zap.Logger, ctx context.Context) *Client {
-	endpoint := strings.TrimSpace(os.Getenv(envEndpoint))
-	secret, err := utils.EnvOrFile(envSecret)
+	endpoint := strings.TrimSpace(os.Getenv(env.SitemapRevalidateEndpoint))
+	secret, err := utils.EnvOrFile(env.SitemapRevalidateSecret)
 	if err != nil {
 		logger.Warn("sitemap revalidate disabled: secret file read failed", zap.Error(err))
 	}

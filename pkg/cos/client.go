@@ -7,6 +7,7 @@ import (
 	tencentcos "github.com/tencentyun/cos-go-sdk-v5"
 	"go.uber.org/zap"
 
+	"meta-api/common/env"
 	"meta-api/common/utils"
 	"meta-api/config"
 )
@@ -14,12 +15,12 @@ import (
 func New(cfg config.ArticleImageCOSConfig, logger *zap.Logger) *Client {
 	bucket := strings.TrimSpace(cfg.Bucket)
 	region := strings.TrimSpace(cfg.Region)
-	secretID, err := utils.EnvOrFile(envCOSSecretID)
+	secretID, err := utils.EnvOrFile(env.COSSecretID)
 	if err != nil {
 		logger.Warn("article image COS disabled: secret id file read failed", zap.Error(err))
 		return &Client{logger: logger}
 	}
-	secretKey, err := utils.EnvOrFile(envCOSSecretKey)
+	secretKey, err := utils.EnvOrFile(env.COSSecretKey)
 	if err != nil {
 		logger.Warn("article image COS disabled: secret key file read failed", zap.Error(err))
 		return &Client{logger: logger}

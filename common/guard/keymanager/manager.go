@@ -14,15 +14,12 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"go.uber.org/zap"
 
+	"meta-api/common/env"
 	"meta-api/common/utils"
 )
 
 // 默认配置常量。
 const (
-	// envKeyDir 私钥目录的环境变量名。
-	// 生产挂载点通常是 /root/blog-website/keys；本地默认 ./keys。
-	envKeyDir = "KEY_DIR"
-
 	// defaultKeyDir 未配置 KEY_DIR 时的默认相对路径。
 	defaultKeyDir = "./keys"
 
@@ -50,7 +47,7 @@ const (
 //  3. 本地环境加载失败仅记录 Warn，返回的 Manager 仍可调用，但 Decrypt 会返回 ErrNotReady
 //  4. 生产环境加载 current 私钥失败时返回错误，避免启动后所有加密链路不可用
 func New(logger *zap.Logger) (*Manager, error) {
-	keyDir := os.Getenv(envKeyDir)
+	keyDir := os.Getenv(env.KeyDir)
 	if keyDir == "" {
 		keyDir = defaultKeyDir
 	}

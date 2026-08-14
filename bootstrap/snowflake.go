@@ -1,7 +1,6 @@
 package bootstrap
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -12,12 +11,7 @@ import (
 	"go.uber.org/zap"
 
 	"meta-api/common/constants"
-	"meta-api/common/utils"
-)
-
-const (
-	envSonyflakeMachineID = "SONYFLAKE_MACHINE_ID"
-	localMachineID        = uint16(1)
+	"meta-api/common/env"
 )
 
 // initIDGenerator 初始化ID生成器
@@ -27,41 +21,34 @@ func initIDGenerator(logger *zap.Logger) (*sonyflake.Sonyflake, error) {
 		return nil, fmt.Errorf("parse sonyflake start time: %w", err)
 	}
 
-	settings := sonyflake.Settings{StartTime: startTime}
-	machineID, ok, envErr := sonyflakeMachineIDFromEnv()
-	if envErr != nil {
-		return nil, envErr
-	}
-	if ok {
-		settings.MachineID = fixedSonyflakeMachineID(machineID)
+	machineID, err := sonyflakeMachineIDFromEnv()
+	if err != nil {
+		return nil, err
 	}
 
-	sf, err := sonyflake.New(settings)
-	if err == nil {
-		return sf, nil
-	}
-	if errors.Is(err, sonyflake.ErrNoPrivateAddress) && !utils.IsProductionEnv() {
-		logger.Warn("sonyflake private ip missing, fallback to local machine id", zap.Uint16("machine_id", localMachineID), zap.Error(err))
-		return sonyflake.New(sonyflake.Settings{
-			StartTime: startTime,
-			MachineID: fixedSonyflakeMachineID(localMachineID),
-		})
-	}
+	logger.Info("sonyflake machine id configured", zap.Uint16("machine_id", machineID))
 
-	return nil, fmt.Errorf("init sonyflake: %w", err)
+	sf, err := sonyflake.New(sonyflake.Settings{
+		StartTime: startTime,
+		MachineID: fixedSonyflakeMachineID(machineID),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("init sonyflake: %w", err)
+	}
+	return sf, nil
 }
 
-func sonyflakeMachineIDFromEnv() (uint16, bool, error) {
-	raw := strings.TrimSpace(os.Getenv(envSonyflakeMachineID))
+func sonyflakeMachineIDFromEnv() (uint16, error) {
+	raw := strings.TrimSpace(os.Getenv(env.SonyflakeMachineID))
 	if raw == "" {
-		return 0, false, nil
+		return 0, fmt.Errorf("missing required environment variable: %s", env.SonyflakeMachineID)
 	}
 
 	id, err := strconv.ParseUint(raw, 10, 16)
 	if err != nil {
-		return 0, false, fmt.Errorf("invalid %s: %w", envSonyflakeMachineID, err)
+		return 0, fmt.Errorf("invalid %s: %w", env.SonyflakeMachineID, err)
 	}
-	return uint16(id), true, nil
+	return uint16(id), nil
 }
 
 func fixedSonyflakeMachineID(id uint16) func() (uint16, error) {

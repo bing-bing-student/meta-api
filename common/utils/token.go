@@ -6,6 +6,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
+	"meta-api/common/env"
 	"meta-api/common/types"
 )
 
@@ -16,7 +17,7 @@ const (
 
 // ParseToken 解析Token
 func ParseToken(tokenString string) (*types.UserClaims, error) {
-	signingKey, err := RequiredEnvOrFile("JWT_SIGNING_KEY")
+	signingKey, err := RequiredEnvOrFile(env.JWTSigningKey)
 	if err != nil {
 		return nil, err
 	}

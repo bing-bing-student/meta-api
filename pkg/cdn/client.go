@@ -11,6 +11,7 @@ import (
 	teo "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/teo/v20220901"
 	"go.uber.org/zap"
 
+	"meta-api/common/env"
 	"meta-api/common/utils"
 )
 
@@ -28,19 +29,6 @@ const (
 
 	// sdkEndpoint EdgeOne 公网接入域名。
 	sdkEndpoint = "teo.tencentcloudapi.com"
-
-	// envSecretID EdgeOne API SecretId 所在环境变量名。
-	envSecretID = "EDGEONE_SECRET_ID"
-
-	// envSecretKey EdgeOne API SecretKey 所在环境变量名（敏感，建议走 docker secret 注入）。
-	envSecretKey = "EDGEONE_SECRET_KEY"
-
-	// envZoneID EdgeOne 站点 ID 所在环境变量名（如 zone-xxxx）。
-	envZoneID = "EDGEONE_ZONE_ID"
-
-	// envPurgeDomain 用于拼接清理 URL 的站点域名前缀，
-	// 例如 https://liubing.xyz；末尾斜杠由代码统一裁剪。
-	envPurgeDomain = "EDGEONE_PURGE_DOMAIN"
 )
 
 // Client 用来调用 CDN 清缓存任务接口。
@@ -59,18 +47,18 @@ type Client struct {
 
 // New 构造一个 CDN 清缓存客户端。
 func New(logger *zap.Logger, ctx context.Context) *Client {
-	secretID, err := utils.EnvOrFile(envSecretID)
+	secretID, err := utils.EnvOrFile(env.EdgeOneSecretID)
 	if err != nil {
 		logger.Warn("cdn disabled: secret id file read failed", zap.Error(err))
 		return newDisabledClient(logger, ctx)
 	}
-	secretKey, err := utils.EnvOrFile(envSecretKey)
+	secretKey, err := utils.EnvOrFile(env.EdgeOneSecretKey)
 	if err != nil {
 		logger.Warn("cdn disabled: secret file read failed", zap.Error(err))
 		return newDisabledClient(logger, ctx)
 	}
-	zoneID := os.Getenv(envZoneID)
-	domain := strings.TrimRight(os.Getenv(envPurgeDomain), "/")
+	zoneID := os.Getenv(env.EdgeOneZoneID)
+	domain := strings.TrimRight(os.Getenv(env.EdgeOnePurgeDomain), "/")
 
 	if secretID == "" || secretKey == "" || zoneID == "" || domain == "" {
 		logger.Warn("cdn disabled: required env missing",

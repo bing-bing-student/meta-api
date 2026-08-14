@@ -16,6 +16,7 @@ import (
 	"go.uber.org/zap"
 
 	"meta-api/common/cachekey"
+	"meta-api/common/env"
 	"meta-api/common/ratelimit"
 	"meta-api/common/types"
 	"meta-api/common/utils"
@@ -39,12 +40,6 @@ const (
 	defaultBugFeedbackIPWindow      = 10 * time.Minute
 	defaultBugFeedbackSMTPPort      = 465
 	defaultBugFeedbackSMTPFromName  = "JSON Tool Feedback"
-	bugFeedbackSMTPHostEnv          = "BUG_FEEDBACK_SMTP_HOST"
-	bugFeedbackSMTPPortEnv          = "BUG_FEEDBACK_SMTP_PORT"
-	bugFeedbackSMTPUsernameEnv      = "BUG_FEEDBACK_SMTP_USERNAME"
-	bugFeedbackSMTPPasswordEnv      = "BUG_FEEDBACK_SMTP_PASSWORD"
-	bugFeedbackSMTPFromEnv          = "BUG_FEEDBACK_SMTP_FROM"
-	bugFeedbackSMTPFromNameEnv      = "BUG_FEEDBACK_SMTP_FROM_NAME"
 )
 
 type bugFeedbackInvalidError string
@@ -190,20 +185,20 @@ func (a *adminService) bugFeedbackSMTPConfig() (mailer.SMTPConfig, error) {
 	if a != nil && a.config != nil {
 		cfg = a.config.BugFeedbackSnapshot().SMTP
 	}
-	password, err := utils.EnvOrFile(bugFeedbackSMTPPasswordEnv)
+	password, err := utils.EnvOrFile(env.BugFeedbackSMTPPassword)
 	if err != nil {
 		return mailer.SMTPConfig{}, ErrBugFeedbackSMTPNotConfigured
 	}
-	host := firstNonEmptyEnv(bugFeedbackSMTPHostEnv, cfg.Host)
-	username := firstNonEmptyEnv(bugFeedbackSMTPUsernameEnv, cfg.Username)
-	from := firstNonEmptyEnv(bugFeedbackSMTPFromEnv, cfg.From)
-	fromName := firstNonEmptyEnv(bugFeedbackSMTPFromNameEnv, cfg.FromName)
+	host := firstNonEmptyEnv(env.BugFeedbackSMTPHost, cfg.Host)
+	username := firstNonEmptyEnv(env.BugFeedbackSMTPUsername, cfg.Username)
+	from := firstNonEmptyEnv(env.BugFeedbackSMTPFrom, cfg.From)
+	fromName := firstNonEmptyEnv(env.BugFeedbackSMTPFromName, cfg.FromName)
 
 	port := cfg.Port
 	if port <= 0 {
 		port = defaultBugFeedbackSMTPPort
 	}
-	if rawPort := strings.TrimSpace(os.Getenv(bugFeedbackSMTPPortEnv)); rawPort != "" {
+	if rawPort := strings.TrimSpace(os.Getenv(env.BugFeedbackSMTPPort)); rawPort != "" {
 		parsed, err := strconv.Atoi(rawPort)
 		if err != nil || parsed <= 0 || parsed > 65535 {
 			return mailer.SMTPConfig{}, ErrBugFeedbackSMTPNotConfigured

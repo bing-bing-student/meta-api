@@ -1,12 +1,11 @@
 package utils
 
-import "os"
+import (
+	"os"
 
-const (
-	EnvApp        = "APP_ENV"
-	EnvProduction = "production"
+	"meta-api/common/env"
 )
 
 func IsProductionEnv() bool {
-	return os.Getenv(EnvApp) == EnvProduction
+	return os.Getenv(env.AppEnv) == env.AppProduction
 }

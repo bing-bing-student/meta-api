@@ -7,6 +7,13 @@ import (
 	"meta-api/bootstrap"
 )
 
+// 生产环境的配置来源按敏感度分层：
+//  1. config/*.yml：非敏感、可版本化的业务配置，例如日志配置、数据库连接池、限流等。
+//  2. docker-compose environment：非敏感运行时变量，例如 APP_ENV、HTTP_PORT、服务地址等。
+//  3. Docker secrets：MySQL密码、JWT 签名密钥、OAuth ClientSecret 等核心敏感信息。
+//
+// 环境变量和 Docker secrets 分开，是为了避免核心敏感信息出现在 docker inspect、进程环境、日志或 shell history 中。
+// Docker secrets 会在容器运行时挂载到 /run/secrets 文件系统，不会写入镜像层和容器只读层，仅在容器运行时可见。
 var runtimeEnv *bootstrap.RuntimeEnv
 
 // 初始化并校验环境变量

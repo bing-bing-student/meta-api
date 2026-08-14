@@ -32,14 +32,13 @@ type Bootstrap struct {
 }
 
 // New 创建应用程序
-func New(runtimeEnv ...*RuntimeEnv) *Bootstrap {
-	ctx, cancel := context.WithCancel(context.Background())
-	env := defaultRuntimeEnv()
-	if len(runtimeEnv) > 0 && runtimeEnv[0] != nil {
-		env = *runtimeEnv[0]
+func New(runtimeEnv *RuntimeEnv) *Bootstrap {
+	if runtimeEnv == nil {
+		log.Panic("runtime env is nil")
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Bootstrap{
-		RuntimeEnv:      env,
+		RuntimeEnv:      *runtimeEnv,
 		lifecycleCtx:    ctx,
 		lifecycleCancel: cancel,
 	}

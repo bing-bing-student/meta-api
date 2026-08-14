@@ -8,12 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	envCOSSecretID  = "COS_SECRET_ID"
-	envCOSSecretKey = "COS_SECRET_KEY"
-
-	defaultTimeout = 15 * time.Second
-)
+const defaultTimeout = 15 * time.Second
 
 var ErrDisabled = errors.New("article image COS storage is not configured")
 

@@ -19,17 +19,10 @@ import (
 	linkModel "meta-api/app/model/link"
 	tagModel "meta-api/app/model/tag"
 	userModel "meta-api/app/model/user"
+	"meta-api/common/env"
 	"meta-api/common/loggers"
 	"meta-api/common/utils"
 	"meta-api/config"
-)
-
-const (
-	envMySQLUsername = "MYSQL_USERNAME"
-	envMySQLPassword = "MYSQL_WORK_PASSWORD"
-	envMySQLHost     = "MYSQL_HOST"
-	envMySQLPort     = "MYSQL_PORT"
-	envMySQLDBName   = "MYSQL_DB_NAME"
 )
 
 const (
@@ -222,24 +215,24 @@ func newMySQLLogger(cfg *MySQLConfig) logger.Interface {
 
 func mysqlEnvFromEnv() (*mysqlEnv, error) {
 	values, err := requiredEnvValues(
-		envMySQLUsername,
-		envMySQLHost,
-		envMySQLPort,
-		envMySQLDBName,
+		env.MySQLUsername,
+		env.MySQLHost,
+		env.MySQLPort,
+		env.MySQLDBName,
 	)
 	if err != nil {
 		return nil, err
 	}
-	password, err := utils.RequiredEnvOrFile(envMySQLPassword)
+	password, err := utils.RequiredEnvOrFile(env.MySQLWorkPassword)
 	if err != nil {
 		return nil, err
 	}
 	return &mysqlEnv{
-		username: strings.TrimSpace(values[envMySQLUsername]),
+		username: strings.TrimSpace(values[env.MySQLUsername]),
 		password: password,
-		host:     strings.TrimSpace(values[envMySQLHost]),
-		port:     strings.TrimSpace(values[envMySQLPort]),
-		dbName:   strings.TrimSpace(values[envMySQLDBName]),
+		host:     strings.TrimSpace(values[env.MySQLHost]),
+		port:     strings.TrimSpace(values[env.MySQLPort]),
+		dbName:   strings.TrimSpace(values[env.MySQLDBName]),
 	}, nil
 }
 

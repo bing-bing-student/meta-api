@@ -20,6 +20,7 @@ import (
 
 	userModel "meta-api/app/model/user"
 	"meta-api/common/cachekey"
+	"meta-api/common/env"
 	"meta-api/common/idutil"
 	"meta-api/common/types"
 	"meta-api/common/utils"
@@ -207,17 +208,16 @@ type normalizedOAuthUser struct {
 
 func (s *userAuthService) loadOAuthProviderConfig(provider string) (*oauthProviderConfig, error) {
 	provider = strings.ToLower(strings.TrimSpace(provider))
-	envPrefix := "OAUTH_" + strings.ToUpper(provider) + "_"
 	providerConfig := s.config.OAuthProviderSnapshot(provider)
-	clientSecret, err := utils.EnvOrFile(envPrefix + "CLIENT_SECRET")
+	clientSecret, err := utils.EnvOrFile(env.OAuthClientSecret(provider))
 	if err != nil {
 		return nil, err
 	}
 	config := &oauthProviderConfig{
 		Provider:     provider,
-		ClientID:     envOrConfig(envPrefix+"CLIENT_ID", providerConfig.ClientID),
+		ClientID:     envOrConfig(env.OAuthClientID(provider), providerConfig.ClientID),
 		ClientSecret: clientSecret,
-		RedirectURI:  envOrConfig(envPrefix+"REDIRECT_URI", providerConfig.RedirectURI),
+		RedirectURI:  envOrConfig(env.OAuthRedirectURI(provider), providerConfig.RedirectURI),
 	}
 	switch provider {
 	case "github":

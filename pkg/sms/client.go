@@ -5,21 +5,17 @@ import (
 	dysmsapi20170525 "github.com/alibabacloud-go/dysmsapi-20170525/v3/client"
 	"github.com/alibabacloud-go/tea/tea"
 
+	"meta-api/common/env"
 	"meta-api/common/utils"
-)
-
-const (
-	envAliyunAccessKeyID     = "ALIYUN_ACCESS_KEY_ID"
-	envAliyunAccessKeySecret = "ALIYUN_ACCESS_KEY_SECRET"
 )
 
 // CreateClient 创建客户端
 func CreateClient() (result *dysmsapi20170525.Client, err error) {
-	accessKeyID, err := utils.EnvOrFile(envAliyunAccessKeyID)
+	accessKeyID, err := utils.EnvOrFile(env.AliyunAccessKeyID)
 	if err != nil {
 		return nil, err
 	}
-	accessKeySecret, err := utils.EnvOrFile(envAliyunAccessKeySecret)
+	accessKeySecret, err := utils.EnvOrFile(env.AliyunAccessKeySecret)
 	if err != nil {
 		return nil, err
 	}

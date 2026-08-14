@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 
+	"meta-api/common/env"
 	"meta-api/common/types"
 )
 
@@ -20,7 +21,7 @@ const (
 )
 
 func GenerateCommentUserToken(user *types.PublicUserInfo) (string, error) {
-	signingKey, err := RequiredEnvOrFile("JWT_SIGNING_KEY")
+	signingKey, err := RequiredEnvOrFile(env.JWTSigningKey)
 	if err != nil {
 		return "", err
 	}
@@ -48,7 +49,7 @@ func GenerateCommentUserToken(user *types.PublicUserInfo) (string, error) {
 }
 
 func ParseCommentUserToken(tokenString string) (*types.PublicUserClaims, error) {
-	signingKey, err := RequiredEnvOrFile("JWT_SIGNING_KEY")
+	signingKey, err := RequiredEnvOrFile(env.JWTSigningKey)
 	if err != nil {
 		return nil, err
 	}

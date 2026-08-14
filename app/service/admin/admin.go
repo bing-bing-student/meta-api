@@ -18,6 +18,7 @@ import (
 
 	"meta-api/app/model/admin"
 	"meta-api/common/cachekey"
+	"meta-api/common/env"
 	"meta-api/common/idutil"
 	"meta-api/common/types"
 	"meta-api/common/utils"
@@ -130,7 +131,7 @@ func (a *adminService) RevokeRefreshToken(ctx context.Context, refreshToken stri
 func (a *adminService) issueTokenPair(ctx context.Context, userID string, sessionID string,
 	expectedRefreshHash string) (*types.TokenDetails, error) {
 	tokenDetails := &types.TokenDetails{}
-	signingKey, err := utils.RequiredEnvOrFile("JWT_SIGNING_KEY")
+	signingKey, err := utils.RequiredEnvOrFile(env.JWTSigningKey)
 	if err != nil {
 		return nil, err
 	}

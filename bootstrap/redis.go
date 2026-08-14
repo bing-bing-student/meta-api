@@ -8,14 +8,9 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	"meta-api/common/env"
 	"meta-api/common/utils"
 	"meta-api/config"
-)
-
-const (
-	envRedisAddress    = "REDIS_ADDRESS"
-	envRedisMasterName = "REDIS_MASTER_NAME"
-	envRedisPassword   = "REDIS_PASSWORD"
 )
 
 // ConnectRedisClient 初始化Redis客户端
@@ -104,27 +99,27 @@ func validateRedisConfig(cfg *RedisConfig) error {
 }
 
 func redisEnvFromEnv() (*redisEnv, error) {
-	values, err := requiredEnvValues(envRedisMasterName)
+	values, err := requiredEnvValues(env.RedisMasterName)
 	if err != nil {
 		return nil, err
 	}
 
-	sentinelAddrs, err := splitEnvList(envRedisAddress)
+	sentinelAddrs, err := splitEnvList(env.RedisAddress)
 	if err != nil {
 		return nil, err
 	}
 
-	password, err := utils.EnvOrFile(envRedisPassword)
+	password, err := utils.EnvOrFile(env.RedisPassword)
 	if err != nil {
 		return nil, err
 	}
 	if password == "" && utils.IsProductionEnv() {
-		return nil, fmt.Errorf("missing required secret: %s or %s_FILE", envRedisPassword, envRedisPassword)
+		return nil, fmt.Errorf("missing required secret: %s or %s", env.RedisPassword, env.File(env.RedisPassword))
 	}
 
 	return &redisEnv{
-		password:      password,
-		masterName:    values[envRedisMasterName],
+		masterName:    values[env.RedisMasterName],
 		sentinelAddrs: sentinelAddrs,
+		password:      password,
 	}, nil
 }

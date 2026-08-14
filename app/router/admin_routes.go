@@ -46,7 +46,6 @@ func registerAdminAuthRoutes(group *gin.RouterGroup, handlers *routeHandlers) {
 
 	// 文章图片
 	group.POST("/article/image/upload", handlers.article.AdminUploadArticleImage)
-	group.POST("/article/image/scan", handlers.article.AdminScanArticleImages)
 	group.GET("/article/image/list", handlers.article.AdminGetArticleImageList)
 	group.GET("/article/image/detail", handlers.article.AdminGetArticleImageDetail)
 	group.DELETE("/article/image/delete", handlers.article.AdminDeleteArticleImage)

@@ -118,36 +118,24 @@ type AdminUploadArticleImageResponse struct {
 	Mime      string `json:"mime"`
 }
 
-type AdminScanArticleImagesResponse struct {
-	ArticleTotal   int `json:"articleTotal"`
-	ImageTotal     int `json:"imageTotal"`
-	ReferenceTotal int `json:"referenceTotal"`
-	UsedTotal      int `json:"usedTotal"`
-	UnusedTotal    int `json:"unusedTotal"`
-	MissingTotal   int `json:"missingTotal"`
-}
-
 type AdminGetArticleImageListRequest struct {
 	Page     int    `form:"page" binding:"required,gte=1"`
 	PageSize int    `form:"pageSize" binding:"required,gte=1,lte=20"`
-	Status   string `form:"status" binding:"omitempty,oneof=used unused missing"`
+	Status   string `form:"status" binding:"omitempty,oneof=used unused"`
 	Keyword  string `form:"keyword" binding:"omitempty,lte=120"`
 }
 
 type AdminArticleImageListItem struct {
-	ID                 string `json:"id"`
-	URL                string `json:"url"`
-	ImageName          string `json:"imageName"`
-	Mime               string `json:"mime"`
-	Size               int64  `json:"size"`
-	ETag               string `json:"etag"`
-	Status             string `json:"status"`
-	Source             string `json:"source"`
-	RefCount           int    `json:"refCount"`
-	LastSeenTime       string `json:"lastSeenTime"`
-	ObjectModifiedTime string `json:"objectModifiedTime"`
-	CreateTime         string `json:"createTime"`
-	UpdateTime         string `json:"updateTime"`
+	ID         string `json:"id"`
+	URL        string `json:"url"`
+	ImageName  string `json:"imageName"`
+	Mime       string `json:"mime"`
+	Size       int64  `json:"size"`
+	ETag       string `json:"etag"`
+	Status     string `json:"status"`
+	RefCount   int    `json:"refCount"`
+	CreateTime string `json:"createTime"`
+	UpdateTime string `json:"updateTime"`
 }
 
 type AdminGetArticleImageListResponse struct {

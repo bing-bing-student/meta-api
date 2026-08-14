@@ -140,12 +140,14 @@ func validateMySQLConfig(cfg *MySQLConfig) error {
 	return nil
 }
 
-func applyMySQLPoolConfig(sqlDB interface {
+type sqlConnectionPool interface {
 	SetMaxOpenConns(int)
 	SetMaxIdleConns(int)
 	SetConnMaxLifetime(time.Duration)
 	SetConnMaxIdleTime(time.Duration)
-}, cfg *config.MySQLConfig) {
+}
+
+func applyMySQLPoolConfig(sqlDB sqlConnectionPool, cfg *config.MySQLConfig) {
 	maxOpenConns := cfg.MaxOpenConn
 	if maxOpenConns <= 0 {
 		maxOpenConns = defaultMySQLMaxOpenConns
@@ -240,9 +242,6 @@ func autoMigrateMySQL(db *gorm.DB) error {
 	if db == nil {
 		return fmt.Errorf("mysql db is nil")
 	}
-	if err := renameArticleImageNameColumn(db); err != nil {
-		return err
-	}
 	if err := db.AutoMigrate(
 		&adminModel.Admin{},
 		&tagModel.Tag{},
@@ -256,110 +255,5 @@ func autoMigrateMySQL(db *gorm.DB) error {
 	); err != nil {
 		return fmt.Errorf("auto migrate mysql tables: %w", err)
 	}
-	if err := dropArticleTitleUniqueIndexes(db); err != nil {
-		return err
-	}
-	if err := relaxArticleDraftColumns(db); err != nil {
-		return err
-	}
 	return nil
-}
-
-func renameArticleImageNameColumn(db *gorm.DB) error {
-	hasFileName, err := mysqlColumnExists(db, "article_image", "file_name")
-	if err != nil {
-		return err
-	}
-	if !hasFileName {
-		return nil
-	}
-
-	hasImageName, err := mysqlColumnExists(db, "article_image", "image_name")
-	if err != nil {
-		return err
-	}
-	if hasImageName {
-		if err := db.Exec("UPDATE `article_image` SET `image_name` = `file_name` WHERE (`image_name` IS NULL OR `image_name` = '') AND `file_name` <> ''").Error; err != nil {
-			return fmt.Errorf("backfill article_image image_name column: %w", err)
-		}
-		if err := db.Exec("ALTER TABLE `article_image` DROP COLUMN `file_name`").Error; err != nil {
-			return fmt.Errorf("drop article_image file_name column: %w", err)
-		}
-		return nil
-	}
-
-	if err := db.Exec("ALTER TABLE `article_image` CHANGE COLUMN `file_name` `image_name` varchar(255) NOT NULL").Error; err != nil {
-		return fmt.Errorf("rename article_image file_name column: %w", err)
-	}
-	return nil
-}
-
-func dropArticleTitleUniqueIndexes(db *gorm.DB) error {
-	type indexRow struct {
-		IndexName string `gorm:"column:INDEX_NAME"`
-	}
-
-	rows := make([]indexRow, 0)
-	if err := db.Raw(`
-SELECT INDEX_NAME
-FROM INFORMATION_SCHEMA.STATISTICS
-WHERE TABLE_SCHEMA = DATABASE()
-  AND TABLE_NAME = 'article'
-  AND COLUMN_NAME = 'title'
-  AND NON_UNIQUE = 0
-  AND INDEX_NAME <> 'PRIMARY'
-`).Scan(&rows).Error; err != nil {
-		return fmt.Errorf("query article title unique indexes: %w", err)
-	}
-
-	for _, row := range rows {
-		indexName := strings.TrimSpace(row.IndexName)
-		if indexName == "" {
-			continue
-		}
-		quoted := "`" + strings.ReplaceAll(indexName, "`", "``") + "`"
-		if err := db.Exec("ALTER TABLE `article` DROP INDEX " + quoted).Error; err != nil {
-			return fmt.Errorf("drop article title unique index %s: %w", indexName, err)
-		}
-	}
-	return nil
-}
-
-func relaxArticleDraftColumns(db *gorm.DB) error {
-	type columnRow struct {
-		IsNullable string `gorm:"column:IS_NULLABLE"`
-	}
-
-	column := &columnRow{}
-	if err := db.Raw(`
-SELECT IS_NULLABLE
-FROM INFORMATION_SCHEMA.COLUMNS
-WHERE TABLE_SCHEMA = DATABASE()
-  AND TABLE_NAME = 'article'
-  AND COLUMN_NAME = 'tag_id'
-`).Scan(column).Error; err != nil {
-		return fmt.Errorf("query article tag_id nullability: %w", err)
-	}
-	if strings.EqualFold(strings.TrimSpace(column.IsNullable), "YES") {
-		return nil
-	}
-
-	if err := db.Exec("ALTER TABLE `article` MODIFY COLUMN `tag_id` bigint unsigned NULL").Error; err != nil {
-		return fmt.Errorf("relax article tag_id nullability: %w", err)
-	}
-	return nil
-}
-
-func mysqlColumnExists(db *gorm.DB, tableName string, columnName string) (bool, error) {
-	var count int64
-	if err := db.Raw(`
-SELECT COUNT(*)
-FROM INFORMATION_SCHEMA.COLUMNS
-WHERE TABLE_SCHEMA = DATABASE()
-  AND TABLE_NAME = ?
-  AND COLUMN_NAME = ?
-`, tableName, columnName).Scan(&count).Error; err != nil {
-		return false, fmt.Errorf("query mysql column %s.%s: %w", tableName, columnName, err)
-	}
-	return count > 0, nil
 }

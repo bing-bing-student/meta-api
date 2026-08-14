@@ -19,7 +19,6 @@ type Handler interface {
 	AdminPublishArticleDraft(c *gin.Context)
 	AdminDeleteArticleDraft(c *gin.Context)
 	AdminUploadArticleImage(c *gin.Context)
-	AdminScanArticleImages(c *gin.Context)
 	AdminGetArticleImageList(c *gin.Context)
 	AdminGetArticleImageDetail(c *gin.Context)
 	AdminDeleteArticleImage(c *gin.Context)

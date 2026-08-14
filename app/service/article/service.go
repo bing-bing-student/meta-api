@@ -30,7 +30,6 @@ type Service interface {
 	AdminPublishArticleDraft(ctx context.Context, request *types.AdminPublishArticleDraftRequest) (*types.AdminSaveArticleResponse, error)
 	AdminDeleteArticleDraft(ctx context.Context, request *types.AdminDeleteArticleDraftRequest) error
 	AdminUploadArticleImage(ctx context.Context, fileName string, contentType string, content []byte) (*types.AdminUploadArticleImageResponse, error)
-	AdminScanArticleImages(ctx context.Context) (*types.AdminScanArticleImagesResponse, error)
 	AdminGetArticleImageList(ctx context.Context, request *types.AdminGetArticleImageListRequest) (*types.AdminGetArticleImageListResponse, error)
 	AdminGetArticleImageDetail(ctx context.Context, request *types.AdminGetArticleImageDetailRequest) (*types.AdminGetArticleImageDetailResponse, error)
 	AdminDeleteArticleImage(ctx context.Context, request *types.AdminDeleteArticleImageRequest) error

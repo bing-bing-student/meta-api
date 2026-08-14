@@ -215,6 +215,9 @@ func (a *articleService) AdminPublishArticleDraft(ctx context.Context,
 		if err = a.articleModel.PublishNewArticleDraft(ctx, published); err != nil {
 			return nil, err
 		}
+		if err = a.syncPublishedArticleImageReferences(ctx, published.ID, published.Content); err != nil {
+			return nil, fmt.Errorf("failed to sync article image references: %w", err)
+		}
 		if err = a.addPublishedArticleCache(ctx, published, tagInfo.Name); err != nil {
 			return nil, err
 		}
@@ -244,6 +247,9 @@ func (a *articleService) AdminPublishArticleDraft(ctx context.Context,
 	}
 	if err = a.articleModel.PublishArticleDraftToPublished(ctx, draftID, published); err != nil {
 		return nil, err
+	}
+	if err = a.syncPublishedArticleImageReferences(ctx, articleID, published.Content); err != nil {
+		return nil, fmt.Errorf("failed to sync article image references: %w", err)
 	}
 	articleIDString := strconv.FormatUint(articleID, 10)
 	if err = a.invalidateUpdatedArticleCache(ctx, articleIDString, oldArticle.TagName, tagInfo.Name); err != nil {

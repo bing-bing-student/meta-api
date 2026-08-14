@@ -230,6 +230,10 @@ func (a *articleService) AdminAddArticle(ctx context.Context,
 		a.logger.Error("failed to create article", zap.Error(err))
 		return nil, fmt.Errorf("failed to create article, error: %w", err)
 	}
+	if err = a.syncPublishedArticleImageReferences(ctx, articleInfo.ID, articleInfo.Content); err != nil {
+		a.logger.Error("failed to sync article image references", zap.Error(err))
+		return nil, fmt.Errorf("failed to sync article image references: %w", err)
+	}
 
 	// 有序集合：按时间排序
 	timeMember := []redis.Z{
@@ -352,6 +356,10 @@ func (a *articleService) AdminUpdateArticle(ctx context.Context,
 		a.logger.Error("failed to update article", zap.Error(err))
 		return nil, fmt.Errorf("failed to update article: %w", err)
 	}
+	if err = a.syncPublishedArticleImageReferences(ctx, articleInfo.ID, articleInfo.Content); err != nil {
+		a.logger.Error("failed to sync article image references", zap.Error(err))
+		return nil, fmt.Errorf("failed to sync article image references: %w", err)
+	}
 
 	// 处理缓存数据
 	if err = a.redis.Del(ctx, cachekey.ArticleHash(request.ID).String()).Err(); err != nil {
@@ -409,6 +417,11 @@ func (a *articleService) AdminDeleteArticle(ctx context.Context, request *types.
 	if err = a.cdn.PurgeArticles(articleID); err != nil {
 		a.logger.Error("failed to purge article CDN cache", zap.String("article_id", articleID), zap.Error(err))
 		return fmt.Errorf("failed to purge article CDN cache: %w", err)
+	}
+
+	if err = a.syncPublishedArticleImageReferences(ctx, id, ""); err != nil {
+		a.logger.Error("failed to clear article image references", zap.Error(err))
+		return fmt.Errorf("failed to clear article image references: %w", err)
 	}
 
 	if err = a.articleModel.DeleteArticleByID(ctx, id); err != nil {
@@ -492,17 +505,15 @@ func (a *articleService) AdminUploadArticleImage(ctx context.Context, fileName s
 		return nil, fmt.Errorf("generate article image id: %w", err)
 	}
 	if err = a.articleModel.CreateArticleImage(ctx, &article.ArticleImage{
-		ID:           imageID,
-		ObjectKey:    a.imageStore.ObjectKey(objectName),
-		URL:          publicURL,
-		ImageName:    storedName,
-		Mime:         imageType.mime,
-		Size:         int64(len(content)),
-		Status:       article.ImageStatusUnused,
-		Source:       article.ImageSourceUpload,
-		LastSeenTime: &now,
-		CreateTime:   now,
-		UpdateTime:   now,
+		ID:         imageID,
+		ObjectKey:  a.imageStore.ObjectKey(objectName),
+		URL:        publicURL,
+		ImageName:  storedName,
+		Mime:       imageType.mime,
+		Size:       int64(len(content)),
+		Status:     article.ImageStatusUnused,
+		CreateTime: now,
+		UpdateTime: now,
 	}); err != nil {
 		return nil, err
 	}

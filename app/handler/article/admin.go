@@ -275,18 +275,6 @@ func (a *articleHandler) AdminUploadArticleImage(c *gin.Context) {
 	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: response})
 }
 
-// AdminScanArticleImages 扫描 COS 图片与文章正文引用关系。
-func (a *articleHandler) AdminScanArticleImages(c *gin.Context) {
-	ctx := c.Request.Context()
-	response, err := a.service.AdminScanArticleImages(ctx)
-	if err != nil {
-		a.logger.Error("article image scan failed", zap.Error(err))
-		c.JSON(http.StatusOK, types.Response{Code: codes.InternalServerError, Message: "扫描文章图片失败", Data: nil})
-		return
-	}
-	c.JSON(http.StatusOK, types.Response{Code: codes.Success, Message: "", Data: response})
-}
-
 // AdminGetArticleImageList 获取文章图片分页列表。
 func (a *articleHandler) AdminGetArticleImageList(c *gin.Context) {
 	ctx := c.Request.Context()

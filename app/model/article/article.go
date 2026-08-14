@@ -6,32 +6,41 @@ import (
 	"strings"
 	"time"
 
+	"gorm.io/gorm"
+
 	"meta-api/app/model/tag"
+	"meta-api/common/constants"
 	"meta-api/common/utils"
 )
 
 type Article struct {
-	ID         uint64    `gorm:"primary_key;NOT NULL"`
-	Title      string    `gorm:"NOT NULL;unique"`
-	Describe   string    `gorm:"NOT NULL"`
-	Content    string    `gorm:"type:text;NOT NULL"`
-	ViewNum    uint64    `gorm:"NOT NULL"`
-	CreateTime time.Time `gorm:"NOT NULL"`
-	UpdateTime time.Time `gorm:"NOT NULL"`
-	TagID      uint64    `gorm:"NOT NULL"`
-	Tag        tag.Tag   `gorm:"foreignKey:TagID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	ID            uint64     `gorm:"primary_key;NOT NULL"`
+	Title         string     `gorm:"type:varchar(100);NOT NULL;default:''"`
+	Describe      string     `gorm:"type:varchar(200);NOT NULL;default:''"`
+	Content       string     `gorm:"type:mediumtext;NOT NULL"`
+	ViewNum       uint64     `gorm:"NOT NULL;default:0"`
+	Status        string     `gorm:"column:status;type:varchar(20);NOT NULL;default:published;index"`
+	PublishedID   *uint64    `gorm:"column:published_id;uniqueIndex"`
+	PublishedTime *time.Time `gorm:"column:published_time"`
+	CreateTime    time.Time  `gorm:"NOT NULL"`
+	UpdateTime    time.Time  `gorm:"NOT NULL"`
+	TagID         *uint64    `gorm:"column:tag_id;index"`
+	Tag           tag.Tag    `gorm:"foreignKey:TagID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
 }
 
 type Detail struct {
-	ID         uint64    `gorm:"column:id" json:"id"`
-	Title      string    `gorm:"column:title" json:"title"`
-	Describe   string    `gorm:"column:describe" json:"describe"`
-	Content    string    `gorm:"column:content" json:"content"`
-	ViewNum    uint64    `gorm:"column:view_num" json:"viewNum"`
-	CreateTime time.Time `gorm:"column:create_time" json:"createTime"`
-	UpdateTime time.Time `gorm:"column:update_time" json:"updateTime"`
-	TagID      uint64    `gorm:"column:tag_id" json:"tagID"`
-	TagName    string    `gorm:"column:tag_name" json:"tagName"`
+	ID            uint64     `gorm:"column:id" json:"id"`
+	Title         string     `gorm:"column:title" json:"title"`
+	Describe      string     `gorm:"column:describe" json:"describe"`
+	Content       string     `gorm:"column:content" json:"content"`
+	ViewNum       uint64     `gorm:"column:view_num" json:"viewNum"`
+	Status        string     `gorm:"column:status" json:"status"`
+	PublishedID   *uint64    `gorm:"column:published_id" json:"publishedID"`
+	PublishedTime *time.Time `gorm:"column:published_time" json:"publishedTime"`
+	CreateTime    time.Time  `gorm:"column:create_time" json:"createTime"`
+	UpdateTime    time.Time  `gorm:"column:update_time" json:"updateTime"`
+	TagID         *uint64    `gorm:"column:tag_id" json:"tagID"`
+	TagName       string     `gorm:"column:tag_name" json:"tagName"`
 }
 
 type SearchArticle struct {
@@ -59,6 +68,11 @@ type TimeAndViewZSet struct {
 	CreateTime time.Time `gorm:"column:create_time" json:"createTime"`
 }
 
+const (
+	ArticleStatusDraft     = constants.ArticleStatusDraft
+	ArticleStatusPublished = constants.ArticleStatusPublished
+)
+
 // ViewNumUpdate 文章浏览量批量更新项
 type ViewNumUpdate struct {
 	ID      string
@@ -67,6 +81,9 @@ type ViewNumUpdate struct {
 
 // CreateArticle 创建文章
 func (a *articleModel) CreateArticle(ctx context.Context, newArticle *Article) error {
+	if newArticle.Status == "" {
+		newArticle.Status = ArticleStatusPublished
+	}
 	if err := a.mysql.WithContext(ctx).Model(&Article{}).Create(newArticle).Error; err != nil {
 		return fmt.Errorf("failed to create article: %w", err)
 	}
@@ -77,7 +94,7 @@ func (a *articleModel) CreateArticle(ctx context.Context, newArticle *Article) e
 // UpdateArticle 更新文章
 func (a *articleModel) UpdateArticle(ctx context.Context, articleInfo *Article) error {
 	if err := a.mysql.WithContext(ctx).Model(&Article{}).
-		Where("id = ?", articleInfo.ID).Updates(articleInfo).Error; err != nil {
+		Where("id = ? AND status = ?", articleInfo.ID, ArticleStatusPublished).Updates(articleInfo).Error; err != nil {
 		return fmt.Errorf("failed to update article: %w", err)
 	}
 
@@ -87,7 +104,7 @@ func (a *articleModel) UpdateArticle(ctx context.Context, articleInfo *Article) 
 // UpdateArticleViewNum 更新文章浏览量
 func (a *articleModel) UpdateArticleViewNum(ctx context.Context, id string, viewNum float64) error {
 	if err := a.mysql.WithContext(ctx).Model(&Article{}).
-		Where("id = ?", id).Update("view_num", viewNum).Error; err != nil {
+		Where("id = ? AND status = ?", id, ArticleStatusPublished).Update("view_num", viewNum).Error; err != nil {
 		return fmt.Errorf("failed to update article: %w", err)
 	}
 
@@ -99,9 +116,9 @@ func (a *articleModel) GetArticleDetailByID(ctx context.Context, id uint64) (*De
 	detail := &Detail{}
 	if err := a.mysql.WithContext(ctx).Model(&Article{}).
 		Table("article as a").
-		Select("a.id, a.title, a.describe, a.content, a.view_num, a.create_time, a.update_time, a.tag_id, b.name as tag_name").
-		Joins("JOIN tag as b ON a.tag_id=b.id").
-		Where("a.id = ?", id).
+		Select("a.id, a.title, a.describe, a.content, a.view_num, a.status, a.published_id, a.published_time, a.create_time, a.update_time, a.tag_id, COALESCE(b.name, '') as tag_name").
+		Joins("LEFT JOIN tag as b ON a.tag_id=b.id").
+		Where("a.id = ? AND a.status = ?", id, ArticleStatusPublished).
 		First(detail).Error; err != nil {
 		return nil, err
 	}
@@ -115,7 +132,7 @@ func (a *articleModel) GetArticleListByTagName(ctx context.Context, tagName stri
 	if err := a.mysql.WithContext(ctx).Model(&Article{}).
 		Select("article.id, article.create_time").
 		Joins("JOIN tag ON tag.id = article.tag_id").
-		Where("tag.name = ?", tagName).
+		Where("tag.name = ? AND article.status = ?", tagName, ArticleStatusPublished).
 		Find(&list).Error; err != nil {
 		return nil, err
 	}
@@ -129,7 +146,7 @@ func (a *articleModel) GetArticleDeleteInfo(ctx context.Context, id uint64) (str
 	if err := a.mysql.WithContext(ctx).Model(&Article{}).Table("article as a").
 		Select("a.id, a.tag_id, t.name as tag_name").
 		Joins("LEFT JOIN tag as t ON a.tag_id = t.id").
-		Where("a.id = ?", id).
+		Where("a.id = ? AND a.status = ?", id, ArticleStatusPublished).
 		First(articleInfo).Error; err != nil {
 		return "", err
 	}
@@ -143,10 +160,17 @@ func (a *articleModel) GetArticleDeleteInfo(ctx context.Context, id uint64) (str
 
 // DeleteArticleByID 硬删除文章。
 func (a *articleModel) DeleteArticleByID(ctx context.Context, id uint64) error {
-	if err := a.mysql.WithContext(ctx).Model(&Article{}).Delete(&Article{}, id).Error; err != nil {
-		return fmt.Errorf("failed to delete article: %w", err)
-	}
-	return nil
+	return a.mysql.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("published_id = ? AND status = ?", id, ArticleStatusDraft).
+			Delete(&Article{}).Error; err != nil {
+			return fmt.Errorf("failed to delete article drafts: %w", err)
+		}
+		if err := tx.Where("id = ? AND status = ?", id, ArticleStatusPublished).
+			Delete(&Article{}).Error; err != nil {
+			return fmt.Errorf("failed to delete article: %w", err)
+		}
+		return nil
+	})
 }
 
 // SearchArticle 搜索文章
@@ -161,7 +185,8 @@ func (a *articleModel) SearchArticle(ctx context.Context, word string, limit, of
 
 	// 第一次查询：统计命中总数（不分页），用于前端分页
 	if err := a.mysql.WithContext(ctx).Model(&Article{}).
-		Where("title LIKE ? COLLATE utf8mb4_general_ci OR content LIKE ?", like, like).
+		Where("status = ? AND (title LIKE ? COLLATE utf8mb4_general_ci OR content LIKE ?)",
+			ArticleStatusPublished, like, like).
 		Count(&total).Error; err != nil {
 		return nil, 0, fmt.Errorf("failed to count articles: %w", err)
 	}
@@ -172,7 +197,8 @@ func (a *articleModel) SearchArticle(ctx context.Context, word string, limit, of
 	// 第二次查询：取当前分页的数据，标题命中优先、再按浏览量排序
 	if err := a.mysql.WithContext(ctx).Model(&Article{}).
 		Select("`id`, `title`, `describe`, `view_num`, `create_time`, (`title` LIKE ? COLLATE utf8mb4_general_ci) AS title_hit", like).
-		Where("title LIKE ? COLLATE utf8mb4_general_ci OR content LIKE ?", like, like).
+		Where("status = ? AND (title LIKE ? COLLATE utf8mb4_general_ci OR content LIKE ?)",
+			ArticleStatusPublished, like, like).
 		Order("title_hit DESC, view_num DESC").
 		Limit(limit).Offset(offset).
 		Find(&list).Error; err != nil {
@@ -184,14 +210,17 @@ func (a *articleModel) SearchArticle(ctx context.Context, word string, limit, of
 // GetArticleListByIDList 通过id列表获取文章列表
 func (a *articleModel) GetArticleListByIDList(ctx context.Context, ids []uint64) ([]*Article, error) {
 	var articles []*Article
-	err := a.mysql.WithContext(ctx).Model(&Article{}).Where("id IN ?", ids).Find(&articles).Error
+	err := a.mysql.WithContext(ctx).Model(&Article{}).
+		Where("id IN ? AND status = ?", ids, ArticleStatusPublished).
+		Find(&articles).Error
 	return articles, err
 }
 
 // UpdateArticleTagID 更新文章的tagID
 func (a *articleModel) UpdateArticleTagID(ctx context.Context, articleIDList []string, tagID uint64) error {
 	if err := a.mysql.WithContext(ctx).Model(&Article{}).
-		Where("id IN ?", articleIDList).Update("tag_id", tagID).Error; err != nil {
+		Where("id IN ? AND status = ?", articleIDList, ArticleStatusPublished).
+		Update("tag_id", tagID).Error; err != nil {
 		return err
 	}
 	return nil
@@ -205,6 +234,7 @@ func (a *articleModel) GetArticleList(ctx context.Context, offset, limit int) ([
 	// 按创建时间倒序排列（根据需求可调整排序字段）
 	err := a.mysql.WithContext(ctx).
 		Preload("Tag").
+		Where("status = ?", ArticleStatusPublished).
 		Order("create_time DESC").
 		Offset(offset).
 		Limit(limit).
@@ -221,6 +251,7 @@ func (a *articleModel) GetArticleCount(ctx context.Context) (int, error) {
 	var count int64
 	err := a.mysql.WithContext(ctx).
 		Model(&Article{}).
+		Where("status = ?", ArticleStatusPublished).
 		Count(&count).Error
 	return int(count), err
 }
@@ -231,6 +262,7 @@ func (a *articleModel) ListTimeAndView(ctx context.Context) ([]TimeAndViewZSet, 
 	if err := a.mysql.WithContext(ctx).
 		Model(&Article{}).
 		Select("id", "view_num", "create_time").
+		Where("status = ?", ArticleStatusPublished).
 		Find(&list).Error; err != nil {
 		return nil, fmt.Errorf("failed to list time and view: %w", err)
 	}
@@ -254,8 +286,9 @@ func (a *articleModel) BatchUpdateViewNum(ctx context.Context, items []ViewNumUp
 		args = append(args, it.ID, it.ViewNum)
 		ids = append(ids, it.ID)
 	}
-	sb.WriteString("END WHERE id IN ?")
+	sb.WriteString("END WHERE id IN ? AND status = ?")
 	args = append(args, ids)
+	args = append(args, ArticleStatusPublished)
 
 	if err := a.mysql.WithContext(ctx).Exec(sb.String(), args...).Error; err != nil {
 		return fmt.Errorf("failed to batch update view num: %w", err)

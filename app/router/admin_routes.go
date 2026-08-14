@@ -36,7 +36,20 @@ func registerAdminAuthRoutes(group *gin.RouterGroup, handlers *routeHandlers) {
 	group.POST("/article/add", handlers.article.AdminAddArticle)
 	group.PUT("/article/update", handlers.article.AdminUpdateArticle)
 	group.DELETE("/article/delete", handlers.article.AdminDeleteArticle)
+
+	// 文章草稿
+	group.GET("/article/draft/list", handlers.article.AdminGetArticleDraftList)
+	group.GET("/article/draft/detail", handlers.article.AdminGetArticleDraftDetail)
+	group.POST("/article/draft/save", handlers.article.AdminSaveArticleDraft)
+	group.POST("/article/draft/publish", handlers.article.AdminPublishArticleDraft)
+	group.DELETE("/article/draft/delete", handlers.article.AdminDeleteArticleDraft)
+
+	// 文章图片
 	group.POST("/article/image/upload", handlers.article.AdminUploadArticleImage)
+	group.POST("/article/image/scan", handlers.article.AdminScanArticleImages)
+	group.GET("/article/image/list", handlers.article.AdminGetArticleImageList)
+	group.GET("/article/image/detail", handlers.article.AdminGetArticleImageDetail)
+	group.DELETE("/article/image/delete", handlers.article.AdminDeleteArticleImage)
 
 	// 标签管理
 	group.GET("/tag/list", handlers.tag.AdminGetTagList)

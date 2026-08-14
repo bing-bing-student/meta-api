@@ -10,5 +10,8 @@ const (
 	Spec = "0 3 * * *" // 定时任务表达式
 
 	MaxFileSize         = int64(64 << 10) // MD文件大小限制为64KB
-	MaxArticleImageSize = int64(1 << 20) // 文章图片上传大小限制为1MB
+	MaxArticleImageSize = int64(1 << 20)  // 文章图片上传大小限制为1MB
+
+	ArticleStatusDraft     = "draft"
+	ArticleStatusPublished = "published"
 )

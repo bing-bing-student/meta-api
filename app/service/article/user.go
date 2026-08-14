@@ -79,7 +79,7 @@ func (a *articleService) UserGetArticleList(ctx context.Context,
 				"viewNum":    articleInfo.ViewNum,
 				"createTime": articleInfo.CreateTime.Format(constants.TimeLayoutToSecond),
 				"updateTime": articleInfo.UpdateTime.Format(constants.TimeLayoutToSecond),
-				"tagID":      articleInfo.TagID,
+				"tagID":      articleTagIDValue(articleInfo.TagID),
 				"tagName":    articleInfo.TagName,
 			}
 			if err = a.redis.HMSet(ctx, cachekey.ArticleHash(articleItem.ID).String(), mapData).Err(); err != nil {
@@ -148,7 +148,7 @@ func (a *articleService) UserGetArticleDetail(ctx context.Context,
 			"viewNum":    articleInfo.ViewNum,
 			"createTime": articleInfo.CreateTime.Format(constants.TimeLayoutToSecond),
 			"updateTime": articleInfo.UpdateTime.Format(constants.TimeLayoutToSecond),
-			"tagID":      articleInfo.TagID,
+			"tagID":      articleTagIDValue(articleInfo.TagID),
 			"tagName":    articleInfo.TagName,
 		}
 		if err = a.redis.HMSet(ctx, cachekey.ArticleHash(request.ID).String(), mapData).Err(); err != nil {
@@ -283,7 +283,7 @@ func (a *articleService) UserGetHotArticle(ctx context.Context) (*types.UserGetH
 				"viewNum":    articleInfo.ViewNum,
 				"createTime": articleInfo.CreateTime.Format(constants.TimeLayoutToSecond),
 				"updateTime": articleInfo.UpdateTime.Format(constants.TimeLayoutToSecond),
-				"tagID":      articleInfo.TagID,
+				"tagID":      articleTagIDValue(articleInfo.TagID),
 				"tagName":    articleInfo.TagName,
 			}
 			if err = a.redis.HMSet(ctx, cachekey.ArticleHash(articleItem.ID).String(), mapData).Err(); err != nil {
@@ -351,7 +351,7 @@ func (a *articleService) UserGetTimeline(ctx context.Context) (*types.GetTimelin
 				"viewNum":    articleInfo.ViewNum,
 				"createTime": articleInfo.CreateTime.Format(constants.TimeLayoutToSecond),
 				"updateTime": articleInfo.UpdateTime.Format(constants.TimeLayoutToSecond),
-				"tagID":      articleInfo.TagID,
+				"tagID":      articleTagIDValue(articleInfo.TagID),
 				"tagName":    articleInfo.TagName,
 			}
 			if err = a.redis.HMSet(ctx, cachekey.ArticleHash(articleID).String(), mapData).Err(); err != nil {

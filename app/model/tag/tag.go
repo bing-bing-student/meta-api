@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"meta-api/common/constants"
 )
 
 type Tag struct {
@@ -48,7 +50,7 @@ func (t *tagModel) GetArticleCountWithTagName(ctx context.Context) ([]ArticleCou
 	tagList := make([]ArticleCountWithTag, 0)
 	if err := t.mysql.WithContext(ctx).Model(&Tag{}).Table("tag as t").
 		Select("t.name, COUNT(a.id) AS count").
-		Joins("JOIN article as a ON a.tag_id = t.id").
+		Joins("JOIN article as a ON a.tag_id = t.id AND a.status = ?", constants.ArticleStatusPublished).
 		Group("t.id").
 		Having("COUNT(a.id) > 0").
 		Order("count DESC").
@@ -63,7 +65,7 @@ func (t *tagModel) GetArticleListByTagName(ctx context.Context, tagName string) 
 	articleList := make([]ArticleListByTagName, 0)
 	if err := t.mysql.WithContext(ctx).Model(&Tag{}).Table("tag as t").
 		Select("a.id, a.create_time").
-		Joins("JOIN article as a ON a.tag_id = t.id").
+		Joins("JOIN article as a ON a.tag_id = t.id AND a.status = ?", constants.ArticleStatusPublished).
 		Where("t.name = ?", tagName).
 		Find(&articleList).Error; err != nil {
 		return nil, err

@@ -78,7 +78,7 @@ require (
 	github.com/ugorji/go/codec v1.3.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.20.0 // indirect
-	golang.org/x/net v0.47.0 // indirect
+	golang.org/x/net v0.47.0 // direct
 	golang.org/x/sys v0.38.0 // indirect
 	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect

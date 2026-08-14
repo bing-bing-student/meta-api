@@ -24,7 +24,16 @@ type Service interface {
 	AdminAddArticle(ctx context.Context, request *types.AdminAddArticleRequest) (*types.AdminSaveArticleResponse, error)
 	AdminUpdateArticle(ctx context.Context, request *types.AdminUpdateArticleRequest) (*types.AdminSaveArticleResponse, error)
 	AdminDeleteArticle(ctx context.Context, request *types.AdminDeleteArticleRequest) error
+	AdminGetArticleDraftList(ctx context.Context, request *types.AdminGetArticleDraftListRequest) (*types.AdminGetArticleDraftListResponse, error)
+	AdminGetArticleDraftDetail(ctx context.Context, request *types.AdminGetArticleDraftDetailRequest) (*types.AdminGetArticleDraftDetailResponse, error)
+	AdminSaveArticleDraft(ctx context.Context, request *types.AdminSaveArticleDraftRequest) (*types.AdminSaveArticleResponse, error)
+	AdminPublishArticleDraft(ctx context.Context, request *types.AdminPublishArticleDraftRequest) (*types.AdminSaveArticleResponse, error)
+	AdminDeleteArticleDraft(ctx context.Context, request *types.AdminDeleteArticleDraftRequest) error
 	AdminUploadArticleImage(ctx context.Context, fileName string, contentType string, content []byte) (*types.AdminUploadArticleImageResponse, error)
+	AdminScanArticleImages(ctx context.Context) (*types.AdminScanArticleImagesResponse, error)
+	AdminGetArticleImageList(ctx context.Context, request *types.AdminGetArticleImageListRequest) (*types.AdminGetArticleImageListResponse, error)
+	AdminGetArticleImageDetail(ctx context.Context, request *types.AdminGetArticleImageDetailRequest) (*types.AdminGetArticleImageDetailResponse, error)
+	AdminDeleteArticleImage(ctx context.Context, request *types.AdminDeleteArticleImageRequest) error
 
 	UserGetArticleList(ctx context.Context, request *types.UserGetArticleListRequest) (*types.UserGetArticleListResponse, error)
 	UserGetArticleDetail(ctx context.Context, request *types.UserGetArticleDetailRequest) (*types.UserGetArticleDetailResponse, error)

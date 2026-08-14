@@ -24,7 +24,7 @@ import (
 	"meta-api/pkg/cos"
 )
 
-var dangerousSVGPattern = regexp.MustCompile(`(?is)<\s*(script|iframe|object|embed|link|meta)\b|on[a-z]+\s*=|javascript:`)
+var dangerousSVGPattern = regexp.MustCompile(`(?is)<\s*(script|iframe|object|embed|link|meta)\b|\bon[a-z]+\s*=|javascript:`)
 
 type articleImageType struct {
 	mime string
@@ -104,7 +104,7 @@ func (a *articleService) AdminGetArticleList(ctx context.Context,
 				"viewNum":    articleModel.ViewNum,
 				"createTime": articleModel.CreateTime.Format(constants.TimeLayoutToSecond),
 				"updateTime": articleModel.UpdateTime.Format(constants.TimeLayoutToSecond),
-				"tagID":      articleModel.TagID,
+				"tagID":      articleTagIDValue(articleModel.TagID),
 				"tagName":    articleModel.TagName,
 			}
 			a.redis.HMSet(ctx, cachekey.ArticleHash(articleItem.ID).String(), mapData)
@@ -159,10 +159,10 @@ func (a *articleService) AdminGetArticleDetail(ctx context.Context,
 			"viewNum":    articleInfo.ViewNum,
 			"createTime": articleInfo.CreateTime.Format(constants.TimeLayoutToSecond),
 			"updateTime": articleInfo.UpdateTime.Format(constants.TimeLayoutToSecond),
-			"tagID":      articleInfo.TagID,
+			"tagID":      articleTagIDValue(articleInfo.TagID),
 			"tagName":    articleInfo.TagName,
 		}
-		if err = a.redis.HMSet(ctx, cachekey.ArticleHash(response.ID).String(), mapData).Err(); err != nil {
+		if err = a.redis.HMSet(ctx, cachekey.ArticleHash(request.ID).String(), mapData).Err(); err != nil {
 			return response, err
 		}
 
@@ -213,15 +213,18 @@ func (a *articleService) AdminAddArticle(ctx context.Context,
 		a.logger.Error("failed to load location", zap.Error(err))
 		return nil, fmt.Errorf("failed to load location, error: %w", err)
 	}
+	now := time.Now().In(loc)
 	articleInfo := &article.Article{
-		ID:         articleID,
-		Title:      request.Title,
-		Describe:   request.Describe,
-		Content:    request.Content,
-		ViewNum:    0,
-		CreateTime: time.Now().In(loc),
-		UpdateTime: time.Now().In(loc),
-		TagID:      tagInfo.ID,
+		ID:            articleID,
+		Title:         request.Title,
+		Describe:      request.Describe,
+		Content:       request.Content,
+		ViewNum:       0,
+		Status:        article.ArticleStatusPublished,
+		PublishedTime: &now,
+		CreateTime:    now,
+		UpdateTime:    now,
+		TagID:         &tagInfo.ID,
 	}
 	if err = a.articleModel.CreateArticle(ctx, articleInfo); err != nil {
 		a.logger.Error("failed to create article", zap.Error(err))
@@ -343,7 +346,7 @@ func (a *articleService) AdminUpdateArticle(ctx context.Context,
 		Content:    request.Content,
 		ViewNum:    uint64(viewNum),
 		UpdateTime: time.Now().In(loc),
-		TagID:      tagInfo.ID,
+		TagID:      &tagInfo.ID,
 	}
 	if err = a.articleModel.UpdateArticle(ctx, articleInfo); err != nil {
 		a.logger.Error("failed to update article", zap.Error(err))
@@ -484,12 +487,31 @@ func (a *articleService) AdminUploadArticleImage(ctx context.Context, fileName s
 		}
 		return nil, err
 	}
+	imageID, err := a.idGenerator.NextID()
+	if err != nil {
+		return nil, fmt.Errorf("generate article image id: %w", err)
+	}
+	if err = a.articleModel.CreateArticleImage(ctx, &article.ArticleImage{
+		ID:           imageID,
+		ObjectKey:    a.imageStore.ObjectKey(objectName),
+		URL:          publicURL,
+		ImageName:    storedName,
+		Mime:         imageType.mime,
+		Size:         int64(len(content)),
+		Status:       article.ImageStatusUnused,
+		Source:       article.ImageSourceUpload,
+		LastSeenTime: &now,
+		CreateTime:   now,
+		UpdateTime:   now,
+	}); err != nil {
+		return nil, err
+	}
 
 	return &types.AdminUploadArticleImageResponse{
-		URL:      publicURL,
-		FileName: storedName,
-		Size:     int64(len(content)),
-		Mime:     imageType.mime,
+		URL:       publicURL,
+		ImageName: storedName,
+		Size:      int64(len(content)),
+		Mime:      imageType.mime,
 	}, nil
 }
 

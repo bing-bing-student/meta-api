@@ -134,7 +134,7 @@ func (t *tagService) AdminGetArticleListByTag(ctx context.Context,
 				"viewNum":    articleInfo.ViewNum,
 				"createTime": articleInfo.CreateTime.Format(constants.TimeLayoutToSecond),
 				"updateTime": articleInfo.UpdateTime.Format(constants.TimeLayoutToSecond),
-				"tagID":      articleInfo.TagID,
+				"tagID":      articleTagIDValue(articleInfo.TagID),
 				"tagName":    articleInfo.TagName,
 			}
 			if err = t.redis.HMSet(ctx, cachekey.ArticleHash(articleID).String(), mapData).Err(); err != nil {

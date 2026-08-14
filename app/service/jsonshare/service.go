@@ -3,10 +3,10 @@
 // 设计要点：
 //  1. Go 侧只做"是否真人"的风控判定（guard.Engine），不接管真正的 JSON 存储；
 //     存储仍由 Nuxt 端的 /api/share-json（文件 + 索引）负责。
-//  2. 预检通过后下发一次性 share-token（hex 64 chars，TTL 120s），Redis key
-//     由 cachekey.GuardToken 统一生成，value 为 fingerprintHex。
+//  2. 预检通过后下发一次性 share-token（hex 64 chars，TTL 60s），Redis key
+//     由 cachekey.GuardToken 统一生成，value 绑定 fingerprint / scope / targetID。
 //  3. 业务侧（Nuxt）凭 token 调 /user/share/consume，原子读取并删除 token，
-//     拿到 fingerprint 即可继续走原配额/限流/写文件流程。
+//     校验 scope / targetID 后拿到 fingerprint，即可继续走原配额/限流/写文件流程。
 //
 // 文件分布：
 //
@@ -17,6 +17,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
@@ -39,6 +40,33 @@ const (
 	// 但保留小重试可防御 Redis 历史 key 残留场景。
 	tokenIssueRetry = 3
 )
+
+// TokenScope 表示一次性 token 的业务用途。
+type TokenScope string
+
+const (
+	TokenScopeCreate TokenScope = "create"
+	TokenScopeMine   TokenScope = "mine"
+)
+
+// PrecheckRequest 是 JSON 分享预检的服务层入参。
+type PrecheckRequest struct {
+	Risk  *guard.RiskRequest
+	Scope TokenScope
+}
+
+// ConsumeRequest 是一次性 token 消费的服务层入参。
+type ConsumeRequest struct {
+	TokenHex string
+	Scope    TokenScope
+	TargetID string
+}
+
+type shareTokenClaims struct {
+	Fingerprint string `json:"fingerprint"`
+	Scope       string `json:"scope"`
+	TargetID    string `json:"target_id"`
+}
 
 // PrecheckOutcome 预检的 HTTP 层输出。
 //
@@ -74,12 +102,12 @@ type Service interface {
 	//
 	// targetID 是分享草稿的 sha256 截 16B hex（前端在 sign 时传入），仅用于绑定信封；
 	// Engine 通过即可放行，与具体 JSON 内容无关。
-	Precheck(ctx context.Context, req *guard.RiskRequest) (*PrecheckOutcome, error)
+	Precheck(ctx context.Context, req PrecheckRequest) (*PrecheckOutcome, error)
 
-	// Consume 消费 token，返回 fingerprint。
+	// Consume 消费 token，校验 scope / targetID 后返回 fingerprint。
 	//
 	// 仅供内网调用（Nuxt SSR → meta-api），不应暴露到公网。
-	Consume(ctx context.Context, tokenHex string) (*ConsumeOutcome, error)
+	Consume(ctx context.Context, req ConsumeRequest) (*ConsumeOutcome, error)
 }
 
 // jsonShareService Service 的具体实现。
@@ -102,11 +130,19 @@ func NewService(logger *zap.Logger, engine guard.Engine, store guard.Store) Serv
 //  1. 调 guard.Engine.Evaluate（与 view-log 共用同一引擎）
 //  2. Decision != Accept → 按映射返回 HTTP 状态
 //  3. Decision == Accept → 生成 token + SETNX 写 Redis → 返回给前端
-func (s *jsonShareService) Precheck(ctx context.Context, req *guard.RiskRequest) (*PrecheckOutcome, error) {
-	if req == nil {
+func (s *jsonShareService) Precheck(ctx context.Context, req PrecheckRequest) (*PrecheckOutcome, error) {
+	if req.Risk == nil {
 		return nil, errors.New("jsonshare: nil request")
 	}
-	out, err := s.engine.Evaluate(ctx, req)
+	if !isValidTokenScope(req.Scope) || !isValidTargetID(req.Risk.TargetID) {
+		return &PrecheckOutcome{
+			HTTPStatus: http.StatusBadRequest,
+			Code:       codes.BadRequest,
+			Message:    "invalid token",
+		}, nil
+	}
+
+	out, err := s.engine.Evaluate(ctx, req.Risk)
 	if err != nil {
 		s.logger.Error("jsonshare precheck engine error", zap.Error(err))
 		return &PrecheckOutcome{
@@ -119,7 +155,11 @@ func (s *jsonShareService) Precheck(ctx context.Context, req *guard.RiskRequest)
 	switch out.Decision {
 	case guard.DecisionAccept:
 		// 通过：签发 token
-		token, err := s.issueToken(ctx, out.Fingerprint)
+		token, err := s.issueToken(ctx, shareTokenClaims{
+			Fingerprint: out.Fingerprint,
+			Scope:       string(req.Scope),
+			TargetID:    req.Risk.TargetID,
+		})
 		if err != nil {
 			s.logger.Error("jsonshare precheck issue token failed", zap.Error(err))
 			return &PrecheckOutcome{
@@ -173,9 +213,9 @@ func (s *jsonShareService) Precheck(ctx context.Context, req *guard.RiskRequest)
 	}
 }
 
-// Consume 主流程：原子 GETDEL → 命中返回 fingerprint，未命中 401。
-func (s *jsonShareService) Consume(ctx context.Context, tokenHex string) (*ConsumeOutcome, error) {
-	if !isValidTokenHex(tokenHex) {
+// Consume 主流程：原子 GETDEL → 校验 scope / targetID → 命中返回 fingerprint，未命中 401。
+func (s *jsonShareService) Consume(ctx context.Context, req ConsumeRequest) (*ConsumeOutcome, error) {
+	if !isValidTokenHex(req.TokenHex) || !isValidTokenScope(req.Scope) || !isValidTargetID(req.TargetID) {
 		return &ConsumeOutcome{
 			HTTPStatus: http.StatusUnauthorized,
 			Code:       codes.Unauthorized,
@@ -183,7 +223,7 @@ func (s *jsonShareService) Consume(ctx context.Context, tokenHex string) (*Consu
 		}, nil
 	}
 
-	fp, ok, err := s.store.TokenConsume(ctx, guard.SceneShareCreate, tokenHex)
+	tokenValue, ok, err := s.store.TokenConsume(ctx, guard.SceneShareCreate, req.TokenHex)
 	if err != nil {
 		s.logger.Warn("jsonshare consume token redis error", zap.Error(err))
 		return &ConsumeOutcome{
@@ -200,9 +240,25 @@ func (s *jsonShareService) Consume(ctx context.Context, tokenHex string) (*Consu
 			Message:    "invalid token",
 		}, nil
 	}
-	if !isValidFingerprintHex(fp) {
+	claims, err := parseShareTokenClaims(tokenValue)
+	if err != nil {
+		s.logger.Warn("jsonshare consume token bad claims", zap.Error(err))
+		return &ConsumeOutcome{
+			HTTPStatus: http.StatusUnauthorized,
+			Code:       codes.Unauthorized,
+			Message:    "invalid token",
+		}, nil
+	}
+	if claims.Scope != string(req.Scope) || claims.TargetID != req.TargetID {
+		return &ConsumeOutcome{
+			HTTPStatus: http.StatusUnauthorized,
+			Code:       codes.Unauthorized,
+			Message:    "invalid token",
+		}, nil
+	}
+	if !isValidFingerprintHex(claims.Fingerprint) {
 		// 防御：理论上写入端已校验过；万一 Redis 数据异常，这里再兜一次。
-		s.logger.Warn("jsonshare consume token bad fingerprint", zap.String("fp_len", lenStr(fp)))
+		s.logger.Warn("jsonshare consume token bad fingerprint", zap.String("fp_len", lenStr(claims.Fingerprint)))
 		return &ConsumeOutcome{
 			HTTPStatus: http.StatusUnauthorized,
 			Code:       codes.Unauthorized,
@@ -214,21 +270,28 @@ func (s *jsonShareService) Consume(ctx context.Context, tokenHex string) (*Consu
 		HTTPStatus:  http.StatusOK,
 		Code:        codes.Success,
 		Message:     "ok",
-		Fingerprint: fp,
+		Fingerprint: claims.Fingerprint,
 	}, nil
 }
 
 // issueToken 生成 + 落盘一次性 token，最多重试 tokenIssueRetry 次。
-func (s *jsonShareService) issueToken(ctx context.Context, fpHex string) (string, error) {
-	if !isValidFingerprintHex(fpHex) {
+func (s *jsonShareService) issueToken(ctx context.Context, claims shareTokenClaims) (string, error) {
+	if !isValidFingerprintHex(claims.Fingerprint) {
 		return "", errors.New("jsonshare: bad fingerprint from engine")
+	}
+	if !isValidTokenScope(TokenScope(claims.Scope)) || !isValidTargetID(claims.TargetID) {
+		return "", errors.New("jsonshare: bad token claims")
+	}
+	tokenValue, err := encodeShareTokenClaims(claims)
+	if err != nil {
+		return "", err
 	}
 	for i := 0; i < tokenIssueRetry; i++ {
 		token, err := randomTokenHex()
 		if err != nil {
 			return "", err
 		}
-		ok, err := s.store.TokenIssue(ctx, guard.SceneShareCreate, token, fpHex, tokenTTL)
+		ok, err := s.store.TokenIssue(ctx, guard.SceneShareCreate, token, tokenValue, tokenTTL)
 		if err != nil {
 			return "", err
 		}
@@ -238,6 +301,25 @@ func (s *jsonShareService) issueToken(ctx context.Context, fpHex string) (string
 		// SETNX 碰撞：重试。
 	}
 	return "", errors.New("jsonshare: token issue retry exceeded")
+}
+
+func encodeShareTokenClaims(claims shareTokenClaims) (string, error) {
+	raw, err := json.Marshal(claims)
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+func parseShareTokenClaims(value string) (shareTokenClaims, error) {
+	var claims shareTokenClaims
+	if value == "" {
+		return claims, errors.New("jsonshare: token value empty")
+	}
+	if err := json.Unmarshal([]byte(value), &claims); err != nil {
+		return claims, err
+	}
+	return claims, nil
 }
 
 // randomTokenHex 生成 tokenBytes 字节的 crypto-rand → hex string。
@@ -252,6 +334,31 @@ func randomTokenHex() (string, error) {
 // isValidTokenHex token 必须是 64 字符的小写 hex。
 func isValidTokenHex(s string) bool {
 	if len(s) != tokenBytes*2 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c >= '0' && c <= '9':
+		case c >= 'a' && c <= 'f':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func isValidTokenScope(scope TokenScope) bool {
+	switch scope {
+	case TokenScopeCreate, TokenScopeMine:
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidTargetID(s string) bool {
+	if len(s) != 32 {
 		return false
 	}
 	for i := 0; i < len(s); i++ {

@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	jsonshareService "meta-api/app/service/jsonshare"
 	"meta-api/common/codes"
 	"meta-api/common/guard"
 	"meta-api/common/types"
@@ -17,6 +18,9 @@ import (
 // 与 view-log 把 articleID 放在 path 不同：share-create 没有"目标资源 ID"这种
 // 自然路径维度，targetId 只用于 envelope 内字段绑定，放 query 即可。
 const targetIDQueryKey = "target_id"
+
+// scopeQueryKey 前端在 URL query 中传递 token 业务用途。
+const scopeQueryKey = "scope"
 
 // targetIDMaxLen targetId 长度上限（hex 32 chars = 16B 截 sha256）。
 //
@@ -30,7 +34,7 @@ const tokenHeader = "X-Guard-Token"
 //
 // 流程：
 //  1. 必须为 octet-stream，body 限制 16KB；
-//  2. 从 query 取 target_id（与 envelope 内字段绑定校验）；
+//  2. 从 query 取 scope / target_id（与 envelope 内字段和消费用途绑定校验）；
 //  3. 调 service.Precheck → guard.Engine.Evaluate；
 //  4. 通过则返回 token；不通过按 service 给出的状态码返回。
 func (h *jsonShareHandler) Precheck(c *gin.Context) {
@@ -38,6 +42,11 @@ func (h *jsonShareHandler) Precheck(c *gin.Context) {
 
 	targetID := c.Query(targetIDQueryKey)
 	if targetID == "" || len(targetID) > targetIDMaxLen {
+		c.JSON(http.StatusBadRequest, types.Response{Code: codes.BadRequest, Message: "invalid token"})
+		return
+	}
+	scope := c.Query(scopeQueryKey)
+	if scope == "" {
 		c.JSON(http.StatusBadRequest, types.Response{Code: codes.BadRequest, Message: "invalid token"})
 		return
 	}
@@ -65,7 +74,10 @@ func (h *jsonShareHandler) Precheck(c *gin.Context) {
 		},
 	}
 
-	out, err := h.service.Precheck(c.Request.Context(), req)
+	out, err := h.service.Precheck(c.Request.Context(), jsonshareService.PrecheckRequest{
+		Risk:  req,
+		Scope: jsonshareService.TokenScope(scope),
+	})
 	if err != nil {
 		h.logger.Error("jsonshare precheck unexpected error", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, types.Response{Code: codes.InternalServerError, Message: "internal error"})
@@ -91,8 +103,9 @@ func (h *jsonShareHandler) Precheck(c *gin.Context) {
 //
 // 流程：
 //  1. 从 X-Guard-Token header 读取 token；
-//  2. service.Consume 原子 GETDEL；
-//  3. 命中返回 fingerprint，未命中 401。
+//  2. 从 query 读取 scope / target_id，要求与预检 token 绑定值一致；
+//  3. service.Consume 原子 GETDEL；
+//  4. 命中返回 fingerprint，未命中 401。
 //
 // 注意：此端点仅供内网（Nuxt SSR → meta-api）调用。生产环境应在网关层
 // 或 nginx 层做来源 IP 限制，避免 token 在公网被旁路消费。
@@ -100,7 +113,13 @@ func (h *jsonShareHandler) Consume(c *gin.Context) {
 	c.Header("Cache-Control", "no-store, private")
 
 	token := c.GetHeader(tokenHeader)
-	out, err := h.service.Consume(c.Request.Context(), token)
+	targetID := c.Query(targetIDQueryKey)
+	scope := c.Query(scopeQueryKey)
+	out, err := h.service.Consume(c.Request.Context(), jsonshareService.ConsumeRequest{
+		TokenHex: token,
+		Scope:    jsonshareService.TokenScope(scope),
+		TargetID: targetID,
+	})
 	if err != nil {
 		h.logger.Error("jsonshare consume unexpected error", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, types.Response{Code: codes.InternalServerError, Message: "internal error"})

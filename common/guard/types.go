@@ -97,10 +97,12 @@ type RiskRequest struct {
 	// 软指标（前端用 client_meta TLV 上报，JSON 容器化字段）。
 	// 兼容老接口：viewlog 旧版 RSA token 链路下线前可继续填入这些字段；
 	// 新链路下这些字段会从 envelope.PayloadFields[FieldClientMeta] 中解析。
-	TZ      string
-	Lang    string
-	Screen  string
-	PerfNav string
+	TZ       string
+	Lang     string
+	Langs    string
+	Screen   string
+	Viewport string
+	PerfNav  string
 }
 
 // Outcome Engine 评估的输出。

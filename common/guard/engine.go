@@ -140,6 +140,7 @@ func (e *engine) Evaluate(ctx context.Context, req *RiskRequest) (*Outcome, erro
 		return e.reject(req, out, DecisionBadRequest, ReasonTLVFail, 0, serverNowMs), nil
 	}
 	out.PayloadFields = fields
+	applyClientMeta(req, fields[FieldClientMeta])
 
 	// 6.1 fingerprint
 	fpBytes, ok := fields[FieldFingerprintID]

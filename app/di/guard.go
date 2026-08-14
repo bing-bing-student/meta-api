@@ -14,7 +14,8 @@ import (
 // newGuardEngine 构造风控守卫引擎。
 //
 // 缺省 BuildHashes 为空 + SkipHMACWhenEmpty=true 即可平滑灰度（仍校验 RSA/AES/TLV）；
-// 上线全量后通过 config.guard.build_hashes 注入白名单并把 skip_hmac_when_empty 切回 false。
+// 上线全量后通过 config.guard.build_hashes 注入 guard_hmac_build_hash.txt 的值，
+// 并把 skip_hmac_when_empty 切回 false。
 func newGuardEngine(cfg *config.Config, logger *zap.Logger, store guard.Store, km *keymanager.Manager) (guard.Engine, error) {
 	gc := cfg.GuardConfig
 	registry := guard.NewBuildHashRegistry()

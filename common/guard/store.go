@@ -28,12 +28,12 @@ type Store interface {
 	// DedupTrySet (fp, target) 主去重。命中返回 (false, nil)；首次返回 (true, nil)。
 	DedupTrySet(ctx context.Context, scene Scene, fpHex, targetID string, ttl time.Duration) (bool, error)
 
-	// TokenIssue 在指定场景命名空间下写入一次性 token，value 为 fingerprintHex。
+	// TokenIssue 在指定场景命名空间下写入一次性 token，value 为业务侧的短期凭证。
 	// SETNX：若 token 已存在返回 (false, nil)；写入成功返回 (true, nil)。
 	// 用于 share-create 预检通过后下发"通行证"，业务侧凭 token 调用真正的存储接口。
-	TokenIssue(ctx context.Context, scene Scene, tokenHex, fpHex string, ttl time.Duration) (bool, error)
+	TokenIssue(ctx context.Context, scene Scene, tokenHex, tokenValue string, ttl time.Duration) (bool, error)
 
-	// TokenConsume 原子读取并删除一次性 token，命中返回 (fingerprintHex, true, nil)。
+	// TokenConsume 原子读取并删除一次性 token，命中返回 (tokenValue, true, nil)。
 	// 未命中（不存在/已被消费/已过期）返回 ("", false, nil)。
 	TokenConsume(ctx context.Context, scene Scene, tokenHex string) (string, bool, error)
 }
@@ -87,13 +87,13 @@ func (s *redisStore) DedupTrySet(ctx context.Context, scene Scene, fpHex, target
 // TokenIssue 一次性 token 签发：SETNX 防止极小概率的 token 碰撞覆盖既有记录。
 //
 // tokenHex 由调用方生成（典型 32B random → 64 hex chars），不在此函数生成是为了
-// 让单元测试可以注入确定性 token。fpHex 必须是 64 hex chars（FieldFingerprintID 32 字节 → hex 编码 64 字符）。
-func (s *redisStore) TokenIssue(ctx context.Context, scene Scene, tokenHex, fpHex string, ttl time.Duration) (bool, error) {
-	if tokenHex == "" || fpHex == "" {
-		return false, errors.New("guard: token/fp empty")
+// 让单元测试可以注入确定性 token。tokenValue 由业务侧自行编码与校验。
+func (s *redisStore) TokenIssue(ctx context.Context, scene Scene, tokenHex, tokenValue string, ttl time.Duration) (bool, error) {
+	if tokenHex == "" || tokenValue == "" {
+		return false, errors.New("guard: token/value empty")
 	}
 	key := cachekey.GuardToken(scene.String(), tokenHex).String()
-	ok, err := s.rdb.SetNX(ctx, key, fpHex, ttl).Result()
+	ok, err := s.rdb.SetNX(ctx, key, tokenValue, ttl).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
 		return false, err
 	}

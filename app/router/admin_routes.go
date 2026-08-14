@@ -23,6 +23,7 @@ func registerAdminPublicRoutes(group *gin.RouterGroup, handlers *routeHandlers) 
 
 	// 管理员登录与二次验证
 	group.POST("/account-login", handlers.admin.AccountLogin)
+	// group.POST("/sms-code", handlers.admin.SendSMSCode) // 发送短信验证码（已停用）
 	group.POST("/bind-dynamic-code", handlers.admin.BindDynamicCode)
 	group.POST("/verify-dynamic-code", handlers.admin.VerifyDynamicCode)
 }

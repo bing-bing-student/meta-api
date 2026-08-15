@@ -7,11 +7,11 @@ const (
 
 	StartTime = "2023-01-01 00:00:01" // 固定启动时间，保证生成 ID 唯一性
 
-	Spec = "0 3 * * *" // 定时任务表达式
+	Spec = "0 3 * * *" // 定时任务表达式，每天 3 点执行
 
 	MaxFileSize         = int64(64 << 10) // MD文件大小限制为64KB
 	MaxArticleImageSize = int64(1 << 20)  // 文章图片上传大小限制为1MB
 
-	ArticleStatusDraft     = "draft"
-	ArticleStatusPublished = "published"
+	ArticleStatusDraft     = "draft"     // 草稿状态
+	ArticleStatusPublished = "published" // 已发布状态
 )

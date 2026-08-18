@@ -8,6 +8,7 @@ import (
 	commentHandler "meta-api/app/handler/comment"
 	jsonshareHandler "meta-api/app/handler/jsonshare"
 	linkHandler "meta-api/app/handler/link"
+	siteDynamicHandler "meta-api/app/handler/sitedynamic"
 	tagHandler "meta-api/app/handler/tag"
 	userAuthHandler "meta-api/app/handler/userauth"
 	viewLogHandler "meta-api/app/handler/viewlog"
@@ -16,6 +17,7 @@ import (
 	articleModel "meta-api/app/model/article"
 	commentModel "meta-api/app/model/comment"
 	linkModel "meta-api/app/model/link"
+	siteDynamicModel "meta-api/app/model/sitedynamic"
 	tagModel "meta-api/app/model/tag"
 	userModel "meta-api/app/model/user"
 
@@ -24,6 +26,7 @@ import (
 	commentService "meta-api/app/service/comment"
 	jsonshareService "meta-api/app/service/jsonshare"
 	linkService "meta-api/app/service/link"
+	siteDynamicService "meta-api/app/service/sitedynamic"
 	tagService "meta-api/app/service/tag"
 	userAuthService "meta-api/app/service/userauth"
 	viewLogService "meta-api/app/service/viewlog"
@@ -35,6 +38,7 @@ func registerModelProviders(container *dig.Container) error {
 		{name: "article model", constructor: articleModel.NewModel},
 		{name: "comment model", constructor: commentModel.NewModel},
 		{name: "link model", constructor: linkModel.NewModel},
+		{name: "site dynamic model", constructor: siteDynamicModel.NewModel},
 		{name: "tag model", constructor: tagModel.NewModel},
 		{name: "user model", constructor: userModel.NewModel},
 	}
@@ -48,6 +52,7 @@ func registerServiceProviders(container *dig.Container) error {
 		{name: "comment service", constructor: commentService.NewService},
 		{name: "jsonshare service", constructor: jsonshareService.NewService},
 		{name: "link service", constructor: linkService.NewService},
+		{name: "site dynamic service", constructor: siteDynamicService.NewService},
 		{name: "tag service", constructor: tagService.NewService},
 		{name: "user auth service", constructor: userAuthService.NewService},
 		{name: "view log service", constructor: viewLogService.NewService},
@@ -62,6 +67,7 @@ func registerHandlerProviders(container *dig.Container) error {
 		{name: "comment handler", constructor: commentHandler.NewHandler},
 		{name: "jsonshare handler", constructor: jsonshareHandler.NewHandler},
 		{name: "link handler", constructor: linkHandler.NewHandler},
+		{name: "site dynamic handler", constructor: siteDynamicHandler.NewHandler},
 		{name: "tag handler", constructor: tagHandler.NewHandler},
 		{name: "user auth handler", constructor: userAuthHandler.NewHandler},
 		{name: "view log handler", constructor: viewLogHandler.NewHandler},

@@ -61,6 +61,13 @@ func registerAdminAuthRoutes(group *gin.RouterGroup, handlers *routeHandlers) {
 	group.PUT("/link/update", handlers.link.AdminUpdateLink)
 	group.DELETE("/link/delete", handlers.link.AdminDeleteLink)
 
+	// 站点动态管理
+	group.GET("/site-dynamic/list", handlers.siteDynamic.AdminGetSiteDynamicList)
+	group.POST("/site-dynamic/add", handlers.siteDynamic.AdminAddSiteDynamic)
+	group.PUT("/site-dynamic/update", handlers.siteDynamic.AdminUpdateSiteDynamic)
+	group.PUT("/site-dynamic/reorder", handlers.siteDynamic.AdminReorderSiteDynamics)
+	group.DELETE("/site-dynamic/delete", handlers.siteDynamic.AdminDeleteSiteDynamic)
+
 	// 评论管理
 	group.GET("/comment/list", handlers.comment.AdminGetCommentList)
 	group.PUT("/comment/status", handlers.comment.AdminUpdateCommentStatus)

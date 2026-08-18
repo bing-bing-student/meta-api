@@ -36,6 +36,7 @@ func registerUserRoutes(group *gin.RouterGroup, handlers *routeHandlers) {
 
 	// 站点资料与反馈
 	group.GET("/about-me", handlers.admin.UserGetAboutMe)
+	group.GET("/site-dynamic/list", handlers.siteDynamic.UserGetSiteDynamicList)
 	group.POST("/bug-feedback", handlers.admin.UserSubmitBugFeedback)
 
 	// JSON 分享风控

@@ -27,8 +27,17 @@ func NewBehaviorStore(redis *redis.Client, logger *zap.Logger) *BehaviorStore {
 
 func (s *BehaviorStore) Signals(ctx context.Context, req Request, text NormalizedComment,
 	cfg appconfig.CommentModerationConfig) []Signal {
+	return s.Evaluate(ctx, req, text, cfg).Signals
+}
+
+func (s *BehaviorStore) Evaluate(ctx context.Context, req Request, text NormalizedComment,
+	cfg appconfig.CommentModerationConfig) BehaviorEvaluation {
+	contextProvided := req.UserID != 0 || req.ArticleID != 0 || strings.TrimSpace(req.ClientIP) != ""
 	if s == nil || s.redis == nil {
-		return nil
+		return BehaviorEvaluation{Trace: BehaviorTrace{
+			Status: "unavailable", ReadOnly: true, ContextProvided: contextProvided,
+			UnavailableReason: "behavior_store_unavailable",
+		}}
 	}
 	keys := BuildBehaviorKeys(req.UserID, req.ArticleID, req.ClientIP, text.Normalized)
 	var userCount, ipCount, duplicateCount int64
@@ -63,9 +72,12 @@ func (s *BehaviorStore) Signals(ctx context.Context, req Request, text Normalize
 			s.logger.Warn("comment moderation behavior risk unavailable",
 				zap.Error(errors.Join(userErr, ipErr, duplicateErr, nearDuplicateErr)))
 		}
-		return nil
+		return BehaviorEvaluation{Trace: BehaviorTrace{
+			Status: "failed", ReadOnly: true, ContextProvided: contextProvided,
+			UnavailableReason: "behavior_query_failed",
+		}}
 	}
-	return BehaviorSignals(BehaviorState{
+	state := BehaviorState{
 		UserCount:              userCount,
 		IPCount:                ipCount,
 		DuplicateCount:         duplicateCount,
@@ -74,7 +86,82 @@ func (s *BehaviorStore) Signals(ctx context.Context, req Request, text Normalize
 		IPEvaluated:            ipEvaluated,
 		DuplicateEvaluated:     duplicateEvaluated,
 		NearDuplicateEvaluated: nearDuplicateEvaluated,
-	}, cfg)
+	}
+	signals := BehaviorSignals(state, cfg)
+	status := "executed"
+	unavailableReason := ""
+	if !state.UserEvaluated && !state.IPEvaluated && !state.DuplicateEvaluated && !state.NearDuplicateEvaluated {
+		status = "skipped"
+		unavailableReason = "behavior_context_insufficient"
+	}
+	return BehaviorEvaluation{
+		Signals: signals,
+		Trace: BehaviorTrace{
+			Status:            status,
+			ReadOnly:          true,
+			ContextProvided:   contextProvided,
+			UnavailableReason: unavailableReason,
+			Metrics:           behaviorMetricTrace(state, signals, cfg),
+		},
+	}
+}
+
+func behaviorMetricTrace(state BehaviorState, signals []Signal,
+	cfg appconfig.CommentModerationConfig,
+) []BehaviorMetricTrace {
+	user := userRule(cfg)
+	ip := ipRule(cfg)
+	duplicate := duplicateRule(cfg)
+	nearDuplicate := nearDuplicateRule(cfg)
+	nearDuplicateSkippedReason := "user_or_article_not_provided"
+	if nearDuplicate.Disabled {
+		nearDuplicateSkippedReason = "near_duplicate_disabled"
+	}
+	metrics := []BehaviorMetricTrace{
+		{
+			Name: "user_frequency", Evaluated: state.UserEvaluated,
+			ObservedCount: state.UserCount, ProspectiveCount: state.UserCount + 1,
+			WindowSeconds: user.WindowSeconds, ReviewThreshold: user.ReviewThreshold,
+			SkippedReason: behaviorMetricSkippedReason(state.UserEvaluated, "user_id_not_provided"),
+		},
+		{
+			Name: "ip_frequency", Evaluated: state.IPEvaluated,
+			ObservedCount: state.IPCount, ProspectiveCount: state.IPCount + 1,
+			WindowSeconds: ip.WindowSeconds, ReviewThreshold: ip.ReviewThreshold,
+			SkippedReason: behaviorMetricSkippedReason(state.IPEvaluated, "client_ip_not_provided"),
+		},
+		{
+			Name: "duplicate_content", Evaluated: state.DuplicateEvaluated,
+			ObservedCount: state.DuplicateCount, ProspectiveCount: state.DuplicateCount + 1,
+			WindowSeconds: duplicate.WindowSeconds, ReviewThreshold: duplicate.ReviewThreshold,
+			BlockThreshold: duplicate.BlockThreshold,
+			SkippedReason: behaviorMetricSkippedReason(state.DuplicateEvaluated,
+				"user_or_article_not_provided"),
+		},
+		{
+			Name: "near_duplicate", Evaluated: state.NearDuplicateEvaluated,
+			ObservedCount: state.NearDuplicateCount, ProspectiveCount: state.NearDuplicateCount + 1,
+			WindowSeconds: nearDuplicate.WindowSeconds, ReviewThreshold: nearDuplicate.ReviewThreshold,
+			SkippedReason: behaviorMetricSkippedReason(state.NearDuplicateEvaluated,
+				nearDuplicateSkippedReason),
+		},
+	}
+	for index := range metrics {
+		for _, signal := range signals {
+			if signal.Category == metrics[index].Name {
+				metrics[index].TriggeredLevel = signal.Level
+				break
+			}
+		}
+	}
+	return metrics
+}
+
+func behaviorMetricSkippedReason(evaluated bool, reason string) string {
+	if evaluated {
+		return ""
+	}
+	return reason
 }
 
 func (s *BehaviorStore) Record(ctx context.Context, req Request, cfg appconfig.CommentModerationConfig) {
@@ -144,7 +231,7 @@ func behaviorSignal(category, level, evidence string, cfg appconfig.CommentModer
 		Source:   SourceBehavior,
 		Category: category,
 		Level:    level,
-		Score:    scoreForSignal(SourceBehavior, category, category, level, cfg),
+		Score:    evidenceStrengthScore(SourceBehavior, category, category, level, cfg),
 		Reason:   formatReason(SourceBehavior, category, level, evidence),
 		Evidence: evidence,
 		RuleID:   category,

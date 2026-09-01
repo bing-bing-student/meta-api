@@ -56,14 +56,12 @@ func hasRiskyScriptClause(text NormalizedComment, cfg appconfig.CommentModeratio
 }
 
 func hasRiskyURLClause(text NormalizedComment, cfg appconfig.CommentModerationConfig) bool {
-	if (domainRegexp.MatchString(text.Normalized) ||
-		obfuscatedDomainRegexp.MatchString(text.Normalized)) &&
+	if matchesConfiguredURL(text.Normalized, cfg) &&
 		!allSemanticClausesBenign(text, cfg) {
 		return true
 	}
 	for _, clause := range semanticClauses(text) {
-		if !domainRegexp.MatchString(clause.Normalized) &&
-			!obfuscatedDomainRegexp.MatchString(clause.Normalized) {
+		if !matchesConfiguredURL(clause.Normalized, cfg) {
 			continue
 		}
 		if !isBenignSemanticClause(clause, cfg) {
@@ -75,27 +73,38 @@ func hasRiskyURLClause(text NormalizedComment, cfg appconfig.CommentModerationCo
 
 func hasRiskyContactClause(text NormalizedComment, cfg appconfig.CommentModerationConfig) bool {
 	fullMatch := phoneRegexp.MatchString(text.Normalized) ||
-		accountRegexp.MatchString(text.Normalized) ||
-		contactIntentRegexp.MatchString(text.Normalized) ||
-		emailObfuscationRegexp.MatchString(text.Normalized) ||
-		len(matchContactShapes(text.Normalized)) > 0
+		matchesConfiguredContact(text.Normalized, cfg) ||
+		len(matchContactShapes(text.Normalized, accountTokenMinimum(cfg))) > 0
 	if fullMatch && !allSemanticClausesBenign(text, cfg) {
 		return true
 	}
 	for _, clause := range semanticClauses(text) {
 		value := clause.Normalized
 		matched := phoneRegexp.MatchString(value) ||
-			accountRegexp.MatchString(value) ||
-			contactIntentRegexp.MatchString(value) ||
-			emailObfuscationRegexp.MatchString(value) ||
-			len(matchContactShapes(value)) > 0
-		if matched && !isNegatedContactMention(value) &&
-			!isBenignContactMention(value) &&
+			matchesConfiguredContact(value, cfg) ||
+			len(matchContactShapes(value, accountTokenMinimum(cfg))) > 0
+		if matched && !isNegatedContactMention(value, cfg) &&
+			!isBenignContactMention(value, cfg) &&
 			!isBenignSemanticClause(clause, cfg) {
 			return true
 		}
 	}
 	return false
+}
+
+func matchesConfiguredURL(value string, cfg appconfig.CommentModerationConfig) bool {
+	if len(cfg.StructurePatterns.URLPatterns) > 0 {
+		return matchesAnySemanticPattern(value, cfg.StructurePatterns.URLPatterns)
+	}
+	return domainRegexp.MatchString(value) || obfuscatedDomainRegexp.MatchString(value)
+}
+
+func matchesConfiguredContact(value string, cfg appconfig.CommentModerationConfig) bool {
+	if len(cfg.StructurePatterns.ContactPatterns) > 0 {
+		return matchesAnySemanticPattern(value, cfg.StructurePatterns.ContactPatterns)
+	}
+	return accountRegexp.MatchString(value) || contactIntentRegexp.MatchString(value) ||
+		emailObfuscationRegexp.MatchString(value)
 }
 
 func allSemanticClausesBenign(text NormalizedComment, cfg appconfig.CommentModerationConfig) bool {
@@ -111,25 +120,19 @@ func allSemanticClausesBenign(text NormalizedComment, cfg appconfig.CommentModer
 	return true
 }
 
-func isNegatedContactMention(value string) bool {
-	if strings.Contains(value, "不包含联系方式") ||
-		strings.Contains(value, "没有联系方式") ||
-		strings.Contains(value, "不留联系方式") ||
-		strings.Contains(value, "无需联系方式") {
+func isNegatedContactMention(value string, cfg appconfig.CommentModerationConfig) bool {
+	if containsAnyNormalized(compactText(normalizeText(value)), cfg.StructurePatterns.NegatedContactMarkers) {
 		return true
 	}
 	return containsAnyString(value, []string{"不需要", "无需", "不要", "不应", "禁止", "别把"}) &&
-		contactIntentRegexp.MatchString(value)
+		matchesConfiguredContact(value, cfg)
 }
 
-func isBenignContactMention(value string) bool {
-	return strings.Contains(value, "联系方式识别测试") ||
-		strings.Contains(value, "联系方式测试") ||
-		(strings.Contains(value, "不要把") && strings.Contains(value, "当成违规")) ||
-		(strings.Contains(value, "别把") && strings.Contains(value, "判违规")) ||
-		(strings.Contains(value, "正常讨论") && strings.Contains(value, "误杀")) ||
-		(containsAnyString(value, []string{"测试数据", "测试号码", "示例账号", "正则", "反垃圾样本"}) &&
-			containsAnyString(value, []string{"微信", "账号", "手机号", "号码", "邮件", " at "}))
+func isBenignContactMention(value string, cfg appconfig.CommentModerationConfig) bool {
+	if len(cfg.StructurePatterns.BenignContactPatterns) > 0 {
+		return matchesAnySemanticPattern(value, cfg.StructurePatterns.BenignContactPatterns)
+	}
+	return strings.Contains(value, "联系方式识别测试") || strings.Contains(value, "联系方式测试")
 }
 
 func newStructureSignal(ruleID, evidence string, cfg appconfig.CommentModerationConfig) Signal {
@@ -138,7 +141,7 @@ func newStructureSignal(ruleID, evidence string, cfg appconfig.CommentModeration
 		Source:   SourceStructure,
 		Category: ruleID,
 		Level:    level,
-		Score:    scoreForSignal(SourceStructure, ruleID, ruleID, level, cfg),
+		Score:    evidenceStrengthScore(SourceStructure, ruleID, ruleID, level, cfg),
 		Reason:   formatReason(SourceStructure, ruleID, level, evidence),
 		Evidence: evidence,
 		RuleID:   ruleID,
@@ -161,15 +164,16 @@ func structureRuleLevel(ruleID string, cfg appconfig.CommentModerationConfig) st
 
 func textQualitySignal(text NormalizedComment, cfg appconfig.CommentModerationConfig) (Signal, bool) {
 	runes := []rune(text.Compact)
+	minNumeric, minRepeated, numberRatio, repeatedRatio := textQualityThresholds(cfg)
 	evidence := ""
 	switch {
 	case len(runes) == 0:
 		evidence = "no_words"
-	case len(runes) >= 5 && allDigits(runes):
+	case len(runes) >= minNumeric && allDigits(runes):
 		evidence = "numeric"
-	case len(runes) >= 5 && mostlyNumberLike(runes):
+	case len(runes) >= minNumeric && mostlyNumberLike(runes, numberRatio):
 		evidence = "number_like"
-	case len(runes) >= 6 && mostlyRepeated(runes):
+	case len(runes) >= minRepeated && mostlyRepeated(runes, repeatedRatio):
 		evidence = "repeated"
 	default:
 		return Signal{}, false
@@ -179,14 +183,41 @@ func textQualitySignal(text NormalizedComment, cfg appconfig.CommentModerationCo
 		Source:   SourceStructure,
 		Category: "text_quality",
 		Level:    level,
-		Score:    scoreForSignal(SourceStructure, "text_quality", evidence, level, cfg),
+		Score:    evidenceStrengthScore(SourceStructure, "text_quality", evidence, level, cfg),
 		Reason:   formatReason(SourceStructure, "text_quality", level, evidence),
 		Evidence: evidence,
 		RuleID:   "text_quality",
 	}, true
 }
 
-func matchContactShapes(value string) []string {
+func textQualityThresholds(cfg appconfig.CommentModerationConfig) (int, int, float64, float64) {
+	minNumeric := cfg.StructurePatterns.MinNumericRunes
+	if minNumeric <= 0 {
+		minNumeric = 5
+	}
+	minRepeated := cfg.StructurePatterns.MinRepeatedRunes
+	if minRepeated <= 0 {
+		minRepeated = 6
+	}
+	numberRatio := cfg.StructurePatterns.NumberLikeRatio
+	if numberRatio <= 0 {
+		numberRatio = 0.6
+	}
+	repeatedRatio := cfg.StructurePatterns.RepeatedRatio
+	if repeatedRatio <= 0 {
+		repeatedRatio = 0.75
+	}
+	return minNumeric, minRepeated, numberRatio, repeatedRatio
+}
+
+func accountTokenMinimum(cfg appconfig.CommentModerationConfig) int {
+	if minimum := cfg.StructurePatterns.MinAccountTokenRunes; minimum > 0 {
+		return minimum
+	}
+	return 4
+}
+
+func matchContactShapes(value string, minAccountRunes int) []string {
 	runes := []rune(value)
 	for i, r := range runes {
 		if !unicode.Is(unicode.So, r) {
@@ -198,7 +229,7 @@ func matchContactShapes(value string) []string {
 			continue
 		}
 		accountStart := skipSpaces(runes, next+1)
-		if hasAccountToken(runes[accountStart:]) {
+		if hasAccountToken(runes[accountStart:], minAccountRunes) {
 			return []string{"symbol_account"}
 		}
 	}
@@ -219,7 +250,7 @@ func skipSpaces(runes []rune, start int) int {
 	return start
 }
 
-func hasAccountToken(runes []rune) bool {
+func hasAccountToken(runes []rune, minimum int) bool {
 	length := 0
 	for _, r := range runes {
 		if !(r == '_' || r == '-' || (r >= '0' && r <= '9') || (r >= 'a' && r <= 'z')) {
@@ -227,7 +258,7 @@ func hasAccountToken(runes []rune) bool {
 		}
 		length++
 	}
-	return length >= 4
+	return length >= minimum
 }
 
 func allDigits(runes []rune) bool {
@@ -239,17 +270,17 @@ func allDigits(runes []rune) bool {
 	return len(runes) > 0
 }
 
-func mostlyNumberLike(runes []rune) bool {
+func mostlyNumberLike(runes []rune, threshold float64) bool {
 	count := 0
 	for _, r := range runes {
 		if unicode.IsDigit(r) || unicode.IsNumber(r) || strings.ContainsRune("零〇一二三四五六七八九壹贰叁肆伍陆柒捌玖两", r) {
 			count++
 		}
 	}
-	return float64(count)/float64(len(runes)) >= 0.6
+	return float64(count)/float64(len(runes)) >= threshold
 }
 
-func mostlyRepeated(runes []rune) bool {
+func mostlyRepeated(runes []rune, threshold float64) bool {
 	counts := make(map[rune]int, len(runes))
 	maxCount := 0
 	for _, r := range runes {
@@ -258,7 +289,7 @@ func mostlyRepeated(runes []rune) bool {
 			maxCount = counts[r]
 		}
 	}
-	return float64(maxCount)/float64(len(runes)) >= 0.75
+	return float64(maxCount)/float64(len(runes)) >= threshold
 }
 
 func containsAnyCompact(views []string, values []string) []string {

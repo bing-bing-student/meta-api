@@ -44,7 +44,6 @@ func (a *articleService) AdminGetArticleList(ctx context.Context,
 	request *types.AdminGetArticleListRequest) (*types.AdminGetArticleListResponse, error) {
 
 	response := &types.AdminGetArticleListResponse{}
-	// 计算偏移量
 	start := (request.Page - 1) * request.PageSize
 	stop := start + request.PageSize - 1
 
@@ -53,68 +52,47 @@ func (a *articleService) AdminGetArticleList(ctx context.Context,
 		a.logger.Error("invalid article order", zap.String("order", request.Order))
 		return response, fmt.Errorf("invalid article order: %s", request.Order)
 	}
-	// 获取文章 ID 有序集合
-	articleIDZSet, err := a.redis.ZRevRangeWithScores(ctx, zSetKey.String(), int64(start), int64(stop)).Result()
+	articleIDZSet, total, err := a.readArticlePage(ctx, zSetKey.String(), start, stop)
 	if err != nil {
 		a.logger.Error("failed to get article:time/view:ZSet", zap.Error(err))
 		return response, err
 	}
-	articleList := make([]types.AdminGetArticleListItem, 0)
+	articleIDs := make([]string, 0, len(articleIDZSet))
 	for _, z := range articleIDZSet {
-		articleItem := types.AdminGetArticleListItem{}
-		articleItem.ID = z.Member.(string)
-		// 获取数据
-		hashKey := cachekey.ArticleHash(articleItem.ID).String()
-		if exist := a.redis.Exists(ctx, hashKey); exist.Val() == 1 {
-			// redis 当中存在该数据
-			fields := []string{"title", "tagName", "viewNum", "createTime", "updateTime"}
-			result, err := a.redis.HMGet(ctx, hashKey, fields...).Result()
-			if err != nil {
-				return response, err
-			}
-			articleItem.Title = result[0].(string)
-			articleItem.Tag = result[1].(string)
-			viewNumStr := result[2].(string)
-			articleItem.ViewNum, _ = strconv.Atoi(viewNumStr)
-			articleItem.CreateTime = result[3].(string)[:16]
-			articleItem.UpdateTime = result[4].(string)[:16]
-		} else {
-			// redis 当中不存在该数据
-			articleModel := new(article.Detail)
-			id, err := idutil.ParseID("articleID", z.Member.(string))
-			if err != nil {
-				a.logger.Error("invalid article id", zap.Error(err))
-				return response, err
-			}
-			if articleModel, err = a.articleModel.GetArticleDetailByID(ctx, id); err != nil {
-				a.logger.Error("get article detail by id error", zap.Error(err))
-				return response, err
-			}
-			articleItem.Title = articleModel.Title
-			articleItem.Tag = articleModel.TagName
-			articleItem.ViewNum = int(articleModel.ViewNum)
-			articleItem.CreateTime = articleModel.CreateTime.Format(constants.TimeLayoutToMinute)
-			articleItem.UpdateTime = articleModel.UpdateTime.Format(constants.TimeLayoutToMinute)
-
-			mapData := map[string]any{
-				"id":         articleModel.ID,
-				"title":      articleModel.Title,
-				"describe":   articleModel.Describe,
-				"content":    articleModel.Content,
-				"viewNum":    articleModel.ViewNum,
-				"createTime": articleModel.CreateTime.Format(constants.TimeLayoutToSecond),
-				"updateTime": articleModel.UpdateTime.Format(constants.TimeLayoutToSecond),
-				"tagID":      articleTagIDValue(articleModel.TagID),
-				"tagName":    articleModel.TagName,
-			}
-			a.redis.HMSet(ctx, cachekey.ArticleHash(articleItem.ID).String(), mapData)
+		articleID, memberOK := z.Member.(string)
+		if !memberOK {
+			return response, fmt.Errorf("invalid article cache member type %T", z.Member)
 		}
-		articleList = append(articleList, articleItem)
+		articleIDs = append(articleIDs, articleID)
+	}
+	entries, misses, err := a.readArticleListCache(ctx, articleIDs)
+	if err != nil {
+		return response, err
+	}
+	loaded, err := a.loadArticleListMisses(ctx, misses)
+	if err != nil {
+		return response, err
+	}
+	for id, entry := range loaded {
+		entries[id] = entry
 	}
 
-	response.Rows = articleList
-	response.Total = int(a.redis.ZCard(ctx, zSetKey.String()).Val())
-
+	response.Rows = make([]types.AdminGetArticleListItem, 0, len(articleIDs))
+	for _, articleID := range articleIDs {
+		entry, exists := entries[articleID]
+		if !exists {
+			return response, fmt.Errorf("article %s not found", articleID)
+		}
+		response.Rows = append(response.Rows, types.AdminGetArticleListItem{
+			ID:         articleID,
+			Title:      entry.Title,
+			Tag:        entry.TagName,
+			ViewNum:    entry.ViewNum,
+			CreateTime: formatCachedArticleTime(entry.CreateTime, constants.TimeLayoutToMinute),
+			UpdateTime: formatCachedArticleTime(entry.UpdateTime, constants.TimeLayoutToMinute),
+		})
+	}
+	response.Total = int(total)
 	return response, nil
 }
 
@@ -124,19 +102,19 @@ func (a *articleService) AdminGetArticleDetail(ctx context.Context,
 
 	response := &types.AdminGetArticleDetailResponse{}
 	hashKey := cachekey.ArticleHash(request.ID).String()
-	if exist := a.redis.Exists(ctx, hashKey); exist.Val() == 1 {
-		// redis 当中存在该数据
-		fields := []string{"id", "title", "tagName", "describe", "content"}
-		result, err := a.redis.HMGet(ctx, hashKey, fields...).Result()
-		if err != nil {
-			a.logger.Error("HMGET error", zap.Error(err))
-			return response, err
-		}
-		response.ID = result[0].(string)
-		response.Title = result[1].(string)
-		response.Tag = result[2].(string)
-		response.Describe = result[3].(string)
-		response.Content = result[4].(string)
+	fields := []string{"id", "title", "tagName", "describe", "content"}
+	result, err := a.redis.HMGet(ctx, hashKey, fields...).Result()
+	if err != nil {
+		a.logger.Error("HMGET error", zap.Error(err))
+		return response, err
+	}
+	cached, cacheHit := redisStringFields(result, len(fields))
+	if cacheHit {
+		response.ID = cached[0]
+		response.Title = cached[1]
+		response.Tag = cached[2]
+		response.Describe = cached[3]
+		response.Content = cached[4]
 	} else {
 		// redis当中不存在该数据，从数据库当中获取数据
 		id, err := idutil.ParseID("articleID", request.ID)
@@ -156,13 +134,12 @@ func (a *articleService) AdminGetArticleDetail(ctx context.Context,
 			"title":      articleInfo.Title,
 			"describe":   articleInfo.Describe,
 			"content":    articleInfo.Content,
-			"viewNum":    articleInfo.ViewNum,
 			"createTime": articleInfo.CreateTime.Format(constants.TimeLayoutToSecond),
 			"updateTime": articleInfo.UpdateTime.Format(constants.TimeLayoutToSecond),
 			"tagID":      articleTagIDValue(articleInfo.TagID),
 			"tagName":    articleInfo.TagName,
 		}
-		if err = a.redis.HMSet(ctx, cachekey.ArticleHash(request.ID).String(), mapData).Err(); err != nil {
+		if err = a.redis.HSet(ctx, hashKey, mapData).Err(); err != nil {
 			return response, err
 		}
 

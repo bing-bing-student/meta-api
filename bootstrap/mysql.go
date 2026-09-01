@@ -254,6 +254,8 @@ func autoMigrateMySQL(db *gorm.DB) error {
 		&userModel.User{},
 		&commentModel.Comment{},
 		&commentModel.CommentReport{},
+		&commentModel.CommentModerationAudit{},
+		&commentModel.CommentModerationFeedback{},
 	); err != nil {
 		return fmt.Errorf("auto migrate mysql tables: %w", err)
 	}

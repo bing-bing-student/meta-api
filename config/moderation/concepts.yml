@@ -1,0 +1,27 @@
+# 可复用概念集合。它解决的是“同一个语义概念在多条规则中重复维护”，不是建立同义词替换表。
+#
+# role 约束引用位置：
+#   subject   只能用于 combination_rules.subject_refs；
+#   predicate 只能用于 combination_rules.predicate_refs；
+#   common    两侧都可使用，但应谨慎，避免一个词同时承担冲突角色。
+#
+# fuzzy=true 表示该集合适合进入受限模糊候选索引；当前编译器只记录标记，后续可由离线词库工具生成索引。
+comment_moderation:
+  concept_sets:
+    academic_core_objects:
+      description: 学术代做规则共同使用的核心交付对象
+      role: subject
+      fuzzy: false
+      terms: [论文, 实验报告, 课程设计]
+
+    academic_service_actions:
+      description: 学术服务推广中共同出现的代办和交付动作
+      role: predicate
+      fuzzy: true
+      terms: [代做, 处理, 帮你弄完, 直接帮你]
+
+    private_message_actions:
+      description: 将公开讨论转移到私下沟通的动作
+      role: predicate
+      fuzzy: true
+      terms: [私信]

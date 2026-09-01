@@ -231,6 +231,22 @@ func (m *commentModel) ListComments(ctx context.Context, filter AdminListFilter)
 	return rows, total, nil
 }
 
+func (m *commentModel) GetAdminCommentByID(ctx context.Context, id uint64) (*AdminListItem, error) {
+	var row AdminListItem
+	err := m.mysql.WithContext(ctx).Model(&Comment{}).Table("comment as c").
+		Joins("LEFT JOIN article as a ON a.id = c.article_id").
+		Joins("LEFT JOIN `user` as u ON u.id = c.user_id").
+		Joins("LEFT JOIN `user` as ru ON ru.id = c.reply_to_user_id").
+		Select("c.id, a.title as article_title, c.parent_id, ru.display_name as reply_to_author_name, "+
+			"ru.handle as reply_to_author_handle, u.handle as author_handle, c.content, c.status, "+
+			"c.moderation_reasons, c.ip, c.create_time, c.update_time").
+		Where("c.id = ?", id).Take(&row).Error
+	if err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
 func (m *commentModel) UpdateCommentStatus(ctx context.Context, id uint64, status string, updateTime time.Time) error {
 	if err := m.mysql.WithContext(ctx).Model(&Comment{}).
 		Where("id = ?", id).

@@ -14,36 +14,48 @@ type ConfigSource interface {
 	CommentModerationSnapshot() appconfig.CommentModerationConfig
 }
 
-type BehaviorSignalFunc func(context.Context, Request, NormalizedComment, appconfig.CommentModerationConfig) []Signal
+type BehaviorSignalFunc func(context.Context, Request, NormalizedComment,
+	appconfig.CommentModerationConfig) BehaviorEvaluation
 
 type Moderator struct {
-	configSource ConfigSource
-	logger       *zap.Logger
-	lexicon      LexiconDetector
-	behavior     *BehaviorStore
-	policy       policyCache
+	configSource    ConfigSource
+	logger          *zap.Logger
+	lexicon         LexiconDetector
+	behavior        *BehaviorStore
+	contextAnalyzer ContextAnalyzer
+	policy          policyCache
 }
 
 func NewModerator(configSource ConfigSource, logger *zap.Logger, redis *redis.Client) *Moderator {
+	return NewModeratorWithContextAnalyzer(configSource, logger, redis, NewLocalContextAnalyzer(logger))
+}
+
+// NewModeratorWithContextAnalyzer makes the local context boundary injectable for tests.
+func NewModeratorWithContextAnalyzer(configSource ConfigSource, logger *zap.Logger, redis *redis.Client,
+	contextAnalyzer ContextAnalyzer,
+) *Moderator {
 	lexicon, err := NewSWDLexiconDetector(logger)
 	if err != nil && logger != nil {
 		logger.Error("create go-swd lexicon detector failed", zap.Error(err))
 	}
 	return &Moderator{
-		configSource: configSource,
-		logger:       logger,
-		lexicon:      lexicon,
-		behavior:     NewBehaviorStore(redis, logger),
+		configSource:    configSource,
+		logger:          logger,
+		lexicon:         lexicon,
+		behavior:        NewBehaviorStore(redis, logger),
+		contextAnalyzer: contextAnalyzer,
 	}
 }
 
 func (m *Moderator) Moderate(ctx context.Context, req Request) Result {
 	return m.ModerateWithBehavior(ctx, req, func(ctx context.Context, req Request, text NormalizedComment,
-		cfg appconfig.CommentModerationConfig) []Signal {
+		cfg appconfig.CommentModerationConfig) BehaviorEvaluation {
 		if m == nil || m.behavior == nil {
-			return nil
+			return BehaviorEvaluation{Trace: BehaviorTrace{
+				Status: "unavailable", ReadOnly: true, UnavailableReason: "behavior_store_unavailable",
+			}}
 		}
-		return m.behavior.Signals(ctx, req, text, cfg)
+		return m.behavior.Evaluate(ctx, req, text, cfg)
 	})
 }
 
@@ -74,17 +86,42 @@ func (m *Moderator) ModerateWithBehavior(ctx context.Context, req Request, behav
 	signals = append(signals, fuzzyLexiconSignals(text, cfg)...)
 	signals = append(signals, structureSignals(text, cfg)...)
 	signals = append(signals, combinationSignals(text, cfg)...)
+	behaviorTrace := BehaviorTrace{
+		Status: "skipped", ReadOnly: true, UnavailableReason: "behavior_context_not_provided",
+	}
 	if behavior != nil {
-		signals = append(signals, behavior(ctx, req, text, cfg)...)
+		evaluation := behavior(ctx, req, text, cfg)
+		signals = append(signals, evaluation.Signals...)
+		behaviorTrace = evaluation.Trace
 	}
 	detectorSignals := append([]Signal(nil), signals...)
 	signals, suppressedSignals := adjustSignalsBySemanticsWithTrace(text, signals, cfg)
-	result := decide(signals, cfg)
+	result := baselineDecision(signals, cfg)
+	ruleDecision := decisionSnapshot(result)
 	result.Trace = Trace{
 		Clauses:           moderationClauseTrace(text),
 		DetectorSignals:   detectorSignals,
 		SuppressedSignals: append([]Signal(nil), suppressedSignals...),
-		BehaviorEvaluated: behavior != nil,
+		Behavior:          behaviorTrace,
+		Decisions: DecisionFlowTrace{
+			Rule:  ruleDecision,
+			Final: ruleDecision,
+		},
+	}
+	result.Trace.DecisionEngine = m.evaluateDecisionEngine(ctx, req, text,
+		decisionEngineSignals(detectorSignals, signals), cfg)
+	decisionFlow := result.Trace.Decisions
+	result = applyDecisionEngineWithTrace(result, result.Trace.DecisionEngine, &decisionFlow)
+	result.Trace.Decisions = decisionFlow
+	return result
+}
+
+func decisionEngineSignals(detectorSignals, adjustedSignals []Signal) []Signal {
+	result := append([]Signal(nil), detectorSignals...)
+	for _, signal := range adjustedSignals {
+		if signal.Source == SourceSemantic && normalizeLevel(signal.Level) == LevelAllow {
+			result = append(result, signal)
+		}
 	}
 	return result
 }
@@ -129,34 +166,27 @@ func ApplyDefaults(cfg *appconfig.CommentModerationConfig) {
 	if cfg.Decision.DefaultOnError == "" {
 		cfg.Decision.DefaultOnError = "pending"
 	}
-	if cfg.Decision.Score.Pending <= 0 {
-		cfg.Decision.Score.Pending = defaultPendingScore
+	if cfg.DecisionEngine.ContextAnalysis.MaxCandidates <= 0 {
+		cfg.DecisionEngine.ContextAnalysis.MaxCandidates = 16
 	}
-	if cfg.Decision.Score.Reject <= cfg.Decision.Score.Pending {
-		cfg.Decision.Score.Reject = defaultRejectScore
+	if cfg.DecisionEngine.Thresholds.ApproveMax <= 0 {
+		cfg.DecisionEngine.Thresholds.ApproveMax = 0.2
 	}
-	if cfg.Decision.CategoryOverrides == nil {
-		cfg.Decision.CategoryOverrides = map[string]appconfig.CommentModerationCategoryDecisionConfig{}
+	if cfg.DecisionEngine.Thresholds.RejectMin <= cfg.DecisionEngine.Thresholds.ApproveMax {
+		cfg.DecisionEngine.Thresholds.RejectMin = 0.9
 	}
-	defaultOverrides := map[string]string{
-		"sexual":     LevelBlock,
-		"gambling":   LevelBlock,
-		"drugs":      LevelBlock,
-		"political":  LevelReview,
-		"violence":   LevelReview,
-		"abuse":      LevelReview,
-		"hate":       LevelReview,
-		"spam_fraud": LevelReview,
-		"sensitive":  LevelReview,
-		"custom":     LevelReview,
-	}
-	for category, level := range defaultOverrides {
-		if _, ok := cfg.Decision.CategoryOverrides[category]; !ok {
-			cfg.Decision.CategoryOverrides[category] = appconfig.CommentModerationCategoryDecisionConfig{Level: level}
-		}
+	if cfg.DecisionEngine.Thresholds.MinConfidence <= 0 {
+		cfg.DecisionEngine.Thresholds.MinConfidence = 0.7
 	}
 	if cfg.StructureRules == nil {
 		cfg.StructureRules = map[string]appconfig.CommentModerationLevelRuleConfig{}
+	}
+	for name, policy := range cfg.Categories {
+		if level := normalizeLevel(policy.DefaultLevel); level != "" {
+			if _, exists := cfg.StructureRules[name]; !exists {
+				cfg.StructureRules[name] = appconfig.CommentModerationLevelRuleConfig{Level: level}
+			}
+		}
 	}
 	defaultStructureLevels := map[string]string{
 		"url":              LevelReview,

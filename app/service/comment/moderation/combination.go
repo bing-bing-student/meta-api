@@ -31,9 +31,6 @@ func combinationSignals(text NormalizedComment, cfg appconfig.CommentModerationC
 				continue
 			}
 			views := []string{clause.Compact}
-			if clause.PinyinFolded != "" && clause.PinyinFolded != clause.Compact {
-				views = append(views, clause.PinyinFolded)
-			}
 			for _, subject := range containsAnyCompact(views, rule.Subjects) {
 				for _, predicate := range containsAnyCompact(views, rule.Predicates) {
 					if subject == predicate {
@@ -49,7 +46,7 @@ func combinationSignals(text NormalizedComment, cfg appconfig.CommentModerationC
 						Source:   SourceContext,
 						Category: category,
 						Level:    level,
-						Score:    scoreForSignal(SourceContext, category, ruleID, level, cfg),
+						Score:    evidenceStrengthScore(SourceContext, category, ruleID, level, cfg),
 						Reason:   formatReason(SourceContext, category, level, ruleID+":"+evidence),
 						Evidence: evidence,
 						RuleID:   ruleID,

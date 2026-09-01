@@ -1,0 +1,25 @@
+# 评论审核策略入口。
+#
+# 该文件只负责启用审核功能和声明策略包，不再直接保存数百行词表。
+# policy_files 路径相对于 config 目录，按顺序加载：
+#   1. 映射按键递归合并；
+#   2. 数组按文件顺序追加；
+#   3. 标量由后加载文件覆盖前值。
+#
+# 策略包内容支持热更新；新增、删除或调整 policy_files 路径后应重启服务，
+# 以便文件监听器订阅新的文件。任何无效正则、未知概念引用或非法阈值都会拒绝新策略。
+comment_moderation:
+  disabled: false
+  report_threshold: 3
+
+  policy_files:
+    - moderation/categories.yml
+    - moderation/concepts.yml
+    - moderation/lexicon.yml
+    - moderation/packs/safety.yml
+    - moderation/packs/commerce.yml
+    - moderation/packs/privacy_security.yml
+    - moderation/packs/contextual_safety.yml
+    - moderation/semantics.yml
+    - moderation/behavior.yml
+    - moderation/calibration.yml

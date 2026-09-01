@@ -1,0 +1,93 @@
+# 隐私与越权领域规则：隐私交易、内部数据、未授权访问和网络滥用服务。
+comment_moderation:
+  combination_rules:
+    - id: illegal_privacy
+      category: illegal_privacy
+      level: review
+      subjects:
+        - 身份证
+        - 银行卡
+        - 账号密码
+        - 住址电话
+        - 住址
+        - 个人隐私
+        - 个人信息
+        - 公民隐私
+        - 人肉搜索
+        - 开房记录
+        - 内部系统权限
+        - 监控录像
+        - 手机号
+        - 证件
+        - 外挂
+        - 攻击工具
+        - 代刷数据
+        - 隐私照片
+        - 考试答案
+        - 网络攻击工具
+        - 伪造证书
+        - 代删负面
+        - 非法账号
+        - 前任
+        - 手机定位
+        - 通话记录
+        - 网站后台权限
+        - 数据库账号
+      predicates:
+        - 查
+        - 帮查
+        - 弄到
+        - 出售
+        - 买卖
+        - 泄露
+        - 查询
+        - 交易
+        - 有偿
+        - 有偿提供
+        - 服务
+        - 代办
+        - 售卖
+        - 采集
+        - 私聊
+        - 收费
+        - 群
+        - 保证
+        - 工具包
+        - 扫码
+        - 私信
+        - 熟人介绍
+        - 渠道
+        - 帮你问问
+        - 价格好说
+        - 不是完全没办法
+        - 有办法进去
+    - id: implicit_privacy_trade
+      category: sensitive
+      level: review
+      subjects: [姓名, 地区, 住哪, 住址, 常用号码, 手机号, 联系记录, 和谁联系, 通话, 记录, 出行记录, 开房记录, 入住记录, 家庭情况, 通讯录, 照片]
+      predicates: [补全, 补出, 能看到, 发出来, 查到, 普通人看不到, 给他压力, 定位, 导出来, 按条数, 提供, 证件后四位]
+    - id: implicit_unauthorized_access
+      category: sensitive
+      level: review
+      subjects: [后台, 数据表, 数据库, 口令, 用户名, 管理员, 验证码, 管理账号, 权限]
+      predicates: [进去, 绕过, 绕过去, 恢复访问, 不用官方流程, 不用找管理员, 跳过, 登录别人, 不经过审批, 重新开, 不同意, 也能改, 发来, 帮你]
+    - id: restricted_digital_asset_trade
+      category: spam_fraud
+      level: review
+      subjects: [企业签名证书, 内部代码规范, 项目模板, API key, 云厂商代金券, 域名备案主体, 应用商店审核]
+      predicates: [单独联系, 打包, 按份收费, 可用, 调用额度, 价格, 充值, 付款, 借用, 急着上线, 包过, 资料不全, 特殊渠道]
+    - id: internal_data_and_audit_abuse
+      category: sensitive
+      level: review
+      subjects: [同事访问, 网关记录, 内部通讯录, 生产数据库, 脱敏前, 审计日志]
+      predicates: [想查, 拿到, 导出, 按公司人数, 备份我有, 需要样本, 帮忙删掉, 不留操作记录]
+    - id: cyber_abuse_service
+      category: sensitive
+      level: review
+      subjects: [授权校验, 目标地址, 大量节点, 竞争对手网站, 钓鱼页面, 远控程序, 免杀, Cookie, 别人会话, 打站服务]
+      predicates: [去掉, 发二进制, 打流量, 打不开, 收费, 自动回传, 私下拿, 拿到, 教程收费, 提供]
+    - id: enterprise_access_and_data_abuse
+      category: sensitive
+      level: review
+      subjects: [公司 Git 仓库, Git 仓库, 云控制台权限, 生产环境日志, 真实用户数据]
+      predicates: [跳过统一认证, 恢复, 不需要管理员审批, 导出来, 我能导出]

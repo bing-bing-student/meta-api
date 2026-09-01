@@ -149,12 +149,6 @@ type BugFeedbackRateLimitConfig struct {
 	IP       RateLimitWindowConfig `mapstructure:"ip"`
 }
 
-// CommentModerationScoreConfig 描述评论审核评分决策阈值。
-type CommentModerationScoreConfig struct {
-	Pending int `mapstructure:"pending"`
-	Reject  int `mapstructure:"reject"`
-}
-
 // CommentModerationLexiconConfig 描述敏感词识别层配置。
 type CommentModerationLexiconConfig struct {
 	Provider           string                             `mapstructure:"provider"`
@@ -185,8 +179,17 @@ type CommentModerationLevelRuleConfig struct {
 
 // CommentModerationStructurePatternsConfig 描述结构检测层的业务风险词形。
 type CommentModerationStructurePatternsConfig struct {
-	RiskPhrases  []string `mapstructure:"risk_phrases"`
-	RiskPatterns []string `mapstructure:"risk_patterns"`
+	RiskPhrases           []string `mapstructure:"risk_phrases"`
+	RiskPatterns          []string `mapstructure:"risk_patterns"`
+	URLPatterns           []string `mapstructure:"url_patterns"`
+	ContactPatterns       []string `mapstructure:"contact_patterns"`
+	NegatedContactMarkers []string `mapstructure:"negated_contact_markers"`
+	BenignContactPatterns []string `mapstructure:"benign_contact_patterns"`
+	MinNumericRunes       int      `mapstructure:"min_numeric_runes"`
+	MinRepeatedRunes      int      `mapstructure:"min_repeated_runes"`
+	NumberLikeRatio       float64  `mapstructure:"number_like_ratio"`
+	RepeatedRatio         float64  `mapstructure:"repeated_ratio"`
+	MinAccountTokenRunes  int      `mapstructure:"min_account_token_runes"`
 }
 
 // CommentModerationBehaviorThresholdConfig 描述评论审核行为阈值规则。
@@ -215,27 +218,80 @@ type CommentModerationNearDuplicateConfig struct {
 	MaxLengthDifferencePercent int   `mapstructure:"max_length_difference_percent"`
 }
 
-// CommentModerationCategoryDecisionConfig 描述分类级处置覆盖。
-type CommentModerationCategoryDecisionConfig struct {
-	Level string `mapstructure:"level"`
-}
-
-// CommentModerationDecisionConfig 描述评论审核最终决策策略。
+// CommentModerationDecisionConfig 描述审核异常时的保守处置策略。
+// 正常状态与风险分统一由 decision_engine 计算，不再维护平行的人工评分体系。
 type CommentModerationDecisionConfig struct {
-	DefaultOnError    string                                             `mapstructure:"default_on_error"`
-	Score             CommentModerationScoreConfig                       `mapstructure:"score"`
-	RuleScores        map[string]int                                     `mapstructure:"rule_scores"`
-	CategoryOverrides map[string]CommentModerationCategoryDecisionConfig `mapstructure:"category_overrides"`
+	DefaultOnError string `mapstructure:"default_on_error"`
 }
 
 // CommentModerationCombinationRuleConfig 描述片段内“主体词 + 行为词”组合规则。
 type CommentModerationCombinationRuleConfig struct {
-	ID         string   `mapstructure:"id"`
-	Name       string   `mapstructure:"name"`
-	Category   string   `mapstructure:"category"`
-	Level      string   `mapstructure:"level"`
-	Subjects   []string `mapstructure:"subjects"`
-	Predicates []string `mapstructure:"predicates"`
+	ID            string   `mapstructure:"id"`
+	Name          string   `mapstructure:"name"`
+	Category      string   `mapstructure:"category"`
+	Level         string   `mapstructure:"level"`
+	Subjects      []string `mapstructure:"subjects"`
+	Predicates    []string `mapstructure:"predicates"`
+	SubjectRefs   []string `mapstructure:"subject_refs"`
+	PredicateRefs []string `mapstructure:"predicate_refs"`
+}
+
+// CommentModerationConceptSetConfig 定义可被多条组合规则复用的规范概念集合。
+// Terms 只保存规范表达，拼音、谐音和错别字仍由本地候选算法推导。
+type CommentModerationConceptSetConfig struct {
+	Description string   `mapstructure:"description"`
+	Role        string   `mapstructure:"role"`
+	Terms       []string `mapstructure:"terms"`
+	Fuzzy       bool     `mapstructure:"fuzzy"`
+}
+
+// CommentModerationCategoryConfig 是审核分类的唯一注册信息。
+// DefaultLevel 同时作为敏感词和组合规则未显式指定等级时的默认处置；
+// FeedbackEnabled 控制该分类能否出现在管理员人工反馈选项中。
+type CommentModerationCategoryConfig struct {
+	Name            string `mapstructure:"name"`
+	DefaultLevel    string `mapstructure:"default_level"`
+	FeedbackEnabled bool   `mapstructure:"feedback_enabled"`
+}
+
+// CommentModerationRelationVocabularyConfig 定义关系分析算法依赖的中文语义角色。
+// 字段名称是稳定的算法契约，字段内容属于可演进的语言策略，不应写死在 Go 代码中。
+type CommentModerationRelationVocabularyConfig struct {
+	NegationMarkers          []string `mapstructure:"negation_markers"`
+	ImmediateNegationMarkers []string `mapstructure:"immediate_negation_markers"`
+	Actors                   []string `mapstructure:"actors"`
+	PersonTargets            []string `mapstructure:"person_targets"`
+	ContentTargets           []string `mapstructure:"content_targets"`
+	ResultConnectors         []string `mapstructure:"result_connectors"`
+	PromotionActions         []string `mapstructure:"promotion_actions"`
+	WeakReportingMarkers     []string `mapstructure:"weak_reporting_markers"`
+	InterrogativePrefixes    []string `mapstructure:"interrogative_prefixes"`
+	QuestionMarkers          []string `mapstructure:"question_markers"`
+	FirstPersonMarkers       []string `mapstructure:"first_person_markers"`
+	ContrastMarkers          []string `mapstructure:"contrast_markers"`
+}
+
+// CommentModerationStanceOutcomeConfig 把一组评价结果词映射为同一种评论立场。
+type CommentModerationStanceOutcomeConfig struct {
+	Stance string   `mapstructure:"stance"`
+	Roots  []string `mapstructure:"roots"`
+}
+
+// CommentModerationRiskEvaluationConfig 描述“某行为属于诈骗/违法”等评价语句的语言策略。
+// 这里只提供词汇和语义角色；边界、作用域和关系推理仍由代码实现。
+type CommentModerationRiskEvaluationConfig struct {
+	Outcomes                 []CommentModerationStanceOutcomeConfig `mapstructure:"outcomes"`
+	OutcomeSuffixes          []string                               `mapstructure:"outcome_suffixes"`
+	JudgmentPredicates       []string                               `mapstructure:"judgment_predicates"`
+	DemonstrativePredicates  []string                               `mapstructure:"demonstrative_predicates"`
+	PostOutcomeRejections    []string                               `mapstructure:"post_outcome_rejections"`
+	WarningPredicates        []string                               `mapstructure:"warning_predicates"`
+	GovernanceActions        []string                               `mapstructure:"governance_actions"`
+	GovernanceModals         []string                               `mapstructure:"governance_modals"`
+	PromotionMarkers         []string                               `mapstructure:"promotion_markers"`
+	QuestionMarkers          []string                               `mapstructure:"question_markers"`
+	PromotionContrastMarkers []string                               `mapstructure:"promotion_contrast_markers"`
+	PromotionActionMarkers   []string                               `mapstructure:"promotion_action_markers"`
 }
 
 // CommentModerationSemanticContextConfig 描述片段语义分类词族。
@@ -254,24 +310,92 @@ type CommentModerationAbusePolicyConfig struct {
 	SevereMarkers []string `mapstructure:"severe_markers"`
 }
 
+// CommentModerationHarmfulValuePolicyConfig 描述危险行为关系分析使用的规范概念。
+// 这些列表只定义“对象、动作、语气和反证”的语义角色，不维护谐音、
+// 错别字或拼音映射；文本变体由本地候选算法从规范概念自动推导。
+type CommentModerationHarmfulValuePolicyConfig struct {
+	Disabled            bool     `mapstructure:"disabled"`
+	SelfHarmActions     []string `mapstructure:"self_harm_actions"`
+	DeathWishActions    []string `mapstructure:"death_wish_actions"`
+	DangerousActions    []string `mapstructure:"dangerous_actions"`
+	DangerousSubstances []string `mapstructure:"dangerous_substances"`
+	IngestionActions    []string `mapstructure:"ingestion_actions"`
+	IncitementMarkers   []string `mapstructure:"incitement_markers"`
+	IncitementSuffixes  []string `mapstructure:"incitement_suffixes"`
+	IdeationMarkers     []string `mapstructure:"ideation_markers"`
+	PreventionMarkers   []string `mapstructure:"prevention_markers"`
+	EducationActors     []string `mapstructure:"education_actors"`
+	EducationActions    []string `mapstructure:"education_actions"`
+	CriticalOutcomes    []string `mapstructure:"critical_outcomes"`
+	SelfPronouns        []string `mapstructure:"self_pronouns"`
+	OtherPronouns       []string `mapstructure:"other_pronouns"`
+	AdditionalTargets   []string `mapstructure:"additional_targets"`
+	AddressedTargets    []string `mapstructure:"addressed_targets"`
+	ReferenceSuffixes   []string `mapstructure:"reference_suffixes"`
+	OutcomeNegations    []string `mapstructure:"outcome_negations"`
+	PromotionConflicts  []string `mapstructure:"promotion_conflicts"`
+}
+
 // CommentModerationSemanticRulesConfig 描述片段语义分类与信号修正规则。
 type CommentModerationSemanticRulesConfig struct {
-	Disabled    bool                                   `mapstructure:"disabled"`
-	Contexts    CommentModerationSemanticContextConfig `mapstructure:"contexts"`
-	AbusePolicy CommentModerationAbusePolicyConfig     `mapstructure:"abuse_policy"`
+	Disabled           bool                                      `mapstructure:"disabled"`
+	Contexts           CommentModerationSemanticContextConfig    `mapstructure:"contexts"`
+	RelationVocabulary CommentModerationRelationVocabularyConfig `mapstructure:"relation_vocabulary"`
+	RiskEvaluation     CommentModerationRiskEvaluationConfig     `mapstructure:"risk_evaluation"`
+	AbusePolicy        CommentModerationAbusePolicyConfig        `mapstructure:"abuse_policy"`
+	HarmfulValuePolicy CommentModerationHarmfulValuePolicyConfig `mapstructure:"harmful_value_policy"`
+}
+
+// CommentModerationContextAnalysisConfig 描述进程内的上下文分析策略。
+// RiskConcepts 只保存规范风险概念；拼音、缩写和错别字等变体由本地算法自动生成候选。
+type CommentModerationContextAnalysisConfig struct {
+	Disabled      bool                `mapstructure:"disabled"`
+	MaxCandidates int                 `mapstructure:"max_candidates"`
+	RiskConcepts  map[string][]string `mapstructure:"risk_concepts"`
+}
+
+// CommentModerationProbabilityThresholdConfig 描述概率决策阈值。
+type CommentModerationProbabilityThresholdConfig struct {
+	ApproveMax    float64 `mapstructure:"approve_max"`
+	RejectMin     float64 `mapstructure:"reject_min"`
+	MinConfidence float64 `mapstructure:"min_confidence"`
+}
+
+// CommentModerationDecisionEngineConfig 描述证据融合决策引擎。
+type CommentModerationDecisionEngineConfig struct {
+	ContextAnalysis CommentModerationContextAnalysisConfig      `mapstructure:"context_analysis"`
+	Thresholds      CommentModerationProbabilityThresholdConfig `mapstructure:"thresholds"`
+	Calibration     CommentModerationCalibrationConfig          `mapstructure:"calibration"`
+}
+
+// CommentModerationCalibrationConfig 保存不同证据来源的初始强度。
+// 这些数值是待离线校准的相对强度，不代表真实风险概率。
+type CommentModerationCalibrationConfig struct {
+	Version              string             `mapstructure:"version"`
+	Allow                float64            `mapstructure:"allow"`
+	Block                float64            `mapstructure:"block"`
+	ScriptInjectionBlock float64            `mapstructure:"script_injection_block"`
+	Default              float64            `mapstructure:"default"`
+	Sources              map[string]float64 `mapstructure:"sources"`
 }
 
 // CommentModerationConfig 描述前台评论审核策略。
 type CommentModerationConfig struct {
-	Disabled          bool                                        `mapstructure:"disabled"`
-	ReportThreshold   int64                                       `mapstructure:"report_threshold"`
-	Lexicon           CommentModerationLexiconConfig              `mapstructure:"lexicon"`
-	StructureRules    map[string]CommentModerationLevelRuleConfig `mapstructure:"structure_rules"`
-	StructurePatterns CommentModerationStructurePatternsConfig    `mapstructure:"structure_patterns"`
-	CombinationRules  []CommentModerationCombinationRuleConfig    `mapstructure:"combination_rules"`
-	SemanticRules     CommentModerationSemanticRulesConfig        `mapstructure:"semantic_rules"`
-	BehaviorRules     CommentModerationBehaviorRulesConfig        `mapstructure:"behavior_rules"`
-	Decision          CommentModerationDecisionConfig             `mapstructure:"decision"`
+	// PolicyFiles 只在配置加载阶段使用。路径相对于 config 目录，按声明顺序合并；
+	// 策略包中的数组会追加，映射会按键递归合并，后加载的标量覆盖前值。
+	PolicyFiles       []string                                     `mapstructure:"policy_files"`
+	Disabled          bool                                         `mapstructure:"disabled"`
+	ReportThreshold   int64                                        `mapstructure:"report_threshold"`
+	Categories        map[string]CommentModerationCategoryConfig   `mapstructure:"categories"`
+	ConceptSets       map[string]CommentModerationConceptSetConfig `mapstructure:"concept_sets"`
+	Lexicon           CommentModerationLexiconConfig               `mapstructure:"lexicon"`
+	StructureRules    map[string]CommentModerationLevelRuleConfig  `mapstructure:"structure_rules"`
+	StructurePatterns CommentModerationStructurePatternsConfig     `mapstructure:"structure_patterns"`
+	CombinationRules  []CommentModerationCombinationRuleConfig     `mapstructure:"combination_rules"`
+	SemanticRules     CommentModerationSemanticRulesConfig         `mapstructure:"semantic_rules"`
+	BehaviorRules     CommentModerationBehaviorRulesConfig         `mapstructure:"behavior_rules"`
+	DecisionEngine    CommentModerationDecisionEngineConfig        `mapstructure:"decision_engine"`
+	Decision          CommentModerationDecisionConfig              `mapstructure:"decision"`
 }
 
 // RateLimitConfig 描述后端应用级限流配置。
@@ -437,11 +561,22 @@ func (c *Config) CommentModerationSnapshot() CommentModerationConfig {
 		return CommentModerationConfig{}
 	}
 	snapshot := *c.CommentModerationConfig
+	snapshot.PolicyFiles = cloneStringSlice(snapshot.PolicyFiles)
+	snapshot.Categories = cloneCommentModerationCategoryConfigMap(snapshot.Categories)
+	snapshot.ConceptSets = cloneCommentModerationConceptSetConfigMap(snapshot.ConceptSets)
 	snapshot.Lexicon.CustomWords = cloneCommentModerationCustomWordsConfig(snapshot.Lexicon.CustomWords)
 	snapshot.Lexicon.Fuzzy.CandidateWords = cloneStringSliceMap(snapshot.Lexicon.Fuzzy.CandidateWords)
 	snapshot.StructureRules = cloneCommentModerationLevelRuleConfigMap(snapshot.StructureRules)
 	snapshot.StructurePatterns.RiskPhrases = cloneStringSlice(snapshot.StructurePatterns.RiskPhrases)
 	snapshot.StructurePatterns.RiskPatterns = cloneStringSlice(snapshot.StructurePatterns.RiskPatterns)
+	snapshot.StructurePatterns.URLPatterns = cloneStringSlice(snapshot.StructurePatterns.URLPatterns)
+	snapshot.StructurePatterns.ContactPatterns = cloneStringSlice(snapshot.StructurePatterns.ContactPatterns)
+	snapshot.StructurePatterns.NegatedContactMarkers = cloneStringSlice(
+		snapshot.StructurePatterns.NegatedContactMarkers,
+	)
+	snapshot.StructurePatterns.BenignContactPatterns = cloneStringSlice(
+		snapshot.StructurePatterns.BenignContactPatterns,
+	)
 	snapshot.CombinationRules = cloneCommentModerationCombinationRuleConfigSlice(snapshot.CombinationRules)
 	contexts := &snapshot.SemanticRules.Contexts
 	contexts.ReportingMarkers = cloneStringSlice(contexts.ReportingMarkers)
@@ -453,9 +588,101 @@ func (c *Config) CommentModerationSnapshot() CommentModerationConfig {
 	snapshot.SemanticRules.AbusePolicy.SevereMarkers = cloneStringSlice(
 		snapshot.SemanticRules.AbusePolicy.SevereMarkers,
 	)
-	snapshot.Decision.RuleScores = cloneIntMap(snapshot.Decision.RuleScores)
-	snapshot.Decision.CategoryOverrides = cloneCommentModerationCategoryDecisionConfigMap(snapshot.Decision.CategoryOverrides)
+	harmfulPolicy := &snapshot.SemanticRules.HarmfulValuePolicy
+	harmfulPolicy.SelfHarmActions = cloneStringSlice(harmfulPolicy.SelfHarmActions)
+	harmfulPolicy.DeathWishActions = cloneStringSlice(harmfulPolicy.DeathWishActions)
+	harmfulPolicy.DangerousActions = cloneStringSlice(harmfulPolicy.DangerousActions)
+	harmfulPolicy.DangerousSubstances = cloneStringSlice(harmfulPolicy.DangerousSubstances)
+	harmfulPolicy.IngestionActions = cloneStringSlice(harmfulPolicy.IngestionActions)
+	harmfulPolicy.IncitementMarkers = cloneStringSlice(harmfulPolicy.IncitementMarkers)
+	harmfulPolicy.IncitementSuffixes = cloneStringSlice(harmfulPolicy.IncitementSuffixes)
+	harmfulPolicy.IdeationMarkers = cloneStringSlice(harmfulPolicy.IdeationMarkers)
+	harmfulPolicy.PreventionMarkers = cloneStringSlice(harmfulPolicy.PreventionMarkers)
+	harmfulPolicy.EducationActors = cloneStringSlice(harmfulPolicy.EducationActors)
+	harmfulPolicy.EducationActions = cloneStringSlice(harmfulPolicy.EducationActions)
+	harmfulPolicy.CriticalOutcomes = cloneStringSlice(harmfulPolicy.CriticalOutcomes)
+	harmfulPolicy.SelfPronouns = cloneStringSlice(harmfulPolicy.SelfPronouns)
+	harmfulPolicy.OtherPronouns = cloneStringSlice(harmfulPolicy.OtherPronouns)
+	harmfulPolicy.AdditionalTargets = cloneStringSlice(harmfulPolicy.AdditionalTargets)
+	harmfulPolicy.AddressedTargets = cloneStringSlice(harmfulPolicy.AddressedTargets)
+	harmfulPolicy.ReferenceSuffixes = cloneStringSlice(harmfulPolicy.ReferenceSuffixes)
+	harmfulPolicy.OutcomeNegations = cloneStringSlice(harmfulPolicy.OutcomeNegations)
+	harmfulPolicy.PromotionConflicts = cloneStringSlice(harmfulPolicy.PromotionConflicts)
+	cloneCommentModerationRelationVocabularyConfig(&snapshot.SemanticRules.RelationVocabulary)
+	cloneCommentModerationRiskEvaluationConfig(&snapshot.SemanticRules.RiskEvaluation)
+	snapshot.DecisionEngine.ContextAnalysis.RiskConcepts = cloneStringSliceMap(
+		snapshot.DecisionEngine.ContextAnalysis.RiskConcepts,
+	)
+	snapshot.DecisionEngine.Calibration.Sources = cloneFloat64Map(
+		snapshot.DecisionEngine.Calibration.Sources,
+	)
 	return snapshot
+}
+
+func cloneCommentModerationCategoryConfigMap(src map[string]CommentModerationCategoryConfig) map[string]CommentModerationCategoryConfig {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(map[string]CommentModerationCategoryConfig, len(src))
+	maps.Copy(dst, src)
+	return dst
+}
+
+func cloneCommentModerationConceptSetConfigMap(src map[string]CommentModerationConceptSetConfig) map[string]CommentModerationConceptSetConfig {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := make(map[string]CommentModerationConceptSetConfig, len(src))
+	for key, value := range src {
+		value.Terms = cloneStringSlice(value.Terms)
+		dst[key] = value
+	}
+	return dst
+}
+
+func cloneCommentModerationRelationVocabularyConfig(
+	cfg *CommentModerationRelationVocabularyConfig,
+) {
+	if cfg == nil {
+		return
+	}
+	cfg.NegationMarkers = cloneStringSlice(cfg.NegationMarkers)
+	cfg.ImmediateNegationMarkers = cloneStringSlice(cfg.ImmediateNegationMarkers)
+	cfg.Actors = cloneStringSlice(cfg.Actors)
+	cfg.PersonTargets = cloneStringSlice(cfg.PersonTargets)
+	cfg.ContentTargets = cloneStringSlice(cfg.ContentTargets)
+	cfg.ResultConnectors = cloneStringSlice(cfg.ResultConnectors)
+	cfg.PromotionActions = cloneStringSlice(cfg.PromotionActions)
+	cfg.WeakReportingMarkers = cloneStringSlice(cfg.WeakReportingMarkers)
+	cfg.InterrogativePrefixes = cloneStringSlice(cfg.InterrogativePrefixes)
+	cfg.QuestionMarkers = cloneStringSlice(cfg.QuestionMarkers)
+	cfg.FirstPersonMarkers = cloneStringSlice(cfg.FirstPersonMarkers)
+	cfg.ContrastMarkers = cloneStringSlice(cfg.ContrastMarkers)
+}
+
+func cloneCommentModerationRiskEvaluationConfig(cfg *CommentModerationRiskEvaluationConfig) {
+	if cfg == nil {
+		return
+	}
+	if len(cfg.Outcomes) > 0 {
+		outcomes := make([]CommentModerationStanceOutcomeConfig, len(cfg.Outcomes))
+		for index, outcome := range cfg.Outcomes {
+			outcome.Roots = cloneStringSlice(outcome.Roots)
+			outcomes[index] = outcome
+		}
+		cfg.Outcomes = outcomes
+	}
+	cfg.OutcomeSuffixes = cloneStringSlice(cfg.OutcomeSuffixes)
+	cfg.JudgmentPredicates = cloneStringSlice(cfg.JudgmentPredicates)
+	cfg.DemonstrativePredicates = cloneStringSlice(cfg.DemonstrativePredicates)
+	cfg.PostOutcomeRejections = cloneStringSlice(cfg.PostOutcomeRejections)
+	cfg.WarningPredicates = cloneStringSlice(cfg.WarningPredicates)
+	cfg.GovernanceActions = cloneStringSlice(cfg.GovernanceActions)
+	cfg.GovernanceModals = cloneStringSlice(cfg.GovernanceModals)
+	cfg.PromotionMarkers = cloneStringSlice(cfg.PromotionMarkers)
+	cfg.QuestionMarkers = cloneStringSlice(cfg.QuestionMarkers)
+	cfg.PromotionContrastMarkers = cloneStringSlice(cfg.PromotionContrastMarkers)
+	cfg.PromotionActionMarkers = cloneStringSlice(cfg.PromotionActionMarkers)
 }
 
 func cloneCommentModerationCustomWordsConfig(
@@ -467,9 +694,7 @@ func cloneCommentModerationCustomWordsConfig(
 	}
 }
 
-func cloneCommentModerationLevelRuleConfigMap(
-	src map[string]CommentModerationLevelRuleConfig,
-) map[string]CommentModerationLevelRuleConfig {
+func cloneCommentModerationLevelRuleConfigMap(src map[string]CommentModerationLevelRuleConfig) map[string]CommentModerationLevelRuleConfig {
 	if len(src) == 0 {
 		return nil
 	}
@@ -478,29 +703,16 @@ func cloneCommentModerationLevelRuleConfigMap(
 	return dst
 }
 
-func cloneCommentModerationCategoryDecisionConfigMap(
-	src map[string]CommentModerationCategoryDecisionConfig,
-) map[string]CommentModerationCategoryDecisionConfig {
+func cloneFloat64Map(src map[string]float64) map[string]float64 {
 	if len(src) == 0 {
 		return nil
 	}
-	dst := make(map[string]CommentModerationCategoryDecisionConfig, len(src))
+	dst := make(map[string]float64, len(src))
 	maps.Copy(dst, src)
 	return dst
 }
 
-func cloneIntMap(src map[string]int) map[string]int {
-	if len(src) == 0 {
-		return nil
-	}
-	dst := make(map[string]int, len(src))
-	maps.Copy(dst, src)
-	return dst
-}
-
-func cloneCommentModerationCombinationRuleConfigSlice(
-	src []CommentModerationCombinationRuleConfig,
-) []CommentModerationCombinationRuleConfig {
+func cloneCommentModerationCombinationRuleConfigSlice(src []CommentModerationCombinationRuleConfig) []CommentModerationCombinationRuleConfig {
 	if len(src) == 0 {
 		return nil
 	}
@@ -509,6 +721,8 @@ func cloneCommentModerationCombinationRuleConfigSlice(
 		dst[i] = item
 		dst[i].Subjects = cloneStringSlice(item.Subjects)
 		dst[i].Predicates = cloneStringSlice(item.Predicates)
+		dst[i].SubjectRefs = cloneStringSlice(item.SubjectRefs)
+		dst[i].PredicateRefs = cloneStringSlice(item.PredicateRefs)
 	}
 	return dst
 }

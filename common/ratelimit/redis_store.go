@@ -37,6 +37,39 @@ redis.call("PEXPIRE", key, ttl)
 return {1, 0, count + 1}
 `)
 
+var incrWithTTLScript = redis.NewScript(`
+local count = redis.call("INCR", KEYS[1])
+if count == 1 then
+	redis.call("PEXPIRE", KEYS[1], ARGV[1])
+end
+return count
+`)
+
+var recordFailureScript = redis.NewScript(`
+local count = redis.call("INCR", KEYS[1])
+if count == 1 then
+	redis.call("PEXPIRE", KEYS[1], ARGV[2])
+end
+if count < tonumber(ARGV[1]) then
+	return {0, count, 0}
+end
+
+local level = redis.call("INCR", KEYS[3])
+if level == 1 then
+	redis.call("PEXPIRE", KEYS[3], ARGV[3])
+end
+
+local duration_count = #ARGV - 3
+local duration_index = level
+if duration_index > duration_count then
+	duration_index = duration_count
+end
+local lock_ms = tonumber(ARGV[3 + duration_index])
+redis.call("SET", KEYS[2], 1, "PX", lock_ms)
+redis.call("DEL", KEYS[1])
+return {1, count, lock_ms}
+`)
+
 // RedisStore 是基于 Redis 的限流存储实现。
 type RedisStore struct {
 	rdb *redis.Client
@@ -96,16 +129,58 @@ func (s *RedisStore) SlidingWindow(ctx context.Context, key string, limit int64,
 
 // Incr 增加计数器并在首次写入时设置 TTL。
 func (s *RedisStore) Incr(ctx context.Context, key string, ttl time.Duration) (int64, error) {
-	count, err := s.rdb.Incr(ctx, key).Result()
-	if err != nil {
-		return 0, err
+	ttlMs := ttl.Milliseconds()
+	if ttlMs <= 0 {
+		return 0, fmt.Errorf("ratelimit: ttl must be positive")
 	}
-	if count == 1 && ttl > 0 {
-		if err = s.rdb.Expire(ctx, key, ttl).Err(); err != nil {
-			return 0, err
+	return incrWithTTLScript.Run(ctx, s.rdb, []string{key}, ttlMs).Int64()
+}
+
+// RecordFailure 原子记录失败次数，并在达到阈值时提升退避等级、设置锁和
+// 清空当前失败窗口。整个状态迁移在一个脚本内完成，避免并发请求重复升级
+// 等级，或在 INCR 与 EXPIRE 之间留下永久计数 Key。
+func (s *RedisStore) RecordFailure(ctx context.Context, failKey, lockKey, levelKey string,
+	cfg BackoffConfig, durations []time.Duration,
+) (bool, time.Duration, error) {
+	if cfg.Threshold <= 0 {
+		return false, 0, fmt.Errorf("ratelimit: failure threshold must be positive")
+	}
+	counterTTL := cfg.CounterTTL.Milliseconds()
+	if counterTTL <= 0 {
+		return false, 0, fmt.Errorf("ratelimit: failure counter ttl must be positive")
+	}
+	levelTTL := cfg.LevelTTL.Milliseconds()
+	if levelTTL <= 0 {
+		return false, 0, fmt.Errorf("ratelimit: failure level ttl must be positive")
+	}
+	if len(durations) == 0 {
+		durations = []time.Duration{time.Minute}
+	}
+	args := make([]any, 0, 3+len(durations))
+	args = append(args, cfg.Threshold, counterTTL, levelTTL)
+	for _, duration := range durations {
+		durationMs := duration.Milliseconds()
+		if durationMs <= 0 {
+			durationMs = time.Second.Milliseconds()
 		}
+		args = append(args, durationMs)
 	}
-	return count, nil
+	raw, err := recordFailureScript.Run(ctx, s.rdb, []string{failKey, lockKey, levelKey}, args...).Slice()
+	if err != nil {
+		return false, 0, err
+	}
+	if len(raw) != 3 {
+		return false, 0, fmt.Errorf("ratelimit: invalid failure script result length %d", len(raw))
+	}
+	locked, err := scriptInt(raw[0])
+	if err != nil {
+		return false, 0, err
+	}
+	lockMs, err := scriptInt(raw[2])
+	if err != nil {
+		return false, 0, err
+	}
+	return locked == 1, time.Duration(lockMs) * time.Millisecond, nil
 }
 
 // TTL 返回 Key 的剩余有效期。

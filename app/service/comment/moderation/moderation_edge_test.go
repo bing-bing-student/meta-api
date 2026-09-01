@@ -221,6 +221,27 @@ func TestSemanticContextDoesNotSuppressActionablePromotion(t *testing.T) {
 	}
 }
 
+func TestSemanticContextSuppressesEvaluatedFraudBehavior(t *testing.T) {
+	cfg := appconfig.CommentModerationConfig{
+		CombinationRules: []appconfig.CommentModerationCombinationRuleConfig{{
+			ID: "resource_diversion", Category: "spam_fraud", Level: LevelReview,
+			Subjects: []string{"资源"}, Predicates: []string{"私聊", "领取"},
+		}},
+		SemanticRules: testSemanticRules(),
+	}
+	ApplyDefaults(&cfg)
+	signals := []Signal{
+		{Source: SourceContext, Category: "spam_fraud", Level: LevelReview, Evidence: "资源+私聊", Clause: 1},
+		{Source: SourceContext, Category: "spam_fraud", Level: LevelReview, Evidence: "资源+领取", Clause: 1},
+	}
+	adjusted, suppressed := adjustSignalsBySemanticsWithTrace(
+		Normalize("评论区那种私聊领取资源的基本都是诈骗"), signals, cfg,
+	)
+	if len(suppressed) != len(signals) || len(adjusted) != 1 || adjusted[0].Category != "benign_context" {
+		t.Fatalf("risk evaluation signals were not suppressed: adjusted=%+v suppressed=%+v", adjusted, suppressed)
+	}
+}
+
 func TestActionableIntentOverridesBenignWrapper(t *testing.T) {
 	cfg := appconfig.CommentModerationConfig{
 		SemanticRules: appconfig.CommentModerationSemanticRulesConfig{

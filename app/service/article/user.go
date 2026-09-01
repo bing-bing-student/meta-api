@@ -25,82 +25,48 @@ func (a *articleService) UserGetArticleList(ctx context.Context,
 	start := (request.Page - 1) * request.PageSize
 	stop := start + request.PageSize - 1
 
-	// 获取文章 ID 有序集合
-	articleIDZSet, err := a.redis.ZRevRangeWithScores(ctx, cachekey.ArticleTimeZSet().String(), int64(start), int64(stop)).Result()
+	articleIDZSet, total, err := a.readArticlePage(ctx, cachekey.ArticleTimeZSet().String(), start, stop)
 	if err != nil {
 		a.logger.Error("failed to get article:time:ZSet", zap.Error(err))
 		return nil, err
 	}
-
-	articleList := make([]types.UserGetArticleItem, 0)
+	articleIDs := make([]string, 0, len(articleIDZSet))
 	for _, z := range articleIDZSet {
-		articleItem := types.UserGetArticleItem{}
-
-		articleItem.ID = z.Member.(string)
-		hashKey := cachekey.ArticleHash(articleItem.ID).String()
-		if exist := a.redis.Exists(ctx, hashKey); exist.Val() == 1 {
-			// 获取缓存数据
-			fields := []string{"title", "tagName", "describe", "createTime", "updateTime", "viewNum"}
-			result, err := a.redis.HMGet(ctx, hashKey, fields...).Result()
-			if err != nil {
-				a.logger.Error("get article info HMGet error", zap.Error(err))
-				return nil, fmt.Errorf("get article info HMGet error, err: %w", err)
-			}
-			articleItem.Title = result[0].(string)
-			articleItem.TagName = result[1].(string)
-			articleItem.Describe = result[2].(string)
-			articleItem.CreateTime = result[3].(string)[:10]
-			articleItem.UpdateTime = result[4].(string)[:10]
-			viewNumStr := result[5].(string)
-			articleItem.ViewNum, err = strconv.Atoi(viewNumStr)
-			if err != nil {
-				a.logger.Error("parse string to int error", zap.Error(err))
-				return nil, fmt.Errorf("parse string to int error, err: %w", err)
-			}
-		} else {
-			// 查询数据库
-			id, err := idutil.ParseID("articleID", articleItem.ID)
-			if err != nil {
-				a.logger.Error("invalid article id", zap.Error(err))
-				return nil, err
-			}
-			articleInfo, err := a.articleModel.GetArticleDetailByID(ctx, id)
-			if err != nil {
-				a.logger.Error("get article detail by id error", zap.Error(err))
-				return nil, fmt.Errorf("get article detail by id error, err: %w", err)
-			}
-
-			// 设置缓存
-			mapData := map[string]any{
-				"id":         articleInfo.ID,
-				"title":      articleInfo.Title,
-				"describe":   articleInfo.Describe,
-				"content":    articleInfo.Content,
-				"viewNum":    articleInfo.ViewNum,
-				"createTime": articleInfo.CreateTime.Format(constants.TimeLayoutToSecond),
-				"updateTime": articleInfo.UpdateTime.Format(constants.TimeLayoutToSecond),
-				"tagID":      articleTagIDValue(articleInfo.TagID),
-				"tagName":    articleInfo.TagName,
-			}
-			if err = a.redis.HMSet(ctx, cachekey.ArticleHash(articleItem.ID).String(), mapData).Err(); err != nil {
-				a.logger.Error("redis set article hash error", zap.Error(err))
-				return nil, fmt.Errorf("redis set article hash error: %w", err)
-			}
-
-			// 返回数据
-			articleItem.Title = articleInfo.Title
-			articleItem.TagName = articleInfo.TagName
-			articleItem.Describe = articleInfo.Describe
-			articleItem.CreateTime = articleInfo.CreateTime.Format(constants.TimeLayoutToDay)
-			articleItem.UpdateTime = articleInfo.UpdateTime.Format(constants.TimeLayoutToDay)
-			articleItem.ViewNum = int(articleInfo.ViewNum)
+		articleID, ok := z.Member.(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid article cache member type %T", z.Member)
 		}
-		articleList = append(articleList, articleItem)
+		articleIDs = append(articleIDs, articleID)
 	}
-	response := &types.UserGetArticleListResponse{}
-	response.Rows = articleList
-	response.Total = int(a.redis.ZCard(ctx, cachekey.ArticleTimeZSet().String()).Val())
-	return response, nil
+	entries, misses, err := a.readArticleListCache(ctx, articleIDs)
+	if err != nil {
+		return nil, err
+	}
+	loaded, err := a.loadArticleListMisses(ctx, misses)
+	if err != nil {
+		return nil, err
+	}
+	for id, entry := range loaded {
+		entries[id] = entry
+	}
+
+	rows := make([]types.UserGetArticleItem, 0, len(articleIDs))
+	for _, articleID := range articleIDs {
+		entry, exists := entries[articleID]
+		if !exists {
+			return nil, fmt.Errorf("article %s not found", articleID)
+		}
+		rows = append(rows, types.UserGetArticleItem{
+			ID:         articleID,
+			Title:      entry.Title,
+			TagName:    entry.TagName,
+			Describe:   entry.Describe,
+			CreateTime: formatCachedArticleTime(entry.CreateTime, constants.TimeLayoutToDay),
+			UpdateTime: formatCachedArticleTime(entry.UpdateTime, constants.TimeLayoutToDay),
+			ViewNum:    entry.ViewNum,
+		})
+	}
+	return &types.UserGetArticleListResponse{Rows: rows, Total: int(total)}, nil
 }
 
 // UserGetArticleDetail 获取文章详情
@@ -109,20 +75,20 @@ func (a *articleService) UserGetArticleDetail(ctx context.Context,
 
 	response := &types.UserGetArticleDetailResponse{}
 	hashKey := cachekey.ArticleHash(request.ID).String()
-	if exist := a.redis.Exists(ctx, hashKey); exist.Val() == 1 {
-		// 缓存查询
-		fields := []string{"title", "tagName", "content", "createTime", "updateTime"}
-		result, err := a.redis.HMGet(ctx, hashKey, fields...).Result()
-		if err != nil {
-			a.logger.Error("get article info HMGet error", zap.Error(err))
-			return nil, err
-		}
+	fields := []string{"title", "tagName", "content", "createTime", "updateTime"}
+	result, err := a.redis.HMGet(ctx, hashKey, fields...).Result()
+	if err != nil {
+		a.logger.Error("get article info HMGet error", zap.Error(err))
+		return nil, err
+	}
+	cached, cacheHit := redisStringFields(result, len(fields))
+	if cacheHit {
 		response.ID = request.ID
-		response.Title = result[0].(string)
-		response.TagName = result[1].(string)
-		response.Content = result[2].(string)
-		response.CreateTime = result[3].(string)[:10]
-		response.UpdateTime = result[4].(string)[:10]
+		response.Title = cached[0]
+		response.TagName = cached[1]
+		response.Content = cached[2]
+		response.CreateTime = formatCachedArticleTime(cached[3], constants.TimeLayoutToDay)
+		response.UpdateTime = formatCachedArticleTime(cached[4], constants.TimeLayoutToDay)
 	} else {
 		// 查询 MySQL
 		id, err := idutil.ParseID("articleID", request.ID)
@@ -145,13 +111,12 @@ func (a *articleService) UserGetArticleDetail(ctx context.Context,
 			"title":      articleInfo.Title,
 			"describe":   articleInfo.Describe,
 			"content":    articleInfo.Content,
-			"viewNum":    articleInfo.ViewNum,
 			"createTime": articleInfo.CreateTime.Format(constants.TimeLayoutToSecond),
 			"updateTime": articleInfo.UpdateTime.Format(constants.TimeLayoutToSecond),
 			"tagID":      articleTagIDValue(articleInfo.TagID),
 			"tagName":    articleInfo.TagName,
 		}
-		if err = a.redis.HMSet(ctx, cachekey.ArticleHash(request.ID).String(), mapData).Err(); err != nil {
+		if err = a.redis.HSet(ctx, hashKey, mapData).Err(); err != nil {
 			a.logger.Error("redis set article hash error", zap.Error(err))
 			return nil, fmt.Errorf("redis set article hash error: %w", err)
 		}
@@ -171,7 +136,7 @@ func (a *articleService) UserGetArticleDetail(ctx context.Context,
 // UserSearchArticle 搜索文章
 //
 // 注意：MySQL 中的 article.view_num 由 cron 周期性回写，会落后于 Redis 中的真实浏览量
-// （热路径只 +1 到 article:view:ZSet 与 article:{id}:Hash）。直接返回 MySQL 的 view_num
+// （热路径只 +1 到 article:view:ZSet）。直接返回 MySQL 的 view_num
 // 会与文章详情页 / 热门文章列表的浏览量不一致。
 //
 // 这里在 MySQL 检索结果之上，用 article:view:ZSet 中的 score 校正每条结果的 view_num，
@@ -241,131 +206,78 @@ func (a *articleService) UserGetHotArticle(ctx context.Context) (*types.UserGetH
 		a.logger.Error("failed to get article:view:ZSet", zap.Error(err))
 		return nil, fmt.Errorf("failed to get article:view:ZSet, err: %w", err)
 	}
-
-	// 获取文章浏览量
-	articleList := make([]types.GetHotArticleItem, 0)
+	articleIDs := make([]string, 0, len(articleIDZSet))
 	for _, z := range articleIDZSet {
-		articleItem := types.GetHotArticleItem{}
-
-		articleItem.ID = z.Member.(string)
-		hashKey := cachekey.ArticleHash(articleItem.ID).String()
-		if exist := a.redis.Exists(ctx, hashKey); exist.Val() == 1 {
-			fields := []string{"title", "viewNum"}
-			result, err := a.redis.HMGet(ctx, hashKey, fields...).Result()
-			if err != nil {
-				a.logger.Error("failed to get hash data", zap.Error(err))
-				return nil, fmt.Errorf("failed to get hash data, err: %w", err)
-			}
-			articleItem.Title = result[0].(string)
-			if articleItem.ViewNum, err = strconv.Atoi(result[1].(string)); err != nil {
-				a.logger.Error("parse int error", zap.Error(err))
-				return nil, fmt.Errorf("parse int error, err: %w", err)
-			}
-		} else {
-			// 查询 MySQL
-			id, err := idutil.ParseID("articleID", articleItem.ID)
-			if err != nil {
-				a.logger.Error("invalid article id", zap.Error(err))
-				return nil, fmt.Errorf("invalid article id, err: %w", err)
-			}
-			articleInfo, err := a.articleModel.GetArticleDetailByID(ctx, id)
-			if err != nil {
-				a.logger.Error("get article detail by id error", zap.Error(err))
-				return nil, fmt.Errorf("get article detail by id error, err: %w", err)
-			}
-
-			// 设置缓存
-			mapData := map[string]any{
-				"id":         articleInfo.ID,
-				"title":      articleInfo.Title,
-				"describe":   articleInfo.Describe,
-				"content":    articleInfo.Content,
-				"viewNum":    articleInfo.ViewNum,
-				"createTime": articleInfo.CreateTime.Format(constants.TimeLayoutToSecond),
-				"updateTime": articleInfo.UpdateTime.Format(constants.TimeLayoutToSecond),
-				"tagID":      articleTagIDValue(articleInfo.TagID),
-				"tagName":    articleInfo.TagName,
-			}
-			if err = a.redis.HMSet(ctx, cachekey.ArticleHash(articleItem.ID).String(), mapData).Err(); err != nil {
-				a.logger.Error("redis set article hash error", zap.Error(err))
-				return nil, fmt.Errorf("redis set article hash error: %w", err)
-			}
-
-			articleItem.Title = articleInfo.Title
-			articleItem.ViewNum = int(articleInfo.ViewNum)
+		articleID, ok := z.Member.(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid article cache member type %T", z.Member)
 		}
-		articleList = append(articleList, articleItem)
+		articleIDs = append(articleIDs, articleID)
 	}
-	response := &types.UserGetHotArticleResponse{}
-	response.Rows = articleList
-	response.Total = len(articleList)
-
-	return response, nil
+	entries, misses, err := a.readArticleListCache(ctx, articleIDs)
+	if err != nil {
+		return nil, err
+	}
+	loaded, err := a.loadArticleListMisses(ctx, misses)
+	if err != nil {
+		return nil, err
+	}
+	for id, entry := range loaded {
+		entries[id] = entry
+	}
+	rows := make([]types.GetHotArticleItem, 0, len(articleIDs))
+	for _, articleID := range articleIDs {
+		entry, exists := entries[articleID]
+		if !exists {
+			return nil, fmt.Errorf("article %s not found", articleID)
+		}
+		rows = append(rows, types.GetHotArticleItem{
+			ID: articleID, Title: entry.Title, ViewNum: entry.ViewNum,
+		})
+	}
+	return &types.UserGetHotArticleResponse{Rows: rows, Total: len(rows)}, nil
 }
 
 // UserGetTimeline 获取文章归档
 func (a *articleService) UserGetTimeline(ctx context.Context) (*types.GetTimelineResponse, error) {
-	// ==============================================实现方式1: 循环读取redis的Hash结构==============================================
 	response := &types.GetTimelineResponse{}
 	articleIDZSet, err := a.redis.ZRevRangeWithScores(ctx, cachekey.ArticleTimeZSet().String(), 0, -1).Result()
 	if err != nil {
 		a.logger.Error("failed to get article:time:ZSet", zap.Error(err))
 		return nil, fmt.Errorf("failed to get article:time:ZSet, err: %w", err)
 	}
-	groupedArticles := make(map[string][]types.GetTimelineListItem)
+	articleIDs := make([]string, 0, len(articleIDZSet))
 	for _, z := range articleIDZSet {
-		articleID := z.Member.(string)
-		hashKey := cachekey.ArticleHash(articleID).String()
-		if exist := a.redis.Exists(ctx, hashKey); exist.Val() == 1 {
-			result, err := a.redis.HMGet(ctx, hashKey, []string{"title", "createTime"}...).Result()
-			if err != nil {
-				a.logger.Error("failed to get hash data", zap.Error(err))
-				return nil, fmt.Errorf("failed to get hash data, err: %w", err)
-			}
-			articleItem := types.GetTimelineListItem{
-				ID:         articleID,
-				Title:      result[0].(string),
-				CreateTime: result[1].(string)[:16],
-			}
-			year := articleItem.CreateTime[:4]
-			groupedArticles[year] = append(groupedArticles[year], articleItem)
-		} else {
-			// 查 MySQL 数据库
-			id, err := idutil.ParseID("articleID", articleID)
-			if err != nil {
-				a.logger.Error("invalid article id", zap.Error(err))
-				return nil, err
-			}
-			articleInfo, err := a.articleModel.GetArticleDetailByID(ctx, id)
-			if err != nil {
-				a.logger.Error("get article detail by id error", zap.Error(err))
-				return nil, err
-			}
-
-			// 设置缓存
-			mapData := map[string]any{
-				"id":         articleInfo.ID,
-				"title":      articleInfo.Title,
-				"describe":   articleInfo.Describe,
-				"content":    articleInfo.Content,
-				"viewNum":    articleInfo.ViewNum,
-				"createTime": articleInfo.CreateTime.Format(constants.TimeLayoutToSecond),
-				"updateTime": articleInfo.UpdateTime.Format(constants.TimeLayoutToSecond),
-				"tagID":      articleTagIDValue(articleInfo.TagID),
-				"tagName":    articleInfo.TagName,
-			}
-			if err = a.redis.HMSet(ctx, cachekey.ArticleHash(articleID).String(), mapData).Err(); err != nil {
-				a.logger.Error("redis set article hash error", zap.Error(err))
-				return nil, fmt.Errorf("redis set article hash error: %w", err)
-			}
-
-			articleItem := types.GetTimelineListItem{
-				ID:         articleID,
-				Title:      articleInfo.Title,
-				CreateTime: articleInfo.CreateTime.Format(constants.TimeLayoutToMinute),
-			}
-			groupedArticles[articleItem.CreateTime[:4]] = append(groupedArticles[articleItem.CreateTime[:4]], articleItem)
+		articleID, ok := z.Member.(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid article cache member type %T", z.Member)
 		}
+		articleIDs = append(articleIDs, articleID)
+	}
+	entries, misses, err := a.readArticleListCache(ctx, articleIDs)
+	if err != nil {
+		return nil, err
+	}
+	loaded, err := a.loadArticleListMisses(ctx, misses)
+	if err != nil {
+		return nil, err
+	}
+	for id, entry := range loaded {
+		entries[id] = entry
+	}
+
+	groupedArticles := make(map[string][]types.GetTimelineListItem)
+	for _, articleID := range articleIDs {
+		entry, exists := entries[articleID]
+		if !exists {
+			return nil, fmt.Errorf("article %s not found", articleID)
+		}
+		createTime := formatCachedArticleTime(entry.CreateTime, constants.TimeLayoutToMinute)
+		if len(createTime) < 4 {
+			return nil, fmt.Errorf("invalid cached create time for article %s", articleID)
+		}
+		item := types.GetTimelineListItem{ID: articleID, Title: entry.Title, CreateTime: createTime}
+		groupedArticles[createTime[:4]] = append(groupedArticles[createTime[:4]], item)
 	}
 	var rows []types.GetTimelineRowsItem
 	years := make([]string, 0, len(groupedArticles))

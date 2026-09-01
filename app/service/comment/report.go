@@ -90,9 +90,6 @@ func (s *commentService) UserReportComment(ctx context.Context,
 	status := item.Status
 	if movedToPending {
 		status = commentModel.StatusPending
-		if err = s.invalidateArticleCommentCache(ctx, item.ArticleID); err != nil {
-			return nil, err
-		}
 	}
 
 	return &types.UserReportCommentResponse{
@@ -181,8 +178,7 @@ func (s *commentService) AdminHandleCommentReport(ctx context.Context,
 		return ErrInvalidComment
 	}
 
-	item, err := s.commentModel.GetCommentByID(ctx, commentID)
-	if err != nil {
+	if _, err = s.commentModel.GetCommentByID(ctx, commentID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrCommentNotFound
 		}
@@ -206,7 +202,7 @@ func (s *commentService) AdminHandleCommentReport(ctx context.Context,
 		s.logger.Error("failed to resolve comment reports", zap.Error(err))
 		return err
 	}
-	return s.invalidateArticleCommentCache(ctx, item.ArticleID)
+	return nil
 }
 
 func (s *commentService) getActiveCommentUser(ctx context.Context, rawUserID string,

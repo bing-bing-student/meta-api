@@ -15,9 +15,12 @@ type Handler interface {
 	UserGetCommentReportStatus(c *gin.Context)
 
 	AdminGetCommentList(c *gin.Context)
+	AdminGetCommentDetail(c *gin.Context)
 	AdminUpdateCommentStatus(c *gin.Context)
+	AdminReviewComment(c *gin.Context)
 	AdminDeleteComment(c *gin.Context)
 	AdminPreviewCommentModeration(c *gin.Context)
+	AdminSubmitCommentModerationFeedback(c *gin.Context)
 	AdminGetCommentReportList(c *gin.Context)
 	AdminHandleCommentReport(c *gin.Context)
 }

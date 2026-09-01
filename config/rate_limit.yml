@@ -78,4 +78,4 @@ rate_limit:
     # 单客户端 IP 在指定窗口内允许提交的反馈次数。
     ip:
       limit: 3
-      window_seconds: 3600
+      window_seconds: 10800

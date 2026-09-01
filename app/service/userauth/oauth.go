@@ -179,12 +179,11 @@ func (s *userAuthService) GetCurrentUser(ctx context.Context, userID string, ses
 
 func (s *userAuthService) consumeOAuthState(ctx context.Context, state string) (*oauthStatePayload, error) {
 	key := cachekey.UserOAuthState(state).String()
-	raw, err := s.redis.Get(ctx, key).Result()
+	// OAuth state 是一次性凭证，必须原子读取并删除，避免两个并发回调都在
+	// GET 与 DEL 的间隙内通过校验。
+	raw, err := s.redis.GetDel(ctx, key).Result()
 	if err != nil {
 		return nil, ErrInvalidOAuthState
-	}
-	if err = s.redis.Del(ctx, key).Err(); err != nil {
-		s.logger.Warn("failed to delete oauth state", zap.String("key", key), zap.Error(err))
 	}
 
 	payload := new(oauthStatePayload)

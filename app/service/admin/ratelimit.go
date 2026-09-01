@@ -315,6 +315,31 @@ func (a *adminService) clearDynamicCodeState(ctx context.Context, challenge stri
 	return nil
 }
 
+// consumeDynamicCodeChallenge 在 TOTP 已由 Go 校验通过后，原子确认 challenge
+// 仍属于同一用户（绑定场景还会确认临时密钥未被替换），并一次删除登录挑战、
+// 临时密钥和相关失败/限流状态。只有一个并发请求能够消费成功。
+func (a *adminService) consumeDynamicCodeChallenge(ctx context.Context, challenge, userID,
+	expectedSecret string,
+) error {
+	keys := []string{
+		cachekey.AdminLoginChallenge(challenge).String(),
+		cachekey.AdminPendingTOTPSecret(challenge).String(),
+		dynamicCodeFailureKey(challenge),
+		dynamicCodeChallengeKey("bind-dynamic-code", challenge),
+		dynamicCodeChallengeKey("verify-dynamic-code", challenge),
+	}
+	consumed, err := consumeDynamicCodeChallengeScript.Run(
+		ctx, a.redis, keys, userID, expectedSecret,
+	).Int64()
+	if err != nil {
+		return errors.New("登录服务暂不可用")
+	}
+	if consumed != 1 {
+		return errors.New("登录状态已过期或已被使用，请重新输入账号密码")
+	}
+	return nil
+}
+
 // dynamicCodeFailureKey 构造动态验证码失败计数 Key。
 func dynamicCodeFailureKey(challenge string) string {
 	return cachekey.AdminRateLimit("dynamic-code", "fail", "challenge", ratelimit.HashPart(challenge)).String()

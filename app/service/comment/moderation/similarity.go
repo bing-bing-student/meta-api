@@ -100,7 +100,7 @@ func fuzzyLexiconSignals(text NormalizedComment, cfg appconfig.CommentModeration
 					Source:   SourceSimilarity,
 					Category: category,
 					Level:    LevelReview,
-					Score:    scoreForSignal(SourceSimilarity, category, "fuzzy_lexicon", LevelReview, cfg),
+					Score:    evidenceStrengthScore(SourceSimilarity, category, "fuzzy_lexicon", LevelReview, cfg),
 					Reason:   formatReason(SourceSimilarity, category, LevelReview, evidence),
 					Evidence: evidence,
 					RuleID:   "fuzzy_lexicon",

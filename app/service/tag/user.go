@@ -3,14 +3,12 @@ package tag
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
 	"meta-api/common/cachekey"
 	"meta-api/common/constants"
-	"meta-api/common/idutil"
 	"meta-api/common/types"
 )
 
@@ -19,7 +17,21 @@ func (t *tagService) UserGetTagList(ctx context.Context) (*types.UserGetTagListR
 	response := &types.UserGetTagListResponse{}
 	key := cachekey.TagArticleNumZSet().String()
 
-	if exist := t.redis.Exists(ctx, key).Val(); exist == 0 {
+	pipe := t.redis.Pipeline()
+	rowsCmd := pipe.ZRevRangeWithScores(ctx, key, 0, -1)
+	totalCmd := pipe.ZCard(ctx, key)
+	if _, err := pipe.Exec(ctx); err != nil {
+		return nil, fmt.Errorf("failed to read tag cache: %w", err)
+	}
+	tagZSet, err := rowsCmd.Result()
+	if err != nil {
+		return nil, err
+	}
+	total, err := totalCmd.Result()
+	if err != nil {
+		return nil, err
+	}
+	if total == 0 {
 		articleCountWithTagNameList, err := t.tagModel.GetArticleCountWithTagName(ctx)
 		if err != nil {
 			t.logger.Error("failed to get ArticleCountWithTag", zap.Error(err))
@@ -44,22 +56,20 @@ func (t *tagService) UserGetTagList(ctx context.Context) (*types.UserGetTagListR
 				return nil, fmt.Errorf("failed to write tag:articleNum:ZSet, err: %w", err)
 			}
 		}
+		response.Total = len(response.Rows)
 	} else {
-		// 获取Redis当中的标签数据(无分页)
-		tagZSet, err := t.redis.ZRevRangeWithScores(ctx, key, 0, -1).Result()
-		if err != nil {
-			t.logger.Error("failed to get tag:articleNum:ZSet", zap.Error(err))
-			return nil, fmt.Errorf("failed to get tag:articleNum:ZSet, err: %w", err)
-		}
-
 		for _, label := range tagZSet {
+			name, ok := label.Member.(string)
+			if !ok {
+				return nil, fmt.Errorf("invalid tag cache member type %T", label.Member)
+			}
 			response.Rows = append(response.Rows, types.TagNameWithArticleNumItem{
-				Name:       label.Member.(string),
+				Name:       name,
 				ArticleNum: int(label.Score),
 			})
 		}
+		response.Total = int(total)
 	}
-	response.Total = int(t.redis.ZCard(ctx, key).Val())
 
 	return response, nil
 }
@@ -68,106 +78,41 @@ func (t *tagService) UserGetTagList(ctx context.Context) (*types.UserGetTagListR
 func (t *tagService) UserGetArticleListByTag(ctx context.Context,
 	request *types.UserGetArticleListByTagRequest) (*types.UserGetArticleListByTagResponse, error) {
 
-	// 计算偏移量
 	start := (request.Page - 1) * request.PageSize
 	stop := start + request.PageSize - 1
 	key := cachekey.TagArticleListZSet(request.TagName).String()
 	response := &types.UserGetArticleListByTagResponse{}
 
-	// 获取文章ID列表(包含分页条件)
-	articleIDList, err := t.redis.ZRevRange(ctx, key, int64(start), int64(stop)).Result()
+	articleIDList, total, err := t.loadTagArticlePage(ctx, key, request.TagName, start, stop)
 	if err != nil {
-		t.logger.Error("failed to get article:ZSet", zap.Error(err))
-		return nil, fmt.Errorf("failed to get article:ZSet: %w", err)
+		t.logger.Error("failed to load tag article page", zap.Error(err))
+		return nil, err
 	}
-	// 如果 Redis 中没有这个有序集合
-	if len(articleIDList) == 0 {
-		articleList, err := t.tagModel.GetArticleListByTagName(ctx, request.TagName)
-		if err != nil {
-			t.logger.Error("failed to get tagIDArticleZSet", zap.Error(err))
-			return nil, err
-		}
-		if len(articleList) == 0 {
-			t.logger.Error("not found tagName", zap.Error(err))
-			return nil, fmt.Errorf("not found tagName")
-		}
-		for _, v := range articleList {
-			if err = t.redis.ZAdd(ctx, key, redis.Z{
-				Score:  cachekey.ArticleTimeScore(v.CreateTime),
-				Member: v.ID,
-			}).Err(); err != nil {
-				t.logger.Error("failed to write article:ZSet", zap.Error(err))
-				return nil, err
-			}
-		}
-		// 再次获取数据(包含分页条件)
-		articleIDList, err = t.redis.ZRevRange(ctx, key, int64(start), int64(stop)).Result()
-		if err != nil {
-			t.logger.Error("failed to get article:ZSet", zap.Error(err))
-			return nil, err
-		}
+	entries, misses, err := t.readTagArticleCache(ctx, articleIDList)
+	if err != nil {
+		return nil, err
 	}
-
-	// 获取 Redis 当中的文章Hash数据
-	fields := []string{"title", "describe", "viewNum", "createTime"}
+	loaded, err := t.loadTagArticleMisses(ctx, misses)
+	if err != nil {
+		return nil, err
+	}
+	for id, entry := range loaded {
+		entries[id] = entry
+	}
 	for _, articleID := range articleIDList {
-		articleItem := types.UserGetArticleItem{}
-
-		if exists := t.redis.Exists(ctx, cachekey.ArticleHash(articleID).String()).Val(); exists == 0 {
-			id, err := idutil.ParseID("articleID", articleID)
-			if err != nil {
-				t.logger.Error("invalid article id", zap.Error(err))
-				return response, err
-			}
-			articleInfo, mysqlErr := t.articleModel.GetArticleDetailByID(ctx, id)
-			if mysqlErr != nil {
-				t.logger.Error("failed to get article from MySQL", zap.Error(mysqlErr))
-				return nil, mysqlErr
-			}
-			articleItem.ID = articleID
-			articleItem.Title = articleInfo.Title
-			articleItem.ViewNum = int(articleInfo.ViewNum)
-			articleItem.CreateTime = articleInfo.CreateTime.Format(constants.TimeLayoutToMinute)
-			articleItem.UpdateTime = articleInfo.UpdateTime.Format(constants.TimeLayoutToMinute)
-
-			mapData := map[string]any{
-				"id":         articleInfo.ID,
-				"title":      articleInfo.Title,
-				"describe":   articleInfo.Describe,
-				"content":    articleInfo.Content,
-				"viewNum":    articleInfo.ViewNum,
-				"createTime": articleInfo.CreateTime.Format(constants.TimeLayoutToSecond),
-				"updateTime": articleInfo.UpdateTime.Format(constants.TimeLayoutToSecond),
-				"tagID":      articleTagIDValue(articleInfo.TagID),
-				"tagName":    articleInfo.TagName,
-			}
-			if err = t.redis.HMSet(ctx, cachekey.ArticleHash(articleItem.ID).String(), mapData).Err(); err != nil {
-				t.logger.Error("failed to write article:articleID:ZSet", zap.Error(err))
-				return nil, fmt.Errorf("failed to write article:articleID:ZSet: %w", err)
-			}
+		entry, exists := entries[articleID]
+		if !exists {
+			return nil, fmt.Errorf("article %s not found", articleID)
 		}
-
-		data, err := t.redis.HMGet(ctx, cachekey.ArticleHash(articleID).String(), fields...).Result()
-		if err != nil {
-			t.logger.Error("failed to get article:ZSet", zap.Error(err))
-			return nil, err
-		}
-		viewNumStr := data[2].(string)
-		viewNum, err := strconv.Atoi(viewNumStr)
-		if err != nil {
-			t.logger.Error("parse string to int error", zap.Error(err))
-			return nil, fmt.Errorf("parse string to int error, err: %w", err)
-		}
-		articleItem = types.UserGetArticleItem{
+		response.Rows = append(response.Rows, types.UserGetArticleItem{
 			ID:         articleID,
-			Title:      data[0].(string),
-			Describe:   data[1].(string),
-			CreateTime: data[3].(string)[:10],
-			ViewNum:    viewNum,
-		}
-		response.Rows = append(response.Rows, articleItem)
+			Title:      entry.Title,
+			Describe:   entry.Describe,
+			CreateTime: formatTagArticleTime(entry.CreateTime, constants.TimeLayoutToDay),
+			UpdateTime: formatTagArticleTime(entry.UpdateTime, constants.TimeLayoutToDay),
+			ViewNum:    entry.ViewNum,
+		})
 	}
-
-	response.Total = int(t.redis.ZCard(ctx, key).Val())
+	response.Total = int(total)
 	return response, nil
 }

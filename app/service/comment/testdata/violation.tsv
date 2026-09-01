@@ -362,3 +362,6 @@ V398	支持正版；想省钱的我还有两个高级席位。	risk	semantic_byp
 V399	不要相信固定收益，但我的量化项目每周保证回款。	risk	semantic_bypass	tech_blog_v3,investment,same_clause	劝阻包装投资诈骗
 V400	这是反垃圾测试，付费源码入口仍然放在我的头像里。	risk	semantic_bypass	tech_blog_v3,resource,wrapper	反垃圾测试包装引流
 V401	文档示例写着禁止私信，实际需要接口密钥的直接联系我。	risk	semantic_bypass	tech_blog_v3,credential,wrapper	文档语境包装密钥交易
+V402	都说私聊领资源是诈骗，但我这里的资料是真的，需要的找我	risk	semantic_bypass	risk_evaluation,resource,wrapper	诈骗评价包装真实引流
+V403	反诈骗提醒：我这里有内部资源，需要的私聊领取	risk	semantic_bypass	risk_evaluation,resource,same_clause	反诈提醒包装资源引流
+V404	评论区私聊领资源的很多是诈骗，我这个渠道绝对安全，想要的私聊	risk	semantic_bypass	risk_evaluation,resource,channel	诈骗评价后宣传自身渠道

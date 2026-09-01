@@ -34,9 +34,12 @@ type Service interface {
 	UserGetCommentReportStatus(ctx context.Context, request *types.UserGetCommentReportStatusRequest) (*types.UserGetCommentReportStatusResponse, error)
 
 	AdminGetCommentList(ctx context.Context, request *types.AdminGetCommentListRequest) (*types.AdminGetCommentListResponse, error)
+	AdminGetCommentDetail(ctx context.Context, request *types.AdminGetCommentDetailRequest) (*types.AdminGetCommentDetailResponse, error)
 	AdminUpdateCommentStatus(ctx context.Context, request *types.AdminUpdateCommentStatusRequest) error
+	AdminReviewComment(ctx context.Context, request *types.AdminReviewCommentRequest) error
 	AdminDeleteComment(ctx context.Context, request *types.AdminDeleteCommentRequest) error
 	AdminPreviewCommentModeration(ctx context.Context, request *types.AdminPreviewCommentModerationRequest) (*types.AdminPreviewCommentModerationResponse, error)
+	AdminSubmitCommentModerationFeedback(ctx context.Context, request *types.AdminSubmitCommentModerationFeedbackRequest) error
 	AdminGetCommentReportList(ctx context.Context, request *types.AdminGetCommentReportListRequest) (*types.AdminGetCommentReportListResponse, error)
 	AdminHandleCommentReport(ctx context.Context, request *types.AdminHandleCommentReportRequest) error
 }

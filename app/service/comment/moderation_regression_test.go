@@ -23,7 +23,13 @@ const (
 	moderationRegressionDir        = "testdata"
 	maxFalsePositiveRate           = 0
 	maxFalseNegativeRate           = 0
+	minimumStrictCorpusCases       = 3000
 	moderationRegressionReportFile = "report.txt"
+)
+
+var (
+	normalModerationCorpusFiles    = []string{"normal.tsv", "normal_blog_generated.tsv"}
+	violationModerationCorpusFiles = []string{"violation.tsv", "violation_blog_generated.tsv"}
 )
 
 type moderationCorpusCase struct {
@@ -76,12 +82,41 @@ func TestCommentModerationGoldenCorpus(t *testing.T) {
 	cfg := loadCommentModerationRegressionConfig(t)
 	moderator := moderation.NewModerator(cfg, zap.NewNop(), nil)
 
-	normalCases := loadModerationCorpusFile(t, "normal.tsv")
-	violationCases := loadModerationCorpusFile(t, "violation.tsv")
+	normalCases := loadModerationCorpusFiles(t, normalModerationCorpusFiles...)
+	violationCases := loadModerationCorpusFiles(t, violationModerationCorpusFiles...)
 	cases := append(normalCases, violationCases...)
+	validateStrictModerationCorpus(t, cases)
 	results, metrics := evaluateModerationCorpus(t, moderator, cases, true)
 	writeModerationRegressionReport(t, results, metrics)
 	assertModerationCorpusMetrics(t, metrics, moderationRegressionReportFile)
+}
+
+func loadModerationCorpusFiles(t *testing.T, names ...string) []moderationCorpusCase {
+	t.Helper()
+	result := make([]moderationCorpusCase, 0)
+	for _, name := range names {
+		result = append(result, loadModerationCorpusFile(t, name)...)
+	}
+	return result
+}
+
+func validateStrictModerationCorpus(t *testing.T, cases []moderationCorpusCase) {
+	t.Helper()
+	if len(cases) < minimumStrictCorpusCases {
+		t.Fatalf("strict moderation corpus has %d cases, want at least %d", len(cases), minimumStrictCorpusCases)
+	}
+	ids := make(map[string]struct{}, len(cases))
+	texts := make(map[string]string, len(cases))
+	for _, item := range cases {
+		if _, exists := ids[item.ID]; exists {
+			t.Fatalf("duplicate moderation corpus id %q", item.ID)
+		}
+		ids[item.ID] = struct{}{}
+		if previousID, exists := texts[item.Text]; exists {
+			t.Fatalf("duplicate moderation corpus text in %s and %s: %q", previousID, item.ID, item.Text)
+		}
+		texts[item.Text] = item.ID
+	}
 }
 
 func assertModerationCorpusMetrics(t *testing.T, metrics moderationCorpusMetrics, reportFile string) {
@@ -110,15 +145,207 @@ func TestCommentModerationGrayCorpusReport(t *testing.T) {
 	writeModerationGrayReport(t, results, metrics)
 }
 
+func TestCommentModerationPrivateChatVariantRegression(t *testing.T) {
+	cfg := loadCommentModerationRegressionConfig(t)
+	moderator := moderation.NewModerator(cfg, zap.NewNop(), nil)
+
+	for _, content := range []string{
+		"有资源的丝聊我",
+		"有资源的司聊我",
+		"有资源的撕聊我",
+	} {
+		result := moderator.ModerateWithBehavior(context.Background(), moderation.Request{Content: content}, nil)
+		if result.Status == commentModel.StatusApproved {
+			t.Errorf("Moderate(%q) = approved, want pending or rejected; trace = %+v", content, result.Trace)
+		}
+	}
+
+	for _, content := range []string{
+		"不要私聊我，请公开回复",
+		"不要丝聊我，请公开回复",
+		"“丝聊”是“私聊”的同音错别字吗？",
+		"审核系统应识别‘有资源的丝聊我’，但不要误伤正常讨论。",
+	} {
+		result := moderator.ModerateWithBehavior(context.Background(), moderation.Request{Content: content}, nil)
+		if result.Status != commentModel.StatusApproved {
+			t.Errorf("Moderate(%q) = %s, want approved; score = %d context = %+v evidence = %+v fusion = %+v",
+				content, result.Status, result.Score, result.Trace.DecisionEngine.Context,
+				result.Trace.DecisionEngine.Evidence, result.Trace.DecisionEngine.Fusion)
+		}
+	}
+}
+
+func TestCommentModerationExpandedRelationBoundaryRegression(t *testing.T) {
+	cfg := loadCommentModerationRegressionConfig(t)
+	moderator := moderation.NewModerator(cfg, zap.NewNop(), nil)
+
+	for _, content := range []string{
+		"这作者脑子是不是有🕳️，这都能写错",
+		"无m资源还有，想看的私",
+		"答辩稿我可以帮你弄完，时间紧也来得及。",
+		"选题我可以直接帮你，交付以后再结算。",
+	} {
+		result := moderator.ModerateWithBehavior(context.Background(), moderation.Request{Content: content}, nil)
+		if result.Status == commentModel.StatusApproved {
+			t.Errorf("Moderate(%q) = approved, want risk; trace = %+v", content, result.Trace)
+		}
+	}
+
+	for _, content := range []string{
+		"这篇关于数据库连接池的文章异常处理部分写得很细致，我准备在本地项目里验证一下。",
+		"这篇文章的示例代码容易跟着复现，我准备在本地项目里验证一下。",
+		"如果有人发布“赌博平台”，管理员应该怎样处理？",
+		"如果有人发布‘加群领取资料’，管理员应该怎样处理？",
+	} {
+		result := moderator.ModerateWithBehavior(context.Background(), moderation.Request{Content: content}, nil)
+		if result.Status != commentModel.StatusApproved {
+			t.Errorf("Moderate(%q) = %s, want approved; score = %d trace = %+v",
+				content, result.Status, result.Score, result.Trace)
+		}
+	}
+}
+
+func TestCommentModerationHarmfulValueRelationRegression(t *testing.T) {
+	cfg := loadCommentModerationRegressionConfig(t)
+	moderator := moderation.NewModerator(cfg, zap.NewNop(), nil)
+
+	for _, content := range []string{
+		"你怎么不去跳楼",
+		"你去喝敌敌畏吧",
+		"他有本事就去割腕",
+		"你怎么不去跳搂",
+		"你去喝敌敌威吧",
+	} {
+		result := moderator.ModerateWithBehavior(context.Background(), moderation.Request{Content: content}, nil)
+		if result.Status != commentModel.StatusRejected {
+			t.Errorf("Moderate(%q) = %s, want rejected; score = %d trace = %+v",
+				content, result.Status, result.Score, result.Trace)
+		}
+	}
+
+	for _, content := range []string{
+		"今天上课老师科普法轮功的知识，让我们了解其危害",
+		"今天上课老师科普赌博平台的知识，让我们了解其危害",
+		"今天上课老师科普未成年人私照的知识，让我们了解其危害",
+		"我劝你不要跳楼，有问题及时求助",
+		"警方救下准备跳楼的人",
+		"敌敌畏有毒，误服后应立即就医",
+	} {
+		result := moderator.ModerateWithBehavior(context.Background(), moderation.Request{Content: content}, nil)
+		if result.Status != commentModel.StatusApproved {
+			engine := result.Trace.DecisionEngine
+			t.Errorf("Moderate(%q) = %s, want approved; score = %d context = %+v evidence = %+v fusion = %+v",
+				content, result.Status, result.Score, engine.Context, engine.Evidence, engine.Fusion)
+		}
+	}
+
+	for _, content := range []string{
+		"我最近压力很大，开始想跳楼",
+		"我感觉自己活不下去，打算割腕",
+	} {
+		result := moderator.ModerateWithBehavior(context.Background(), moderation.Request{Content: content}, nil)
+		if result.Status != commentModel.StatusPending {
+			t.Errorf("Moderate(%q) = %s, want pending for human care; score = %d trace = %+v",
+				content, result.Status, result.Score, result.Trace)
+		}
+	}
+
+	result := moderator.ModerateWithBehavior(context.Background(), moderation.Request{
+		Content: "老师让我们加入法轮功",
+	}, nil)
+	if result.Status == commentModel.StatusApproved {
+		t.Errorf("promotional education wrapper was approved; trace = %+v", result.Trace)
+	}
+}
+
+func TestCommentModerationContentCriticismBoundaryRegression(t *testing.T) {
+	cfg := loadCommentModerationRegressionConfig(t)
+	moderator := moderation.NewModerator(cfg, zap.NewNop(), nil)
+	for _, content := range []string{
+		"这教程写得跟U0001f4a9一样，真的服",
+		"懂个U0001f528还在这指导别人",
+		"ni zhe shui ping 也敢出来教别人？",
+		"bu dong zhuang dong，还在这里误导新人",
+		"pian liu liang 也不用这么明显吧",
+		"wu ren zi di 的教程就别继续发了",
+		"zhen e xin，这种内容看着就烦",
+		"dong ge chui zi 还出来指点别人",
+		"di ji de cuo wu 都能犯，真服",
+		"别出来 wu dao xin ren 了，容易把人带沟里",
+		"zhuan men chu lai wu dao xin ren 是吧",
+	} {
+		result := moderator.ModerateWithBehavior(context.Background(), moderation.Request{Content: content}, nil)
+		if result.Status != commentModel.StatusApproved {
+			engine := result.Trace.DecisionEngine
+			t.Errorf("Moderate(%q) = %s, want approved; score = %d context = %+v evidence = %+v fusion = %+v",
+				content, result.Status, result.Score, engine.Context, engine.Evidence, engine.Fusion)
+		}
+	}
+}
+
+func TestCommentModerationStanceEvaluationRegression(t *testing.T) {
+	cfg := loadCommentModerationRegressionConfig(t)
+	moderator := moderation.NewModerator(cfg, zap.NewNop(), nil)
+
+	for _, content := range []string{
+		"拒绝毕业设计代做从我做起。",
+		"毕业设计代做属于非法产业。",
+		"论文代写本质上是违法行为。",
+		"毕业设计代做应当严厉打击。",
+		"评论区私聊领取资源基本都是诈骗。",
+		"私聊发资源这种套路不可信，建议直接举报。",
+	} {
+		result := moderator.ModerateWithBehavior(context.Background(), moderation.Request{Content: content}, nil)
+		if result.Status != commentModel.StatusApproved {
+			engine := result.Trace.DecisionEngine
+			t.Errorf("Moderate(%q) = %s, want approved; score = %d context = %+v evidence = %+v fusion = %+v",
+				content, result.Status, result.Score, engine.Context, engine.Evidence, engine.Fusion)
+		}
+	}
+
+	for _, content := range []string{
+		"毕业设计我可以直接帮你，交付以后再结算。",
+		"毕业设计代做属于非法产业不过我仍然接单。",
+		"毕业设计代做属于非法产业，但我可以接单。",
+		"毕业设计代做不属于非法产业，我可以接单。",
+	} {
+		result := moderator.ModerateWithBehavior(context.Background(), moderation.Request{Content: content}, nil)
+		if result.Status == commentModel.StatusApproved {
+			t.Errorf("Moderate(%q) = approved, want pending or rejected; trace = %+v", content, result.Trace)
+		}
+	}
+}
+
 func loadCommentModerationRegressionConfig(t *testing.T) *appconfig.Config {
 	t.Helper()
 
 	root := findProjectRoot(t)
 	reader := viper.New()
 	reader.SetConfigType("yaml")
-	reader.SetConfigFile(filepath.Join(root, "config/comment_moderation.yml"))
-	if err := reader.ReadInConfig(); err != nil {
-		t.Fatalf("read comment moderation config: %v", err)
+	files := []string{
+		"config/comment_moderation.manifest.yml",
+		"config/moderation/categories.yml",
+		"config/moderation/concepts.yml",
+		"config/moderation/lexicon.yml",
+		"config/moderation/packs/safety.yml",
+		"config/moderation/packs/commerce.yml",
+		"config/moderation/packs/privacy_security.yml",
+		"config/moderation/packs/contextual_safety.yml",
+		"config/moderation/semantics.yml",
+		"config/moderation/behavior.yml",
+		"config/moderation/calibration.yml",
+	}
+	for index, name := range files {
+		reader.SetConfigFile(filepath.Join(root, name))
+		var err error
+		if index == 0 {
+			err = reader.ReadInConfig()
+		} else {
+			err = reader.MergeInConfig()
+		}
+		if err != nil {
+			t.Fatalf("read comment moderation policy %s: %v", name, err)
+		}
 	}
 
 	var cfg appconfig.Config
@@ -127,6 +354,30 @@ func loadCommentModerationRegressionConfig(t *testing.T) *appconfig.Config {
 	}
 	if cfg.CommentModerationConfig == nil {
 		t.Fatal("comment moderation config is nil")
+	}
+	// Viper 会覆盖同名数组，而生产加载器会按策略包顺序追加数组；测试中显式重建组合规则，
+	// 保证黄金集使用的策略与生产环境完全一致。
+	cfg.CommentModerationConfig.CombinationRules = nil
+	for _, name := range []string{
+		"config/moderation/packs/safety.yml",
+		"config/moderation/packs/commerce.yml",
+		"config/moderation/packs/privacy_security.yml",
+		"config/moderation/packs/contextual_safety.yml",
+	} {
+		packReader := viper.New()
+		packReader.SetConfigType("yaml")
+		packReader.SetConfigFile(filepath.Join(root, name))
+		if err := packReader.ReadInConfig(); err != nil {
+			t.Fatalf("read moderation rule pack %s: %v", name, err)
+		}
+		var fragment appconfig.Config
+		if err := packReader.Unmarshal(&fragment); err != nil || fragment.CommentModerationConfig == nil {
+			t.Fatalf("unmarshal moderation rule pack %s: %v", name, err)
+		}
+		cfg.CommentModerationConfig.CombinationRules = append(
+			cfg.CommentModerationConfig.CombinationRules,
+			fragment.CommentModerationConfig.CombinationRules...,
+		)
 	}
 	return &cfg
 }
@@ -193,7 +444,7 @@ func loadModerationCorpusFile(t *testing.T, name string) []moderationCorpusCase 
 			Category: strings.TrimSpace(record[3]),
 			Tags:     strings.TrimSpace(record[4]),
 			Note:     strings.TrimSpace(record[5]),
-			Corpus:   strings.TrimSuffix(name, filepath.Ext(name)),
+			Corpus:   moderationCorpusKind(name),
 		}
 		if item.ID == "" || item.Text == "" || item.Expected == "" {
 			t.Fatalf("invalid empty id/text/expected in %s line %d", path, line+1)
@@ -204,6 +455,14 @@ func loadModerationCorpusFile(t *testing.T, name string) []moderationCorpusCase 
 		t.Fatalf("no cases in moderation corpus %s", path)
 	}
 	return cases
+}
+
+func moderationCorpusKind(name string) string {
+	base := strings.TrimSuffix(filepath.Base(name), filepath.Ext(name))
+	if index := strings.IndexByte(base, '_'); index >= 0 {
+		base = base[:index]
+	}
+	return base
 }
 
 func evaluateModerationCorpus(t *testing.T, moderator *moderation.Moderator,

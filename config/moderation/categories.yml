@@ -1,0 +1,30 @@
+# 审核分类注册表：这是分类中文名、默认处置等级和人工反馈选项的唯一来源。
+#
+# 字段说明：
+#   name: 后台展示名称；只影响展示，不参与检测。
+#   default_level: allow / review / block。规则未显式写 level 时使用该默认值。
+#   feedback_enabled: 是否允许管理员在人工反馈弹窗中选择该分类。
+#
+# 新增分类时必须先在这里注册，再由领域规则引用。删除分类前运行策略校验，确认没有规则仍在使用。
+comment_moderation:
+  categories:
+    abuse: {name: 辱骂与人身攻击, default_level: review, feedback_enabled: true}
+    contact: {name: 联系方式引流, default_level: review, feedback_enabled: true}
+    custom: {name: 自定义风险, default_level: review, feedback_enabled: false}
+    decoded_url: {name: 编码链接, default_level: review, feedback_enabled: true}
+    drugs: {name: 违禁药品, default_level: block, feedback_enabled: true}
+    gambling: {name: 赌博, default_level: block, feedback_enabled: true}
+    gore: {name: 血腥内容, default_level: review, feedback_enabled: true}
+    harmful_value: {name: 危险与不良价值导向, default_level: review, feedback_enabled: true}
+    hate: {name: 仇恨与歧视, default_level: review, feedback_enabled: true}
+    illegal_privacy: {name: 非法隐私交易, default_level: review, feedback_enabled: true}
+    minor: {name: 未成年人风险, default_level: review, feedback_enabled: true}
+    political: {name: 涉政风险, default_level: review, feedback_enabled: true}
+    risk_phrase: {name: 风险表达, default_level: review, feedback_enabled: true}
+    script_injection: {name: 脚本注入, default_level: block, feedback_enabled: true}
+    sensitive: {name: 敏感信息与越权, default_level: review, feedback_enabled: true}
+    sexual: {name: 色情与性交易, default_level: block, feedback_enabled: true}
+    spam_fraud: {name: 垃圾广告与诈骗, default_level: review, feedback_enabled: true}
+    text_quality: {name: 异常文本质量, default_level: review, feedback_enabled: true}
+    url: {name: 外部链接, default_level: review, feedback_enabled: true}
+    violence: {name: 暴力与威胁, default_level: review, feedback_enabled: true}

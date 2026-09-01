@@ -36,7 +36,7 @@ func splitSemanticText(value string) []string {
 	parts := make([]string, 0, 4)
 	start := 0
 	for index, r := range runes {
-		if !isSemanticSeparator(r) || isURLColon(runes, index) ||
+		if (!isSemanticSeparator(r) && !isScopedCommaSeparator(runes, index)) || isURLColon(runes, index) ||
 			isContactColon(runes, index) || isDomainDot(runes, index) {
 			continue
 		}
@@ -49,6 +49,25 @@ func splitSemanticText(value string) []string {
 		parts = append(parts, part)
 	}
 	return parts
+}
+
+func isScopedCommaSeparator(runes []rune, index int) bool {
+	if index < 0 || index >= len(runes) || runes[index] != '，' && runes[index] != ',' {
+		return false
+	}
+	end := index + 10
+	if end > len(runes) {
+		end = len(runes)
+	}
+	suffix := compactText(normalizeText(string(runes[index+1 : end])))
+	for _, marker := range []string{
+		"但是", "不过", "然而", "可是", "但我", "但这里", "但本人", "我这边", "我这里", "本人", "手上还有",
+	} {
+		if strings.HasPrefix(suffix, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func isContactColon(runes []rune, index int) bool {
@@ -113,6 +132,9 @@ func isBenignSemanticClause(clause NormalizedComment, cfg appconfig.CommentModer
 	if matchesAnySemanticPattern(clause.Normalized, contexts.ActionablePatterns) {
 		return false
 	}
+	if isRiskEvaluationSemanticClause(clause, cfg) {
+		return true
+	}
 	if containsAnyNormalized(value, contexts.UnambiguousBenignMarkers) {
 		return true
 	}
@@ -134,6 +156,11 @@ func containsAnyNormalized(value string, candidates []string) bool {
 }
 
 func matchesAnySemanticPattern(value string, patterns []string) bool {
+	return len(semanticPatternMatches(value, patterns)) > 0
+}
+
+func semanticPatternMatches(value string, patterns []string) []string {
+	result := make([]string, 0, 2)
 	for _, pattern := range patterns {
 		pattern = strings.TrimSpace(pattern)
 		if pattern == "" {
@@ -147,11 +174,13 @@ func matchesAnySemanticPattern(value string, patterns []string) bool {
 			}
 			compiled, _ = semanticPatternCache.LoadOrStore(pattern, re)
 		}
-		if compiled.(*regexp.Regexp).MatchString(value) {
-			return true
+		for _, match := range compiled.(*regexp.Regexp).FindAllString(value, -1) {
+			if match != "" {
+				result = append(result, match)
+			}
 		}
 	}
-	return false
+	return result
 }
 
 func clausesContainingEvidence(text NormalizedComment, evidence string) []NormalizedComment {
@@ -165,8 +194,7 @@ func clausesContainingEvidence(text NormalizedComment, evidence string) []Normal
 	for _, clause := range clauses {
 		matched := true
 		for _, term := range terms {
-			if !strings.Contains(clause.Compact, term) &&
-				!strings.Contains(clause.PinyinFolded, term) {
+			if !strings.Contains(clause.Compact, term) {
 				matched = false
 				break
 			}

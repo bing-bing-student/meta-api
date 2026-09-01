@@ -44,6 +44,14 @@ type redisStore struct {
 	logger *zap.Logger
 }
 
+var incrWithTTLScript = redis.NewScript(`
+local count = redis.call("INCR", KEYS[1])
+if count == 1 then
+	redis.call("PEXPIRE", KEYS[1], ARGV[1])
+end
+return count
+`)
+
 // NewRedisStore 构造一个基于 go-redis 的 Store 实例。
 func NewRedisStore(rdb *redis.Client, logger *zap.Logger) Store {
 	return &redisStore{rdb: rdb, logger: logger}
@@ -62,15 +70,13 @@ func (s *redisStore) NonceTrySet(ctx context.Context, scene Scene, nonce []byte,
 }
 
 func (s *redisStore) IncrCheckRate(ctx context.Context, key string, ttl time.Duration, threshold int64) (bool, error) {
-	cnt, err := s.rdb.Incr(ctx, key).Result()
+	ttlMs := ttl.Milliseconds()
+	if ttlMs <= 0 {
+		return false, errors.New("guard: rate ttl must be positive")
+	}
+	cnt, err := incrWithTTLScript.Run(ctx, s.rdb, []string{key}, ttlMs).Int64()
 	if err != nil {
 		return false, err
-	}
-	if cnt == 1 {
-		// 仅在首次设置 TTL，避免每次 INCR 续期形成"无限窗口"。
-		if err := s.rdb.Expire(ctx, key, ttl).Err(); err != nil {
-			s.logger.Warn("guard rate expire failed", zap.String("key", key), zap.Error(err))
-		}
 	}
 	return cnt > threshold, nil
 }

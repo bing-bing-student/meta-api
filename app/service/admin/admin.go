@@ -2,7 +2,6 @@ package admin
 
 import (
 	"context"
-	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -41,6 +40,53 @@ var (
 	errAdminSessionMismatch = errors.New("admin session mismatch")
 	errRefreshTokenRotated  = errors.New("refresh token has been rotated")
 )
+
+var adminSessionRotateScript = redis.NewScript(`
+local current_user = redis.call("HGET", KEYS[1], ARGV[1])
+local current_hash = redis.call("HGET", KEYS[1], ARGV[2])
+if not current_user or not current_hash then
+	return 0
+end
+if current_user ~= ARGV[3] then
+	return -1
+end
+if current_hash ~= ARGV[4] then
+	return -2
+end
+redis.call("HSET", KEYS[1],
+	ARGV[1], ARGV[3],
+	ARGV[2], ARGV[5],
+	ARGV[6], ARGV[7])
+redis.call("PEXPIRE", KEYS[1], ARGV[8])
+return 1
+`)
+
+var compareAndDeleteScript = redis.NewScript(`
+local current = redis.call("GET", KEYS[1])
+if not current then
+	return 0
+end
+if current ~= ARGV[1] then
+	return -1
+end
+redis.call("DEL", KEYS[1])
+return 1
+`)
+
+var consumeDynamicCodeChallengeScript = redis.NewScript(`
+local current_user = redis.call("GET", KEYS[1])
+if not current_user or current_user ~= ARGV[1] then
+	return 0
+end
+if ARGV[2] ~= "" then
+	local current_secret = redis.call("GET", KEYS[2])
+	if not current_secret or current_secret ~= ARGV[2] then
+		return 0
+	end
+end
+redis.call("DEL", unpack(KEYS))
+return 1
+`)
 
 // generateLoginChallenge 生成二阶段登录用的一次性随机挑战值。
 func generateLoginChallenge() (string, error) {
@@ -107,9 +153,6 @@ func (a *adminService) RefreshToken(ctx context.Context, refreshToken string) (*
 			if delErr := a.redis.Del(ctx, cachekey.AdminSession(claims.SessionID).String()).Err(); delErr != nil {
 				a.logger.Warn("failed to revoke invalid admin session", zap.Error(delErr))
 			}
-		}
-		if errors.Is(err, redis.TxFailedErr) {
-			a.logger.Warn("admin refresh token rotation conflict", zap.Error(err))
 		}
 		return nil, err
 	}
@@ -210,36 +253,37 @@ func (a *adminService) storeAdminSession(ctx context.Context, sessionID string, 
 		adminSessionRefreshJTIField:  refreshJTI,
 	}
 	if expectedRefreshHash == "" {
-		if err := a.redis.HSet(ctx, sessionKey, sessionFields).Err(); err != nil {
-			return err
-		}
-		return a.redis.Expire(ctx, sessionKey, adminRefreshTokenTTL).Err()
-	}
-
-	return a.redis.Watch(ctx, func(tx *redis.Tx) error {
-		values, err := tx.HMGet(ctx, sessionKey, adminSessionUserIDField, adminSessionRefreshHashField).Result()
-		if err != nil {
-			return err
-		}
-		currentUserID, _ := values[0].(string)
-		currentHash, _ := values[1].(string)
-		if currentUserID == "" || currentHash == "" {
-			return errAdminSessionNotFound
-		}
-		if currentUserID != userID {
-			return errAdminSessionMismatch
-		}
-		if !hmac.Equal([]byte(currentHash), []byte(expectedRefreshHash)) {
-			return errRefreshTokenRotated
-		}
-
-		_, err = tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+		_, err := a.redis.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 			pipe.HSet(ctx, sessionKey, sessionFields)
 			pipe.Expire(ctx, sessionKey, adminRefreshTokenTTL)
 			return nil
 		})
 		return err
-	}, sessionKey)
+	}
+
+	result, err := adminSessionRotateScript.Run(ctx, a.redis, []string{sessionKey},
+		adminSessionUserIDField,
+		adminSessionRefreshHashField,
+		userID,
+		expectedRefreshHash,
+		refreshHash,
+		adminSessionRefreshJTIField,
+		refreshJTI,
+		adminRefreshTokenTTL.Milliseconds(),
+	).Int64()
+	if err != nil {
+		return err
+	}
+	switch result {
+	case 1:
+		return nil
+	case -1:
+		return errAdminSessionMismatch
+	case -2:
+		return errRefreshTokenRotated
+	default:
+		return errAdminSessionNotFound
+	}
 }
 
 func hashRefreshToken(token string) string {
@@ -274,16 +318,19 @@ func (a *adminService) SendSMSCode(ctx context.Context, request *types.SendSMSCo
 func (a *adminService) SMSCodeLogin(ctx context.Context,
 	request *types.SMSCodeLoginRequest) (*types.SMSCodeLoginResponse, error) {
 
-	// 校验短信验证码（按手机号取对应缓存）
+	// 原子校验并消费短信验证码，避免两个并发登录请求同时通过 GET 与 DEL
+	// 之间的窗口。错误验证码不会删除仍然有效的正确验证码。
 	response := &types.SMSCodeLoginResponse{}
 	smsKey := cachekey.SMSCode(request.Phone).String()
-	smsCode, err := a.redis.Get(ctx, smsKey).Result()
+	consumeResult, err := compareAndDeleteScript.Run(ctx, a.redis, []string{smsKey}, request.Code).Int64()
 	if err != nil {
-		a.logger.Error("sms verification code does not exist", zap.Error(err))
-		return response, errors.New("sms verification code does not exist")
+		a.logger.Error("failed to consume sms verification code", zap.Error(err))
+		return response, errors.New("登录服务暂不可用")
 	}
-	if request.Code != smsCode {
-		a.logger.Error("sms verification code error", zap.Error(err))
+	switch consumeResult {
+	case 0:
+		return response, errors.New("sms verification code does not exist")
+	case -1:
 		return response, errors.New("sms verification code error")
 	}
 
@@ -292,12 +339,6 @@ func (a *adminService) SMSCodeLogin(ctx context.Context,
 	if userID == "" || err != nil {
 		a.logger.Error("invalid mobile number", zap.Error(err))
 		return response, fmt.Errorf("invalid mobile number")
-	}
-
-	// 验证码一次性使用，登录成功后立即删除，防止重放
-	if err = a.redis.Del(ctx, smsKey).Err(); err != nil {
-		// 删除失败只记录日志，不影响登录流程
-		a.logger.Warn("failed to delete sms code after login", zap.Error(err))
 	}
 
 	// 生成双 Token
@@ -403,13 +444,13 @@ func (a *adminService) BindDynamicCode(ctx context.Context,
 		a.logger.Error("invalid userID", zap.Error(err))
 		return response, errors.New("invalid userID")
 	}
+	if err = a.consumeDynamicCodeChallenge(ctx, request.LoginChallenge, userID, secretKey); err != nil {
+		a.logger.Warn("failed to consume TOTP bind challenge", zap.Error(err))
+		return response, err
+	}
 	if err = a.model.AddAdminSecretKey(ctx, id, secretKey); err != nil {
 		a.logger.Error("failed to add secret key to database", zap.Error(err))
 		return response, errors.New("failed to add secret key to database")
-	}
-	if err = a.clearDynamicCodeState(ctx, request.LoginChallenge, key); err != nil {
-		a.logger.Error("failed to clear TOTP login challenge", zap.Error(err))
-		return response, errors.New("failed to clear TOTP login challenge")
 	}
 
 	// 生成双 Token
@@ -460,9 +501,9 @@ func (a *adminService) VerifyDynamicCode(ctx context.Context,
 		}
 		return response, errors.New("无效的动态验证码")
 	}
-	if err = a.clearDynamicCodeState(ctx, request.LoginChallenge); err != nil {
-		a.logger.Error("failed to clear TOTP login challenge", zap.Error(err))
-		return response, errors.New("failed to clear TOTP login challenge")
+	if err = a.consumeDynamicCodeChallenge(ctx, request.LoginChallenge, userID, ""); err != nil {
+		a.logger.Warn("failed to consume TOTP login challenge", zap.Error(err))
+		return response, err
 	}
 
 	// 生成双 Token

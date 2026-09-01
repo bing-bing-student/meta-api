@@ -1,0 +1,38 @@
+# 隐式安全表达：规避式色情、赌博、暴力、骚扰、联系方式和违禁品交易。
+comment_moderation:
+  combination_rules:
+    - id: implicit_sexual_promotion
+      category: sexual
+      level: review
+      subjects: [成年人专属, 刺激节目, 同城, 特别安排, 未满十八, 成人专区, 私密内容, 私密合集, 高清版本, 特殊服务, 节目, 合集, 房间密码]
+      predicates: [入口, 头像, 另一个地方, 昵称, 更新, 规矩, 付费, 见面, 价格, 个人签名, 房间密码, 付款截图, 平台搜]
+    - id: implicit_gambling_tip
+      category: gambling
+      level: review
+      subjects: [胜负, 盘口, 内部方向, 跟着下, 数字走势, 新盘, 筹码, 号码, 上岸, casino, bonus]
+      predicates: [吃到, 提前知道, 签名, 一起做, 连续几天, 不中就退, 体验额度, 进场, 照着, 代充, 服务费, link in bio, available]
+    - id: implicit_violent_mobilization
+      category: violence
+      level: review
+      subjects: [老地方, 欠钱不还, 侧门, 家门口, 单位, 家庭情况, 学校, 几个人, 我们几个人]
+      predicates: [长记性, 碰个面, 闭嘴, 压力, 跟我, 堵, 几个人过去, 过去, 发地址, 不敢说话, 把话收回]
+    - id: implicit_harassment
+      category: abuse
+      level: review
+      subjects: [作者, 这种人, 全网, 每条动态, 你, 这篇东西, 他, 她, 所有账号]
+      predicates: [回炉重造, 浪费读者, 羞辱, 反复举报, 可笑, 账号消失, 专业两个字完全不熟, 门槛再低, 有人进不去, 不配活, 排挤, 打电话, 没法工作, 不敢出现, 没有正常人的理解能力, 丢人, 一起嘲笑, 轮流举报]
+    - id: implicit_contact_evasion
+      category: spam_fraud
+      level: review
+      subjects: [企鹅, 企鹅号, 图里的小字, 昵称同名, 扣个, 回复, 绿色软件, 主页, 头像, 签名, 简介, 小方块, 邮箱, 网址, 地址, 另一个号, 账号, 首字, 用户名]
+      predicates: [搜, 验证, 扫一下, 进, 逐个去找, 统一对接, 备注, 拼起来, 替换, 主动找到, 首字, 同音昵称, 看, 改一下, link in bio, dm, 不写全, 再接, 连起来, 分三段, 按顺序, 不方便直写, 谷歌邮箱]
+    - id: implicit_minor_trade
+      category: sensitive
+      level: review
+      subjects: [学生妹妹, 学生模样, 年纪小, 校园, 私下画面, 偷拍]
+      predicates: [诚意, 房间, 交换, 分享, 熟人, 预览, 陪聊, 付费]
+    - id: implicit_drug_trade
+      category: drugs
+      level: review
+      subjects: [粉末, 小药片, 特殊植物, 种子, 检测不会显示, 那种]
+      predicates: [来源, 还有, 想试, 效果, 包装, 拿到, 数量多, 优惠, 私下问]

@@ -1,0 +1,36 @@
+# 决策阈值与证据校准参数。校准值是相对证据强度，不等同于真实概率。
+comment_moderation:
+  decision_engine:
+    context_analysis:
+      disabled: false
+      max_candidates: 16
+      # 这里只维护规范风险概念，不维护缩写、谐音或错别字映射。
+      # 内置和自定义敏感词也会自动进入本地拼音索引。
+      risk_concepts:
+        minor:
+          - 恋童癖
+    thresholds:
+      approve_max: 0.20
+      reject_min: 0.90
+      min_confidence: 0.70
+
+    # 证据初始强度。version 会写入审核调试链，便于以后比较离线校准前后的结果。
+    # allow/block 是处置等级的通用强度；script_injection_block 是不可降级的安全特例。
+    # sources 的键必须与审核信号 source 一致。修改后必须运行黄金集回归，不能把数值解释为百分比。
+    calibration:
+      version: bootstrap-uncalibrated
+      allow: 0.82
+      block: 0.90
+      script_injection_block: 0.995
+      default: 0.58
+      sources:
+        behavior: 0.72
+        context: 0.66
+        lexicon: 0.62
+        similarity: 0.55
+        semantic: 0.70
+        local_context: 0.70
+
+  decision:
+    # 审核链路发生内部错误时保持保守待审；正常评论不会经过此分支。
+    default_on_error: pending

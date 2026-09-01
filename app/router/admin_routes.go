@@ -70,9 +70,12 @@ func registerAdminAuthRoutes(group *gin.RouterGroup, handlers *routeHandlers) {
 
 	// 评论管理
 	group.GET("/comment/list", handlers.comment.AdminGetCommentList)
+	group.GET("/comment/detail", handlers.comment.AdminGetCommentDetail)
 	group.PUT("/comment/status", handlers.comment.AdminUpdateCommentStatus)
+	group.PUT("/comment/review", handlers.comment.AdminReviewComment)
 	group.DELETE("/comment/delete", handlers.comment.AdminDeleteComment)
 	group.POST("/comment/moderation-preview", handlers.comment.AdminPreviewCommentModeration)
+	group.POST("/comment/moderation-feedback", handlers.comment.AdminSubmitCommentModerationFeedback)
 	group.GET("/comment/report-list", handlers.comment.AdminGetCommentReportList)
 	group.PUT("/comment/report", handlers.comment.AdminHandleCommentReport)
 

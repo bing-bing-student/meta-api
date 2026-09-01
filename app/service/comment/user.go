@@ -151,7 +151,8 @@ func (s *commentService) UserAddComment(ctx context.Context,
 	if err = s.checkCommentSubmitLimit(ctx, userID, articleID, request.ClientIP); err != nil {
 		return nil, err
 	}
-	if _, err = s.articleModel.GetArticleDetailByID(ctx, articleID); err != nil {
+	articleDetail, err := s.articleModel.GetArticleDetailByID(ctx, articleID)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrCommentNotFound
 		}
@@ -162,6 +163,8 @@ func (s *commentService) UserAddComment(ctx context.Context,
 	parentID := uint64(0)
 	replyToUserID := uint64(0)
 	replyToCommentID := uint64(0)
+	parentContent := ""
+	replyToContent := ""
 	if strings.TrimSpace(request.ParentID) != "" {
 		parentID, err = idutil.ParseID("parentID", request.ParentID)
 		if err != nil {
@@ -182,6 +185,7 @@ func (s *commentService) UserAddComment(ctx context.Context,
 		if parent.Status != commentModel.StatusApproved {
 			return nil, ErrInvalidComment
 		}
+		parentContent = parent.Content
 		replyToCommentID = parent.ID
 		replyToUserID = parent.UserID
 		if parent.ParentID != 0 {
@@ -216,6 +220,7 @@ func (s *commentService) UserAddComment(ctx context.Context,
 			return nil, ErrInvalidComment
 		}
 		replyToUserID = replyTarget.UserID
+		replyToContent = replyTarget.Content
 	}
 
 	content := strings.TrimSpace(request.Content)
@@ -235,12 +240,16 @@ func (s *commentService) UserAddComment(ctx context.Context,
 	}
 	now := time.Now().In(loc)
 	moderationInput := commentModerationInput{
-		CommentID: commentID,
-		UserID:    userID,
-		ArticleID: articleID,
-		ClientIP:  request.ClientIP,
-		Content:   content,
-		Now:       now,
+		CommentID:       commentID,
+		UserID:          userID,
+		ArticleID:       articleID,
+		ClientIP:        request.ClientIP,
+		Content:         content,
+		ArticleTitle:    articleDetail.Title,
+		ArticleCategory: articleDetail.TagName,
+		ParentContent:   parentContent,
+		ReplyToContent:  replyToContent,
+		Now:             now,
 	}
 	moderation := s.moderateComment(ctx, moderationInput)
 	commentInfo := &commentModel.Comment{
@@ -258,7 +267,13 @@ func (s *commentService) UserAddComment(ctx context.Context,
 		CreateTime:        now,
 		UpdateTime:        now,
 	}
-	if err = s.commentModel.CreateComment(ctx, commentInfo); err != nil {
+	audit, err := s.newCommentModerationAudit(commentModel.ModerationAuditSourceLiveComment, "", 0,
+		moderationInput, moderation)
+	if err != nil {
+		s.logger.Error("failed to build comment moderation audit", zap.Error(err))
+		return nil, err
+	}
+	if err = s.commentModel.CreateCommentWithModerationAudit(ctx, commentInfo, &audit); err != nil {
 		s.logger.Error("failed to create comment", zap.Error(err))
 		return nil, err
 	}

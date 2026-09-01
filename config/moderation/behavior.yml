@@ -1,0 +1,21 @@
+# 行为风险窗口。计数阈值可以按站点流量调整；修改前应回放真实与模拟审计样本。
+comment_moderation:
+  behavior_rules:
+    user_frequency:
+      window_seconds: 600
+      review_threshold: 6
+    ip_frequency:
+      window_seconds: 600
+      review_threshold: 12
+    duplicate_content:
+      window_seconds: 86400
+      review_threshold: 2
+      block_threshold: 4
+    near_duplicate:
+      disabled: false
+      window_seconds: 86400
+      review_threshold: 2
+      max_hamming_distance: 10
+      min_content_runes: 12
+      max_samples: 100
+      max_length_difference_percent: 30

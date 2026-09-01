@@ -77,7 +77,7 @@ func (d *swdLexiconDetector) Detect(ctx context.Context, text NormalizedComment,
 				Source:   SourceLexicon,
 				Category: category,
 				Level:    level,
-				Score:    scoreForSignal(SourceLexicon, category, "", level, cfg),
+				Score:    evidenceStrengthScore(SourceLexicon, category, "", level, cfg),
 				Reason:   formatReason(SourceLexicon, category, level, match.Word),
 				Evidence: match.Word,
 			})
@@ -212,11 +212,12 @@ func (d *swdLexiconDetector) levelForMatch(word, category string, customLevels m
 	if level := normalizeLevel(customLevels[word]); level != "" {
 		return level
 	}
-	if override, ok := cfg.Decision.CategoryOverrides[category]; ok {
-		if level := normalizeLevel(override.Level); level != "" {
+	if registered, ok := cfg.Categories[category]; ok {
+		if level := normalizeLevel(registered.DefaultLevel); level != "" {
 			return level
 		}
 	}
+	// 保留不可配置的最低安全兜底；正常启动时分类等级来自 categories.yml。
 	switch category {
 	case "sexual", "gambling", "drugs":
 		return LevelBlock

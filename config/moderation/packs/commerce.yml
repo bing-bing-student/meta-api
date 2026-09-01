@@ -1,0 +1,202 @@
+# 商业推广领域规则：资源引流、账号交易、代做、刷量、金融欺诈和盗版分发。
+# 重复主体或动作优先引用 concepts.yml，不要在多个规则中复制同一词族。
+comment_moderation:
+  combination_rules:
+    - id: commercial_spam
+      category: spam_fraud
+      level: review
+      subject_refs: [academic_core_objects]
+      predicate_refs: [academic_service_actions, private_message_actions]
+      subjects:
+        - 低价课程
+        - 引流工具
+        - 电商刷单
+        - 扫码
+        - 进群
+        - 私信
+        - 链接
+        - 赚钱
+        - 贷款
+        - 兼职
+        - 返现
+        - 内部资料
+        - 课程资料
+        - 资料
+        - 资源
+        - 账号
+        - 平台会员
+        - 游戏账号
+        - 会员账号
+        - 实名账号
+        - 代练
+        - 代打
+        - 刷分
+        - 刷排名
+        - 刷量
+        - 刷赞
+        - 上分
+        - 私密资源
+        - 网站地址
+        - 毕业材料
+        - 驾考题库
+        - 押题资料
+        - 毕业设计
+        - 差评
+        - 负面内容
+        - 不能明说
+        - 不方便明说
+        - 项目代做
+        - 现成案例
+        - 流媒体会员
+        - 国外服务订阅
+        - 二手账号
+        - 稀有道具
+        - 直播间人气
+        - 在线人数
+        - 评论区互动
+      predicates:
+        - 出售
+        - 扫码
+        - 进群
+        - 领取
+        - 主页
+        - 看我主页
+        - 第一个动态
+        - 头像
+        - 签名
+        - 缩写
+        - 暗号
+        - 自己去拿
+        - 私下
+        - 私下说
+        - 私下发
+        - 要的私
+        - 私聊
+        - 联系
+        - 加好友
+        - 发你
+        - 需要
+        - 刷单
+        - 代练
+        - 代打
+        - 刷分
+        - 刷排名
+        - 快速
+        - 打包
+        - 送
+        - 送一套
+        - 发
+        - 押金
+        - 工具
+        - 引流
+        - 链接
+        - 完整版
+        - 二维码
+        - 入群
+        - 添加
+        - 懂的
+        - 懂的人
+        - 走老方式
+        - 长期有
+        - 都有
+        - 能处理
+        - 能做
+        - 按条收费
+        - 保证不查重
+        - 看我昵称
+        - 别公开
+        - 真人号操作
+        - 数据好看
+        - 一条龙
+        - 都接
+        - 安排
+        - 内部整理版
+        - 可以给你
+        - 低价开通
+        - 代开
+        - 代充
+        - 共享组
+        - 年卡
+        - 月卡
+        - 渠道价
+        - 直接交易
+        - 挂机
+        - 任务
+        - 排名
+        - 在线人数
+        - 互动
+        - 热度
+        - 删差评
+        - 成功后再结算
+    - id: implicit_resource_promotion
+      category: spam_fraud
+      level: review
+      subjects: [完整版, 稀缺材料, 稀缺资料, 合集, 那套东西, 内部计划, 课程包, 课程资料, 付费内容, 最新模型, 高级席位, 会员位置, 长期位置, 续费, 实名账号, 内部群]
+      predicates: [入口, 老地方, 昵称, 头像, 主页, 置顶, 不在这里, 逐个去找, 统一对接, 哪里拿, 拼一个, 官网的一半, 特殊通道, 留个记号, 省预算, 换个地方, 结算, 长期位置, 留个暗号, 发你, 懂的来, 回复]
+    - id: implicit_account_trade
+      category: spam_fraud
+      level: review
+      subjects: [智能助手, 共享位置, 席位, 会员, 账号, 订阅, 最新模型, premium seat, account, アカウント]
+      predicates: [预算, 省钱, 按月, 长期稳定, 出售, 售后, 便宜, 低价, 拼一个, 加两个人, 价格, 原价, 头像, 主页, available, cheap, 共有, 安く, プロフィール]
+    - id: implicit_academic_service
+      category: spam_fraud
+      level: review
+      subject_refs: [academic_core_objects]
+      predicate_refs: [academic_service_actions]
+      subjects: [选题, 作业, 答辩稿, 实验, 演示稿, 问答, 成品, respuesta del examen]
+      predicates: [包圆, 发过来, 交付, 不用你操心, 时间紧也没事, 包过, 不用准备, 告诉我专业, 一起给你, 配齐, 交成品, disponible, 私我, 都能处理, 安排, 降重, 润色, 改格式, 交给我]
+    - id: implicit_exam_cheating
+      category: spam_fraud
+      level: review
+      subjects: [考试, 重点范围, 答案, 科目, 过线, 题库, 驾考]
+      predicates: [命中率, 整理好了, 少走弯路, 考试前, 考前, 直接发, 报科目, 收到, 内部整理, 省得自己, 现成]
+    - id: implicit_game_boosting
+      category: spam_fraud
+      level: review
+      subjects: [段位, 上分, 排名, 游戏账号, 登录信息, 晋级赛]
+      predicates: [把号给我, 睡一觉, 看到变化, 卡住, 安排, 代打, 明早, 替你, 打完]
+    - id: implicit_engagement_manipulation
+      category: spam_fraud
+      level: review
+      subjects: [直播, 直播间, 帖子, 评论, 评价, 店铺, 评分, 热评, 热度]
+      predicates: [真人氛围, 不同风格的回复, 处理掉, 安排一批, 补点, 见效以后, 活跃观众, 在线时长, 不同账号, 优化, 再付款, 压下去, 操作]
+    - id: implicit_financial_fraud
+      category: spam_fraud
+      level: review
+      subjects: [周转, 手头紧, 记录, 征信, 本金, 回报, 返钱, 名额, 资金, 银行卡, 欠款, 收益, 收入, 保证金, 额度, 项目, 节奏, 没有亏]
+      predicates: [当天, 固定, 每天, 不用懂技术, 单独聊, 先到先得, 到账, 增长, 高收益, 回款, 不查, 不用证明, 特殊办法, 没有亏, 试试看, 锁定, 转介绍, 不用看, 点几次, 有收入, 能安排, 连续一个月, 跟着, 办理, 省掉]
+    - id: implicit_commercial_evasion
+      category: spam_fraud
+      level: review
+      subjects: [价格, 谈价格, 确认需要, 交易, 付款]
+      predicates: [换个地方, 不方便谈, 以后说, 单独说, 私下谈]
+    - id: encoded_contact_diversion
+      category: spam_fraud
+      level: review
+      subjects: [微后面加信, v x, 邮箱前缀, 配图右下角, 回复一个, 下载站分三段, 短链, 个人签名, issue 编号, ROT13, 域名倒着写]
+      predicates: [ID, 后面接, 谷歌家, 私下报价, 扫描, 备注, 小号主动联系, 拼好, 浏览器打开, 复制, 群号, 聊天账号, 反过来访问]
+    - id: paid_resource_diversion
+      category: spam_fraud
+      level: review
+      subjects: [付费源码, 付费课程, 架构课录像, 内部架构课, 完整压缩包, 面试题库, 接口密钥]
+      predicates: [加我, 看昵称, 留个暗号, 发你, 入口, 头像, 直接联系, 需要的回复]
+    - id: subscription_account_trade
+      category: spam_fraud
+      level: review
+      subjects: [Claude 团队版, ChatGPT 会员, 团队版, 会员位置, 低价账号, 高级席位]
+      predicates: [拼车, 长期位置, 主页说明, 空了两个位置, 私我开通, 找我, 我这里长期有]
+    - id: academic_fraud_service
+      category: spam_fraud
+      level: review
+      subjects: [代写广告, 查重, 面试, 简历项目经历, 训练报告, 数据集, 论文实验结果, 开题答辩问题, 项目证书]
+      predicates: [接急单, 交付, 处理, 远程提示答案, 包装, 补出来, 看不出是合成的, 可以调, 付费后发, 代办, 不用真的参加]
+    - id: platform_engagement_fraud
+      category: spam_fraud
+      level: review
+      subjects: [开源项目 Star, Star, 技术文章阅读量, 阅读量, 评论内容]
+      predicates: [补一批真人号, 做热度, 定制, 再结算]
+    - id: pirated_software_distribution
+      category: spam_fraud
+      level: review
+      subjects: [破解 IDE, 破解软件, 盗版软件]
+      predicates: [我这有, 装好, 永久使用, 看我主页, 提供]

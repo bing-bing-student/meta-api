@@ -2,14 +2,14 @@
 //
 // 职责：
 //  1. EnsureArticleExists：MySQL 校验 articleId 是否真实存在
-//  2. Increment：Redis HINCRBY + ZINCRBY 完成 +1
+//  2. Increment：Redis ZINCRBY 完成 +1
 //
 // MySQL 由后台 cron PersistViewCount 周期性把 ZSet 里的增量回写。
 //
 // 文件分布：
 //
 //	service.go —— Service 接口 + impl + DI 构造 + 文章存在性校验
-//	counter.go —— 计数（Redis HINCRBY + ZINCRBY）
+//	counter.go —— 计数（Redis ZINCRBY，浏览量唯一实时事实源）
 //	types.go   —— Outcome 结构与业务码
 package viewlog
 

@@ -33,6 +33,13 @@ type Store interface {
 	Del(ctx context.Context, keys ...string) error
 }
 
+// atomicFailureStore 是生产 Redis Store 提供的原子失败退避能力。保留为
+// 可选接口，使内存 Fake Store 仍可使用下面的兼容实现。
+type atomicFailureStore interface {
+	RecordFailure(ctx context.Context, failKey, lockKey, levelKey string,
+		cfg BackoffConfig, durations []time.Duration) (bool, time.Duration, error)
+}
+
 // LimitedError 表示请求被限流或处于退避锁定期。
 type LimitedError struct {
 	RetryAfter time.Duration
@@ -148,6 +155,21 @@ func (l *Limiter) RecordFailure(ctx context.Context, failKey, lockKey, levelKey 
 	if failKey == "" || lockKey == "" || levelKey == "" || cfg.Threshold <= 0 {
 		return nil
 	}
+	durations := cfg.Durations
+	if len(durations) == 0 {
+		durations = []time.Duration{time.Minute}
+	}
+	if store, ok := l.store.(atomicFailureStore); ok {
+		locked, lockFor, err := store.RecordFailure(ctx, failKey, lockKey, levelKey, cfg, durations)
+		if err != nil {
+			return err
+		}
+		if !locked {
+			return nil
+		}
+		return NewLimitedError(lockFor)
+	}
+
 	count, err := l.store.Incr(ctx, failKey, cfg.CounterTTL)
 	if err != nil {
 		return err

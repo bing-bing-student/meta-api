@@ -16,21 +16,29 @@ type commentModerationBehaviorRiskFunc func(context.Context, commentModerationIn
 	commentModerationTextView, appconfig.CommentModerationConfig) []commentModerationSignal
 
 func (s *commentService) moderateComment(ctx context.Context, input commentModerationInput) commentModerationResult {
-	return s.commentModerator().Moderate(ctx, input)
+	return s.applyModerationFeedbackPolicy(ctx, input, s.commentModerator().Moderate(ctx, input))
 }
 
 func (s *commentService) moderateCommentWithBehavior(ctx context.Context, input commentModerationInput,
 	behaviorRisk commentModerationBehaviorRiskFunc,
 ) commentModerationResult {
-	return s.commentModerator().ModerateWithBehavior(ctx, input,
+	result := s.commentModerator().ModerateWithBehavior(ctx, input,
 		func(ctx context.Context, req commentModeration.Request, view commentModeration.NormalizedComment,
-			cfg appconfig.CommentModerationConfig) []commentModeration.Signal {
+			cfg appconfig.CommentModerationConfig) commentModeration.BehaviorEvaluation {
 			if behaviorRisk == nil {
-				return nil
+				return commentModeration.BehaviorEvaluation{Trace: commentModeration.BehaviorTrace{
+					Status: "skipped", ReadOnly: true, UnavailableReason: "behavior_context_not_provided",
+				}}
 			}
-			return behaviorRisk(ctx, req, view, cfg)
+			return commentModeration.BehaviorEvaluation{
+				Signals: behaviorRisk(ctx, req, view, cfg),
+				Trace: commentModeration.BehaviorTrace{
+					Status: "executed", ReadOnly: true, ContextProvided: true,
+				},
+			}
 		},
 	)
+	return s.applyModerationFeedbackPolicy(ctx, input, result)
 }
 
 func (s *commentService) recordCommentModerationBehavior(ctx context.Context, input commentModerationInput) {

@@ -78,7 +78,6 @@ func shouldSuppressSignalLocally(text NormalizedComment, signal Signal,
 
 func isSevereAbuseClause(clause NormalizedComment, markers []string) bool {
 	return containsAnyNormalized(clause.Compact, markers) ||
-		containsAnyNormalized(clause.PinyinFolded, markers) ||
 		containsAnyNormalized(clause.Confusable, markers)
 }
 

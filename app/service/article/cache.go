@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
@@ -20,23 +21,42 @@ const (
 	warmUpBatchSize = 1000
 )
 
-// WarmUpCache 启动时预热文章 ZSet 缓存：清空旧数据并按时间/浏览量重新构建
-// 使用 Pipeline + 分批写入，将 N 次 RTT 压缩为 ⌈N/batch⌉ 次
+// WarmUpCache 启动时预热文章 ZSet 缓存。
+// 新数据先分批写入本次预热专用的临时 Key，全部成功后再通过
+// Redis MULTI/EXEC 同时切换时间和浏览量两个正式 Key。构建失败或取消时，
+// 读请求始终看到上一个完整版本，不会暴露空集合或半成品。
 func (a *articleService) WarmUpCache(ctx context.Context) error {
 	timeKey := cachekey.ArticleTimeZSet().String()
 	viewKey := cachekey.ArticleViewZSet().String()
-	if err := a.redis.Del(ctx, timeKey, viewKey).Err(); err != nil {
-		a.logger.Error("failed to clear article ZSet", zap.Error(err))
-		return fmt.Errorf("failed to clear article ZSet: %w", err)
-	}
-
 	list, err := a.articleModel.ListTimeAndView(ctx)
 	if err != nil {
 		a.logger.Error("failed to list articles for warm up", zap.Error(err))
 		return err
 	}
-	if len(list) == 0 {
-		return nil
+
+	suffix := uuid.NewString()
+	tempTimeKey := timeKey + ":warming:" + suffix
+	tempViewKey := viewKey + ":warming:" + suffix
+	const sentinel = "__cache_warmup_sentinel__"
+	const temporaryKeyTTL = time.Hour
+	defer func() {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if cleanupErr := a.redis.Del(cleanupCtx, tempTimeKey, tempViewKey).Err(); cleanupErr != nil {
+			a.logger.Warn("failed to clean temporary article cache",
+				zap.String("time_key", tempTimeKey), zap.String("view_key", tempViewKey), zap.Error(cleanupErr))
+		}
+	}()
+
+	// Redis 不保留空 ZSet，哨兵成员确保即使 MySQL 无文章，临时 Key
+	// 也存在并可被 RENAME；切换事务中会立即删除哨兵。
+	seedPipe := a.redis.Pipeline()
+	seedPipe.ZAdd(ctx, tempTimeKey, redis.Z{Score: 0, Member: sentinel})
+	seedPipe.ZAdd(ctx, tempViewKey, redis.Z{Score: 0, Member: sentinel})
+	seedPipe.Expire(ctx, tempTimeKey, temporaryKeyTTL)
+	seedPipe.Expire(ctx, tempViewKey, temporaryKeyTTL)
+	if _, err = seedPipe.Exec(ctx); err != nil {
+		return fmt.Errorf("failed to initialize temporary article cache: %w", err)
 	}
 
 	for start := 0; start < len(list); start += warmUpBatchSize {
@@ -65,13 +85,26 @@ func (a *articleService) WarmUpCache(ctx context.Context) error {
 		}
 
 		pipe := a.redis.Pipeline()
-		pipe.ZAdd(ctx, timeKey, timeMembers...)
-		pipe.ZAdd(ctx, viewKey, viewMembers...)
+		pipe.ZAdd(ctx, tempTimeKey, timeMembers...)
+		pipe.ZAdd(ctx, tempViewKey, viewMembers...)
 		if _, err = pipe.Exec(ctx); err != nil {
 			a.logger.Error("failed to warm up article ZSet",
 				zap.Int("start", start), zap.Int("end", end), zap.Error(err))
 			return fmt.Errorf("failed to warm up article ZSet: %w", err)
 		}
+	}
+
+	// 两个 RENAME 与哨兵清理在同一个 Redis 事务中执行，对外只暴露
+	// 旧版本或新版本，不会出现两个索引版本不一致。
+	if _, err = a.redis.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+		pipe.Rename(ctx, tempTimeKey, timeKey)
+		pipe.Rename(ctx, tempViewKey, viewKey)
+		pipe.ZRem(ctx, timeKey, sentinel)
+		pipe.ZRem(ctx, viewKey, sentinel)
+		return nil
+	}); err != nil {
+		a.logger.Error("failed to switch article cache version", zap.Error(err))
+		return fmt.Errorf("failed to switch article cache version: %w", err)
 	}
 
 	a.logger.Info("article cache warmed up", zap.Int("total", len(list)))
@@ -131,7 +164,7 @@ func toIDString(member any) (string, bool) {
 func (a *articleService) RegisterCronJobs(c *cron.Cron) ([]cron.EntryID, error) {
 	entryID, err := c.AddFunc(constants.Spec, func() {
 		// 每次 cron 触发都使用独立的超时 ctx，避免长任务卡住调度器
-		ctx, cancel := context.WithTimeout(context.Background(), 30 * time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
 		if err := a.PersistViewCount(ctx); err != nil {

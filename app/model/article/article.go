@@ -211,6 +211,7 @@ func (a *articleModel) SearchArticle(ctx context.Context, word string, limit, of
 func (a *articleModel) GetArticleListByIDList(ctx context.Context, ids []uint64) ([]*Article, error) {
 	var articles []*Article
 	err := a.mysql.WithContext(ctx).Model(&Article{}).
+		Preload("Tag").
 		Where("id IN ? AND status = ?", ids, ArticleStatusPublished).
 		Find(&articles).Error
 	return articles, err

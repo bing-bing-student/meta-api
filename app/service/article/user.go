@@ -25,7 +25,7 @@ func (a *articleService) UserGetArticleList(ctx context.Context,
 	start := (request.Page - 1) * request.PageSize
 	stop := start + request.PageSize - 1
 
-	articleIDZSet, total, err := a.readArticlePage(ctx, cachekey.ArticleTimeZSet().String(), start, stop)
+	articleIDZSet, total, err := a.readArticlePage(ctx, cachekey.OrderTime, start, stop)
 	if err != nil {
 		a.logger.Error("failed to get article:time:ZSet", zap.Error(err))
 		return nil, err
@@ -201,10 +201,10 @@ func (a *articleService) UserSearchArticle(ctx context.Context,
 
 // UserGetHotArticle 获取热门文章
 func (a *articleService) UserGetHotArticle(ctx context.Context) (*types.UserGetHotArticleResponse, error) {
-	articleIDZSet, err := a.redis.ZRevRangeWithScores(ctx, cachekey.ArticleViewZSet().String(), 0, 2).Result()
+	articleIDZSet, _, err := a.readArticlePage(ctx, cachekey.OrderView, 0, 2)
 	if err != nil {
-		a.logger.Error("failed to get article:view:ZSet", zap.Error(err))
-		return nil, fmt.Errorf("failed to get article:view:ZSet, err: %w", err)
+		a.logger.Error("failed to get hot article order", zap.Error(err))
+		return nil, fmt.Errorf("failed to get hot article order: %w", err)
 	}
 	articleIDs := make([]string, 0, len(articleIDZSet))
 	for _, z := range articleIDZSet {
@@ -241,10 +241,10 @@ func (a *articleService) UserGetHotArticle(ctx context.Context) (*types.UserGetH
 // UserGetTimeline 获取文章归档
 func (a *articleService) UserGetTimeline(ctx context.Context) (*types.GetTimelineResponse, error) {
 	response := &types.GetTimelineResponse{}
-	articleIDZSet, err := a.redis.ZRevRangeWithScores(ctx, cachekey.ArticleTimeZSet().String(), 0, -1).Result()
+	articleIDZSet, _, err := a.readArticlePage(ctx, cachekey.OrderTime, 0, -1)
 	if err != nil {
-		a.logger.Error("failed to get article:time:ZSet", zap.Error(err))
-		return nil, fmt.Errorf("failed to get article:time:ZSet, err: %w", err)
+		a.logger.Error("failed to get article timeline order", zap.Error(err))
+		return nil, fmt.Errorf("failed to get article timeline order: %w", err)
 	}
 	articleIDs := make([]string, 0, len(articleIDZSet))
 	for _, z := range articleIDZSet {

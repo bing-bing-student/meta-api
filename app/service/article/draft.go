@@ -367,12 +367,12 @@ func (a *articleService) invalidateUpdatedArticleCache(ctx context.Context,
 
 func (a *articleService) currentArticleViewNum(ctx context.Context, articleID string, fallback uint64) (float64, error) {
 	viewNum, err := a.redis.ZScore(ctx, cachekey.ArticleViewZSet().String(), articleID).Result()
-	if errors.Is(err, redis.Nil) {
-		return float64(fallback), nil
-	}
 	if err != nil {
-		a.logger.Error("failed to query article view", zap.Error(err))
-		return 0, fmt.Errorf("failed to query article view: %w", err)
+		// Redis 不是文章浏览量的最终持久化存储；缓存缺失或暂时不可用时，
+		// 使用调用方从 MySQL 取得的值，避免发布流程被缓存故障阻塞。
+		a.logger.Warn("failed to query live article view; using MySQL value",
+			zap.String("article_id", articleID), zap.Error(err))
+		return float64(fallback), nil
 	}
 	return viewNum, nil
 }

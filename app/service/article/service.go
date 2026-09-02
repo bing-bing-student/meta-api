@@ -2,6 +2,7 @@ package article
 
 import (
 	"context"
+	"sync"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/robfig/cron/v3"
@@ -56,6 +57,8 @@ type articleService struct {
 	cdn          *cdn.Client
 	imageStore   *cos.Client
 	sitemap      *sitemap.Client
+	// articleCacheMu 串行化进程内的文章排序缓存重建，避免缓存失效时并发回源 MySQL。
+	articleCacheMu sync.Mutex
 }
 
 // NewService 创建服务实例

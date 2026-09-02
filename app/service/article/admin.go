@@ -47,12 +47,12 @@ func (a *articleService) AdminGetArticleList(ctx context.Context,
 	start := (request.Page - 1) * request.PageSize
 	stop := start + request.PageSize - 1
 
-	zSetKey, ok := cachekey.ArticleOrderZSet(request.Order)
+	_, ok := cachekey.ArticleOrderZSet(request.Order)
 	if !ok {
 		a.logger.Error("invalid article order", zap.String("order", request.Order))
 		return response, fmt.Errorf("invalid article order: %s", request.Order)
 	}
-	articleIDZSet, total, err := a.readArticlePage(ctx, zSetKey.String(), start, stop)
+	articleIDZSet, total, err := a.readArticlePage(ctx, request.Order, start, stop)
 	if err != nil {
 		a.logger.Error("failed to get article:time/view:ZSet", zap.Error(err))
 		return response, err
@@ -307,11 +307,14 @@ func (a *articleService) AdminUpdateArticle(ctx context.Context,
 	}
 	newTagName := tagInfo.Name
 
-	// 需要获取当前文章的浏览量，避免浏览量丢失
-	viewNum, err := a.redis.ZScore(ctx, cachekey.ArticleViewZSet().String(), request.ID).Result()
-	if err != nil {
-		a.logger.Error("failed to query article:view:ZSet", zap.Error(err))
-		return nil, fmt.Errorf("failed to query article:view:ZSet: %w", err)
+	// 优先读取 Redis 中尚未持久化的实时浏览量；缓存缺失或 Redis 暂时不可用时，
+	// 回退到刚从 MySQL 读取的值，不能让缓存故障阻塞文章内容更新。
+	viewNum := float64(oldArticle.ViewNum)
+	if cachedViewNum, cacheErr := a.redis.ZScore(ctx, cachekey.ArticleViewZSet().String(), request.ID).Result(); cacheErr == nil {
+		viewNum = cachedViewNum
+	} else {
+		a.logger.Warn("failed to query live article view; using MySQL value",
+			zap.String("article_id", request.ID), zap.Error(cacheErr))
 	}
 	loc, err := time.LoadLocation("Asia/Shanghai")
 	if err != nil {

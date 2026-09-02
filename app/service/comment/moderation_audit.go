@@ -15,11 +15,14 @@ import (
 	commentModeration "meta-api/app/service/comment/moderation"
 )
 
+// commentModerationAuditResultSnapshot 保存审计记录中的完整审核结果和独立文本归一化视图。
 type commentModerationAuditResultSnapshot struct {
 	Result commentModerationResult   `json:"result"`
 	Text   commentModerationTextView `json:"text"`
 }
 
+// newCommentModerationAudit 将审核输入和结果序列化为可持久化审计记录。
+// 输入 source、batchID、operatorID 标识数据来源和操作者，input 与 result 是审核现场；返回审计模型或序列化错误。
 func (s *commentService) newCommentModerationAudit(source, batchID string, operatorID uint64,
 	input commentModerationInput, result commentModerationResult,
 ) (commentModel.CommentModerationAudit, error) {
@@ -65,6 +68,8 @@ func (s *commentService) newCommentModerationAudit(source, batchID string, opera
 	}, nil
 }
 
+// commentModerationPolicyVersion 对当前审核配置快照计算短 SHA-256 版本标识。
+// 无显式输入；返回 local- 前缀版本，服务或配置不可用时返回 local-unknown。
 func (s *commentService) commentModerationPolicyVersion() string {
 	if s == nil || s.config == nil {
 		return "local-unknown"
@@ -77,11 +82,15 @@ func (s *commentService) commentModerationPolicyVersion() string {
 	return fmt.Sprintf("local-%x", digest[:8])
 }
 
+// moderationContentHash 对去除首尾空白的 content 计算 SHA-256 哈希并返回十六进制字符串。
+// 该值用于人工反馈精确内容匹配，不保存额外明文副本。
 func moderationContentHash(content string) string {
 	digest := sha256.Sum256([]byte(strings.TrimSpace(content)))
 	return fmt.Sprintf("%x", digest[:])
 }
 
+// nextModerationBatchID 为一次审核模拟生成批次编号。
+// 输入 now 用于 ID 生成器不可用时的时间戳兜底；返回可持久化的字符串编号。
 func (s *commentService) nextModerationBatchID(now time.Time) string {
 	if s != nil && s.idGenerator != nil {
 		if value, err := s.idGenerator.NextID(); err == nil {
@@ -91,6 +100,8 @@ func (s *commentService) nextModerationBatchID(now time.Time) string {
 	return fmt.Sprintf("simulation-%d", now.UnixNano())
 }
 
+// applyModerationFeedbackPolicy 查询与 input 内容或 result 关系指纹匹配的人工反馈共识，并在硬安全允许时覆盖决策。
+// 输入 ctx 控制策略查询，input 和 result 是原审核现场；返回带反馈阶段轨迹的最终结果，查询失败时保留原决策。
 func (s *commentService) applyModerationFeedbackPolicy(ctx context.Context, input commentModerationInput,
 	result commentModerationResult,
 ) commentModerationResult {
@@ -136,7 +147,7 @@ func (s *commentService) applyModerationFeedbackPolicy(ctx context.Context, inpu
 	}
 	applicable := policy.Applicable
 	if policy.RequiredSupport == 0 {
-		// Compatibility for in-process callers and tests that construct a policy directly.
+		// 兼容进程内调用方和直接构造反馈策略的测试数据；未声明支持数时视为调用方已确认可应用。
 		applicable = true
 		feedbackTrace.Consensus = true
 		if feedbackTrace.Total == 0 {
@@ -188,12 +199,15 @@ func (s *commentService) applyModerationFeedbackPolicy(ctx context.Context, inpu
 	return finalizeModerationFeedbackTrace(result, feedbackTrace)
 }
 
+// moderationDecisionSnapshot 从 result 提取状态、分值和决策代码，返回供决策链记录的阶段快照。
 func moderationDecisionSnapshot(result commentModerationResult) commentModeration.DecisionSnapshot {
 	return commentModeration.DecisionSnapshot{
 		Status: result.Status, Score: result.Score, Decision: result.Decision,
 	}
 }
 
+// finalizeModerationFeedbackTrace 将 feedback 写入 result 的反馈阶段，并同步最终决策快照。
+// 返回更新后的审核结果，不修改证据和信号内容。
 func finalizeModerationFeedbackTrace(result commentModerationResult,
 	feedback commentModeration.FeedbackApplicationTrace,
 ) commentModerationResult {
@@ -202,6 +216,8 @@ func finalizeModerationFeedbackTrace(result commentModerationResult,
 	return result
 }
 
+// moderationHasHardSafetyEvidence 判断 result 是否包含正向脚本注入等不可降级证据。
+// 返回 true 表示人工反馈不得把拒绝结果降为通过或待审核。
 func moderationHasHardSafetyEvidence(result commentModerationResult) bool {
 	if result.Trace.DecisionEngine == nil {
 		return false

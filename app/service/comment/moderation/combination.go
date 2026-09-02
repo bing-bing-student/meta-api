@@ -6,6 +6,8 @@ import (
 	appconfig "meta-api/config"
 )
 
+// combinationSignals 在同一非良性分句内组合配置的主体词和谓词，生成上下文风险信号。
+// 输入 text 是归一化评论，cfg 提供组合规则和评分策略；返回值是已按规则与证据去重的信号集合。
 func combinationSignals(text NormalizedComment, cfg appconfig.CommentModerationConfig) []Signal {
 	rules := cfg.CombinationRules
 	signals := make([]Signal, 0)
@@ -26,7 +28,7 @@ func combinationSignals(text NormalizedComment, cfg appconfig.CommentModerationC
 		if level == "" {
 			level = LevelReview
 		}
-		for clauseIndex, clause := range semanticClauses(text) {
+		for clauseIndex, clause := range semanticClauses(text, cfg) {
 			if isBenignSemanticClause(clause, cfg) {
 				continue
 			}
@@ -57,13 +59,4 @@ func combinationSignals(text NormalizedComment, cfg appconfig.CommentModerationC
 		}
 	}
 	return signals
-}
-
-func containsAnyString(value string, candidates []string) bool {
-	for _, candidate := range candidates {
-		if strings.Contains(value, candidate) {
-			return true
-		}
-	}
-	return false
 }

@@ -17,6 +17,8 @@ const (
 	bootstrapCalibration = "bootstrap-uncalibrated"
 )
 
+// evaluateDecisionEngine 汇总文本候选、规则证据和本地上下文分析，并执行证据融合。
+// 输入 ctx 是调用上下文、req 是审核请求、text 是归一化评论、signals 是检测信号、cfg 是配置；返回完整决策引擎轨迹。
 func (m *Moderator) evaluateDecisionEngine(ctx context.Context, req Request, text NormalizedComment,
 	signals []Signal, cfg appconfig.CommentModerationConfig,
 ) *DecisionEngineTrace {
@@ -54,6 +56,8 @@ func (m *Moderator) evaluateDecisionEngine(ctx context.Context, req Request, tex
 	}
 }
 
+// evidenceFromSignals 将检测器 signals 转换为按相关组去重的概率证据。
+// 可选 configs 的首项提供标定配置；返回值按分句、分类和证据编号稳定排序。
 func evidenceFromSignals(signals []Signal, configs ...appconfig.CommentModerationConfig) []Evidence {
 	var cfg appconfig.CommentModerationConfig
 	if len(configs) > 0 {
@@ -106,11 +110,15 @@ func evidenceFromSignals(signals []Signal, configs ...appconfig.CommentModeratio
 	return evidence
 }
 
+// mergeEvidence 合并多个证据分组，并在相关证据冲突时保留置信度最高项。
+// 输入 groups 是各分析阶段的证据集合；返回值不包含去重过程明细。
 func mergeEvidence(groups ...[]Evidence) []Evidence {
 	result, _ := mergeEvidenceWithTrace(groups...)
 	return result
 }
 
+// mergeEvidenceWithTrace 按分类、极性和相关组合并证据并记录淘汰关系。
+// 输入 groups 是证据集合；返回值依次为稳定排序的有效证据和去重明细。
 func mergeEvidenceWithTrace(groups ...[]Evidence) ([]Evidence, []EvidenceDeduplication) {
 	byGroup := make(map[string]Evidence)
 	deduplicated := make([]EvidenceDeduplication, 0)
@@ -147,6 +155,8 @@ func mergeEvidenceWithTrace(groups ...[]Evidence) ([]Evidence, []EvidenceDedupli
 	return result, deduplicated
 }
 
+// evidenceCorrelationGroup 为 signal 构建同分句、同分类、同语义证据的相关组标识。
+// 输入 category 和 value 是已解析的分类及证据；返回值用于避免同一事实被重复放大。
 func evidenceCorrelationGroup(signal Signal, category, value string) string {
 	canonical := compactText(normalizeText(value))
 	if canonical == "" {
@@ -158,9 +168,8 @@ func evidenceCorrelationGroup(signal Signal, category, value string) string {
 	return fmt.Sprintf("clause:%d:%s:%s", signal.Clause, category, canonical)
 }
 
-// These are intentionally identified as bootstrap strengths, not calibrated
-// probabilities. A later offline calibration artifact can replace this function
-// without changing detectors or the fusion contract.
+// bootstrapSignalConfidence 根据配置为 signal 分配启动期证据强度。
+// 输入 signal 是检测信号、cfg 提供标定参数；返回值不是已由样本验证的真实概率，后续可被离线标定结果替换。
 func bootstrapSignalConfidence(signal Signal, cfg appconfig.CommentModerationConfig) float64 {
 	calibration := resolvedCalibration(cfg)
 	if normalizeLevel(signal.Level) == LevelAllow {
@@ -178,8 +187,8 @@ func bootstrapSignalConfidence(signal Signal, cfg appconfig.CommentModerationCon
 	return calibration.Default
 }
 
-// resolvedCalibration keeps a conservative fallback for isolated unit tests and
-// failed configuration reloads. Production values come from calibration.yml.
+// resolvedCalibration 读取 cfg 中的证据标定参数，并为测试或配置加载失败提供保守默认值。
+// 返回值是可直接参与信号强度计算的完整标定配置，生产值来自 calibration.yml。
 func resolvedCalibration(cfg appconfig.CommentModerationConfig) appconfig.CommentModerationCalibrationConfig {
 	calibration := cfg.DecisionEngine.Calibration
 	if calibration.Allow > 0 && calibration.Block > 0 && calibration.Default > 0 && len(calibration.Sources) > 0 {
@@ -195,6 +204,8 @@ func resolvedCalibration(cfg appconfig.CommentModerationConfig) appconfig.Commen
 	}
 }
 
+// fuseEvidence 融合 evidence 与 contextAssessment，返回最终概率决策但省略融合轨迹。
+// 输入 cfg 提供阈值和标定信息；返回值包含状态、风险概率、置信度及分类概率。
 func fuseEvidence(evidence []Evidence, contextAssessment ContextAssessment,
 	cfg appconfig.CommentModerationDecisionEngineConfig,
 ) ProbabilityDecision {
@@ -202,6 +213,8 @@ func fuseEvidence(evidence []Evidence, contextAssessment ContextAssessment,
 	return decision
 }
 
+// fuseEvidenceWithTrace 按分类融合内容、行为、上下文和反向证据，并应用决策阈值。
+// 输入 evidence 是去重证据、contextAssessment 是本地语境结论、cfg 是引擎配置；返回概率决策和逐分类融合轨迹。
 func fuseEvidenceWithTrace(evidence []Evidence, contextAssessment ContextAssessment,
 	cfg appconfig.CommentModerationDecisionEngineConfig,
 ) (ProbabilityDecision, EvidenceFusionTrace) {
@@ -331,6 +344,7 @@ func fuseEvidenceWithTrace(evidence []Evidence, contextAssessment ContextAssessm
 	}
 }
 
+// calibrationVersion 返回 cfg 中声明的标定版本；未声明时返回启动期标定版本。
 func calibrationVersion(cfg appconfig.CommentModerationCalibrationConfig) string {
 	if version := strings.TrimSpace(cfg.Version); version != "" {
 		return version
@@ -338,6 +352,8 @@ func calibrationVersion(cfg appconfig.CommentModerationCalibrationConfig) string
 	return bootstrapCalibration
 }
 
+// contextBenignAppliesToCategory 判断 assessment 的良性概率是否可抑制指定 category。
+// 返回 true 表示当前意图或反向关系能对该分类生效。
 func contextBenignAppliesToCategory(assessment ContextAssessment, category string) bool {
 	if len(assessment.Relations) == 0 {
 		return true
@@ -358,6 +374,8 @@ func contextBenignAppliesToCategory(assessment ContextAssessment, category strin
 	return false
 }
 
+// contextHasActiveRiskRelation 判断 assessment 中是否存在指定 category 的可执行风险关系。
+// 返回 true 时，全局良性证据不会直接削弱该分类。
 func contextHasActiveRiskRelation(assessment ContextAssessment, category string) bool {
 	for _, relation := range assessment.Relations {
 		if relation.Category == category && relationIsActionableRisk(relation) {
@@ -367,11 +385,15 @@ func contextHasActiveRiskRelation(assessment ContextAssessment, category string)
 	return false
 }
 
+// applyDecisionEngine 将 trace 中可执行的概率决策应用到 result，并自动创建简化决策链。
+// 输入 result 是规则初判、trace 是引擎轨迹；返回值是应用概率决策和硬安全约束后的结果。
 func applyDecisionEngine(result Result, trace *DecisionEngineTrace) Result {
 	flow := DecisionFlowTrace{Rule: decisionSnapshot(result), Final: decisionSnapshot(result)}
 	return applyDecisionEngineWithTrace(result, trace, &flow)
 }
 
+// applyDecisionEngineWithTrace 在维护 flow 明细的同时尝试用概率决策覆盖规则初判。
+// 输入 result、trace、flow 分别为当前结果、引擎轨迹和可选决策链；返回最终结果，硬安全证据可阻止降级。
 func applyDecisionEngineWithTrace(result Result, trace *DecisionEngineTrace,
 	flow *DecisionFlowTrace,
 ) Result {
@@ -423,10 +445,12 @@ func applyDecisionEngineWithTrace(result Result, trace *DecisionEngineTrace,
 	return result
 }
 
+// decisionSnapshot 从 result 提取状态、分值和决策代码，返回不可变的阶段快照。
 func decisionSnapshot(result Result) DecisionSnapshot {
 	return DecisionSnapshot{Status: result.Status, Score: result.Score, Decision: result.Decision}
 }
 
+// probabilityDecisionSnapshot 将 probability decision 转换为百分制分值的阶段快照并返回。
 func probabilityDecisionSnapshot(decision ProbabilityDecision) DecisionSnapshot {
 	return DecisionSnapshot{
 		Status:   decision.Status,
@@ -435,6 +459,7 @@ func probabilityDecisionSnapshot(decision ProbabilityDecision) DecisionSnapshot 
 	}
 }
 
+// hasHardSafetyEvidence 判断 evidence 中是否包含正向脚本注入证据；返回 true 表示禁止概率决策降级。
 func hasHardSafetyEvidence(evidence []Evidence) bool {
 	for _, item := range evidence {
 		if item.Source == SourceStructure && item.RuleID == "script_injection" && item.Polarity == "positive" {
@@ -444,6 +469,7 @@ func hasHardSafetyEvidence(evidence []Evidence) bool {
 	return false
 }
 
+// noisyOr 使用 Noisy-OR 组合 values 中相互独立的概率证据；返回值会限制在 0 至 1。
 func noisyOr(values []float64) float64 {
 	remaining := 1.0
 	for _, value := range values {
@@ -452,6 +478,7 @@ func noisyOr(values []float64) float64 {
 	return clampProbability(1 - remaining)
 }
 
+// maxEvidenceConfidence 返回 evidence 中最大的置信度；空集合返回 0。
 func maxEvidenceConfidence(evidence []Evidence) float64 {
 	maximum := 0.0
 	for _, item := range evidence {
@@ -462,6 +489,8 @@ func maxEvidenceConfidence(evidence []Evidence) float64 {
 	return maximum
 }
 
+// probabilityThresholds 解析并校正 cfg 中的通过、拒绝及最低置信度阈值。
+// 返回值依次为最大通过概率、最小拒绝概率和上下文最低置信度。
 func probabilityThresholds(cfg appconfig.CommentModerationProbabilityThresholdConfig) (float64, float64, float64) {
 	approveMax := cfg.ApproveMax
 	if approveMax <= 0 || approveMax >= 1 {
@@ -478,6 +507,7 @@ func probabilityThresholds(cfg appconfig.CommentModerationProbabilityThresholdCo
 	return approveMax, rejectMin, minConfidence
 }
 
+// clampProbability 将 value 约束到 0 至 1；NaN 和非正数返回 0，超过 1 的值返回 1。
 func clampProbability(value float64) float64 {
 	if math.IsNaN(value) || value <= 0 {
 		return 0

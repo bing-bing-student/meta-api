@@ -7,15 +7,11 @@ import (
 	appconfig "meta-api/config"
 )
 
-// A stance evaluation treats the risky behaviour as the object being judged,
-// rather than as an action performed by the commenter. The grammar is kept
-// category-independent: detectors provide the domain object/category, while
-// this layer only understands stable semantic primitives such as copulas,
-// negative outcomes and governance actions.
+// 立场评价把风险行为视为被评论者评价的对象，而不是评论者正在实施的动作。
+// 该语法不绑定具体风险分类：检测器提供领域对象和分类，本层只处理判断词、负面结果和治理动作等稳定语义原语。
 const relationSubtypeStanceEvaluation = "stance_evaluation"
 
-type stanceOutcomeClass = appconfig.CommentModerationStanceOutcomeConfig
-
+// stanceEvaluationMatch 保存立场评价中的判断谓词、结果、立场、对象边界和置信度。
 type stanceEvaluationMatch struct {
 	Predicate  string
 	Outcome    string
@@ -24,55 +20,8 @@ type stanceEvaluationMatch struct {
 	Confidence float64
 }
 
-var (
-	stanceEvaluationOutcomes = []stanceOutcomeClass{
-		{Roots: []string{"诈骗", "骗局", "骗术", "陷阱", "套路"}, Stance: RelationStanceWarning},
-		{Roots: []string{"非法", "违法", "违规", "犯罪", "黑产", "灰产"}, Stance: RelationStanceCondemnation},
-		{Roots: []string{"有害", "危害", "危险", "不道德", "可耻", "缺德"}, Stance: RelationStanceCondemnation},
-	}
-	stanceOutcomeSuffixes    = []string{"产业链", "产业", "行业", "行为", "活动", "生意", "内容", "问题"}
-	stanceJudgmentPredicates = []string{
-		"基本都是", "很可能是", "大概率是", "本质上是", "本质是", "大多是", "往往是",
-		"可能是", "多半是", "基本是", "都属于", "属于", "算是", "构成", "就是", "都是", "是", "这种", "这类",
-	}
-	stanceDemonstrativePredicates = []string{"这种", "这类"}
-	stancePostOutcomeRejections   = []string{
-		"不可信", "不靠谱", "不能信", "不要信", "不要相信", "别信", "应举报", "应该举报", "建议举报", "必须举报",
-	}
-	stanceWarningPredicates = []string{"谨防", "警惕", "小心", "当心", "防范", "远离"}
-	stanceGovernanceActions = []string{
-		"严厉打击", "依法打击", "坚决抵制", "主动举报", "禁止", "取缔", "打击", "抵制", "举报", "反对", "谴责", "批判",
-	}
-	stanceGovernanceModals = []string{"应当", "应该", "必须", "需要", "要", "建议", "值得"}
-	stancePromotionMarkers = []string{
-		"我这边", "我这里", "我有", "我能", "手上还有", "找我", "给我", "加我", "联系我",
-		"我替你", "我帮你", "本人接", "我的渠道", "我的项目", "我的资源", "可以接", "能够接",
-	}
-)
-
-// resolvedRiskEvaluationPolicy 优先使用外部策略包；空配置只出现在单元测试、
-// 配置加载失败前的兜底路径中，此时沿用保守的内置安全基线，避免热更新把识别静默关闭。
-func resolvedRiskEvaluationPolicy(cfg appconfig.CommentModerationConfig) appconfig.CommentModerationRiskEvaluationConfig {
-	policy := cfg.SemanticRules.RiskEvaluation
-	if len(policy.Outcomes) > 0 && len(policy.JudgmentPredicates) > 0 && len(policy.QuestionMarkers) > 0 {
-		return policy
-	}
-	return appconfig.CommentModerationRiskEvaluationConfig{
-		Outcomes:                 stanceEvaluationOutcomes,
-		OutcomeSuffixes:          stanceOutcomeSuffixes,
-		JudgmentPredicates:       stanceJudgmentPredicates,
-		DemonstrativePredicates:  stanceDemonstrativePredicates,
-		PostOutcomeRejections:    stancePostOutcomeRejections,
-		WarningPredicates:        stanceWarningPredicates,
-		GovernanceActions:        stanceGovernanceActions,
-		GovernanceModals:         stanceGovernanceModals,
-		PromotionMarkers:         stancePromotionMarkers,
-		QuestionMarkers:          []string{"是不是", "是否", "算不算", "属不属于", "违法吗", "合法吗", "违规吗", "犯罪吗", "是不是骗局"},
-		PromotionContrastMarkers: []string{"但是", "不过", "然而", "可是", "例外"},
-		PromotionActionMarkers:   []string{"需要", "想要", "可以", "提供", "领取", "私聊", "联系", "加入", "接单"},
-	}
-}
-
+// appendRiskEvaluationRelations 将“风险行为 + 判断词 + 负面结果/治理动作”转换为反向评价关系。
+// 输入 clauseID、clause、evidence、cfg 提供分句与策略；识别出的关系通过 appendRelation 回调输出。
 func appendRiskEvaluationRelations(clauseID int, clause NormalizedComment, evidence []Evidence,
 	cfg appconfig.CommentModerationConfig, appendRelation func(SemanticRelation),
 ) {
@@ -102,10 +51,8 @@ func appendRiskEvaluationRelations(clauseID int, clause NormalizedComment, evide
 		}
 		rememberObject(item.Category, object)
 	}
-	// Combination signals are intentionally suppressed in a benign evaluation
-	// clause, so reconstruct the evaluated behaviour from the same configured
-	// subject/predicate vocabulary instead of depending on a signal that may no
-	// longer exist. The semantic grammar remains category-independent.
+	// 良性评价分句中的组合信号会被主动抑制，因此这里直接使用同一套主体词和谓词重建被评价行为，
+	// 不依赖可能已经被移除的信号，同时保持语义语法与具体分类解耦。
 	for _, rule := range cfg.CombinationRules {
 		category := strings.TrimSpace(rule.Category)
 		if category == "" {
@@ -132,16 +79,19 @@ func appendRiskEvaluationRelations(clauseID int, clause NormalizedComment, evide
 	}
 }
 
+// isRiskEvaluationSemanticClause 判断 clause 是否满足风险行为立场评价语法；返回对应结果。
 func isRiskEvaluationSemanticClause(clause NormalizedComment, cfg appconfig.CommentModerationConfig) bool {
 	_, ok := matchStanceEvaluation(clause, cfg)
 	return ok
 }
 
+// matchStanceEvaluation 在 clause 中查找完整的判断结果或治理动作结构。
+// 输入 cfg 提供评价词、结果词及冲突规则；返回最佳匹配和成功标记，疑问或推广语境返回 false。
 func matchStanceEvaluation(clause NormalizedComment,
 	cfg appconfig.CommentModerationConfig,
 ) (stanceEvaluationMatch, bool) {
 	value := clause.Compact
-	policy := resolvedRiskEvaluationPolicy(cfg)
+	policy := cfg.SemanticRules.RiskEvaluation
 	if value == "" || stanceEvaluationIsQuestion(value, policy) {
 		return stanceEvaluationMatch{}, false
 	}
@@ -155,8 +105,7 @@ func matchStanceEvaluation(clause NormalizedComment,
 				continue
 			}
 			outcome := expandStanceOutcome(value, start, root, policy.OutcomeSuffixes)
-			if criticalOutcomeNegated(value, outcome,
-				resolvedHarmfulValuePolicy(cfg.SemanticRules.HarmfulValuePolicy).OutcomeNegations) ||
+			if criticalOutcomeNegated(value, outcome, policy.OutcomeNegations) ||
 				stanceEvaluationHasPromotionalConflict(value, outcome, cfg) {
 				continue
 			}
@@ -209,6 +158,8 @@ func matchStanceEvaluation(clause NormalizedComment,
 	return stanceEvaluationMatch{}, false
 }
 
+// expandStanceOutcome 从 root 起点向后拼接 suffixes 中最长的结果后缀。
+// 输入 value 是分句、start 是字节下标；返回完整结果词，越界时返回 root。
 func expandStanceOutcome(value string, start int, root string, suffixes []string) string {
 	end := start + len(root)
 	if end > len(value) {
@@ -217,6 +168,8 @@ func expandStanceOutcome(value string, start int, root string, suffixes []string
 	return root + longestPrefix(value[end:], suffixes)
 }
 
+// precedingStancePredicate 在结果位置 outcomeStart 之前查找最长判断词或警示词。
+// 输入 value 和 policy 分别为分句及策略；返回谓词，位置无效或未命中时返回空串。
 func precedingStancePredicate(value string, outcomeStart int,
 	policy appconfig.CommentModerationRiskEvaluationConfig,
 ) string {
@@ -230,6 +183,7 @@ func precedingStancePredicate(value string, outcomeStart int,
 	return longestSuffix(prefix, policy.WarningPredicates)
 }
 
+// longestPrefix 在 value 开头匹配 candidates 中规范化后的最长词项并返回。
 func longestPrefix(value string, candidates []string) string {
 	best := ""
 	for _, candidate := range candidates {
@@ -241,6 +195,7 @@ func longestPrefix(value string, candidates []string) string {
 	return best
 }
 
+// longestSuffix 在 value 末尾匹配 candidates 中规范化后的最长词项并返回。
 func longestSuffix(value string, candidates []string) string {
 	best := ""
 	for _, candidate := range candidates {
@@ -252,6 +207,8 @@ func longestSuffix(value string, candidates []string) string {
 	return best
 }
 
+// evaluatedBehaviorInClause 在评价边界 boundary 之前定位 evidence 对应的被评价行为。
+// 输入 clause 是紧凑分句；返回覆盖证据词的最小文本片段，片段过长时退化为最后一个词项。
 func evaluatedBehaviorInClause(clause, evidence string, boundary int) string {
 	type locatedTerm struct {
 		start int
@@ -288,14 +245,17 @@ func evaluatedBehaviorInClause(clause, evidence string, boundary int) string {
 	return clause[start:end]
 }
 
+// stanceEvaluationIsQuestion 判断 value 是否包含配置疑问标记或以“吗”结尾；返回对应结果。
 func stanceEvaluationIsQuestion(value string, policy appconfig.CommentModerationRiskEvaluationConfig) bool {
 	return containsAnyNormalized(value, policy.QuestionMarkers) || strings.HasSuffix(value, "吗")
 }
 
+// stanceEvaluationHasPromotionalConflict 判断 focus 后是否出现推广动作、行动模式或转折推广结构。
+// 输入 value 是完整分句、cfg 是语义配置；返回 true 表示评价关系不能作为良性反证。
 func stanceEvaluationHasPromotionalConflict(value, focus string,
 	cfg appconfig.CommentModerationConfig,
 ) bool {
-	policy := resolvedRiskEvaluationPolicy(cfg)
+	policy := cfg.SemanticRules.RiskEvaluation
 	if containsAnyNormalized(value, policy.PromotionMarkers) {
 		return true
 	}

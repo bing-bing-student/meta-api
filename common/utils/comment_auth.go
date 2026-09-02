@@ -15,7 +15,9 @@ import (
 
 const (
 	CommentAccessTokenCookie = "comment_access_token"
+	CommentOAuthFlowCookie   = "comment_oauth_flow"
 	commentAuthCookieMaxAge  = 7 * 24 * 60 * 60
+	commentOAuthFlowMaxAge   = 5 * 60
 	commentAuthCookiePath    = "/"
 	commentUserTokenUse      = "comment_user"
 )
@@ -91,6 +93,21 @@ func ClearCommentAuthCookie(c *gin.Context) {
 	secure := IsProductionEnv()
 	c.SetSameSite(commentAuthSameSiteMode())
 	c.SetCookie(CommentAccessTokenCookie, "", -1, commentAuthCookiePath, "", secure, true)
+}
+
+// SetCommentOAuthFlowCookie binds an OAuth authorization request to the
+// browser that initiated it. SameSite=Lax is intentional: the cookie must be
+// sent on the top-level cross-site redirect back from GitHub or Google.
+func SetCommentOAuthFlowCookie(c *gin.Context, binding string) {
+	secure := IsProductionEnv()
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(CommentOAuthFlowCookie, binding, commentOAuthFlowMaxAge, commentAuthCookiePath, "", secure, true)
+}
+
+func ClearCommentOAuthFlowCookie(c *gin.Context) {
+	secure := IsProductionEnv()
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(CommentOAuthFlowCookie, "", -1, commentAuthCookiePath, "", secure, true)
 }
 
 func commentAuthSameSiteMode() http.SameSite {

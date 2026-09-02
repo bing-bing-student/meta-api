@@ -10,13 +10,16 @@ import (
 	appconfig "meta-api/config"
 )
 
+// ConfigSource 定义审核配置快照的读取边界，返回值是当前可供一次审核使用的独立配置。
 type ConfigSource interface {
 	CommentModerationSnapshot() appconfig.CommentModerationConfig
 }
 
+// BehaviorSignalFunc 接收请求上下文、原始请求、归一化文本和审核配置，返回只读行为评估。
 type BehaviorSignalFunc func(context.Context, Request, NormalizedComment,
 	appconfig.CommentModerationConfig) BehaviorEvaluation
 
+// Moderator 编排词库、结构、组合、行为、上下文和证据融合等审核阶段。
 type Moderator struct {
 	configSource    ConfigSource
 	logger          *zap.Logger
@@ -26,11 +29,14 @@ type Moderator struct {
 	policy          policyCache
 }
 
+// NewModerator 使用 configSource（配置源）、logger（日志器）和 redis（行为存储）创建审核器，
+// 返回已装配本地上下文分析器的 Moderator。
 func NewModerator(configSource ConfigSource, logger *zap.Logger, redis *redis.Client) *Moderator {
 	return NewModeratorWithContextAnalyzer(configSource, logger, redis, NewLocalContextAnalyzer(logger))
 }
 
-// NewModeratorWithContextAnalyzer makes the local context boundary injectable for tests.
+// NewModeratorWithContextAnalyzer 使用 configSource、logger、redis 和可替换的 contextAnalyzer 创建审核器，
+// 返回的 Moderator 可在测试或特殊场景中注入自定义上下文分析实现。
 func NewModeratorWithContextAnalyzer(configSource ConfigSource, logger *zap.Logger, redis *redis.Client,
 	contextAnalyzer ContextAnalyzer,
 ) *Moderator {
@@ -47,6 +53,8 @@ func NewModeratorWithContextAnalyzer(configSource ConfigSource, logger *zap.Logg
 	}
 }
 
+// Moderate 由 m 对 req（评论请求）执行完整审核，ctx 用于取消下游操作；
+// 返回 Result，并在审核中以只读方式评估行为信号。
 func (m *Moderator) Moderate(ctx context.Context, req Request) Result {
 	return m.ModerateWithBehavior(ctx, req, func(ctx context.Context, req Request, text NormalizedComment,
 		cfg appconfig.CommentModerationConfig) BehaviorEvaluation {
@@ -59,6 +67,8 @@ func (m *Moderator) Moderate(ctx context.Context, req Request) Result {
 	})
 }
 
+// ModerateWithBehavior 使用 ctx、req 和 behavior（可注入的行为评估函数）执行审核，
+// 返回包含中间轨迹和最终状态的 Result。
 func (m *Moderator) ModerateWithBehavior(ctx context.Context, req Request, behavior BehaviorSignalFunc) Result {
 	cfg := m.config()
 	if cfg.Disabled {
@@ -99,7 +109,7 @@ func (m *Moderator) ModerateWithBehavior(ctx context.Context, req Request, behav
 	result := baselineDecision(signals, cfg)
 	ruleDecision := decisionSnapshot(result)
 	result.Trace = Trace{
-		Clauses:           moderationClauseTrace(text),
+		Clauses:           moderationClauseTrace(text, cfg),
 		DetectorSignals:   detectorSignals,
 		SuppressedSignals: append([]Signal(nil), suppressedSignals...),
 		Behavior:          behaviorTrace,
@@ -116,6 +126,8 @@ func (m *Moderator) ModerateWithBehavior(ctx context.Context, req Request, behav
 	return result
 }
 
+// decisionEngineSignals 合并 detectorSignals（原始检测信号）与 adjustedSignals 中的语义反证，
+// 返回供概率决策引擎使用的信号列表。
 func decisionEngineSignals(detectorSignals, adjustedSignals []Signal) []Signal {
 	result := append([]Signal(nil), detectorSignals...)
 	for _, signal := range adjustedSignals {
@@ -126,8 +138,9 @@ func decisionEngineSignals(detectorSignals, adjustedSignals []Signal) []Signal {
 	return result
 }
 
-func moderationClauseTrace(text NormalizedComment) []ClauseTrace {
-	clauses := semanticClauses(text)
+// moderationClauseTrace 按 cfg 的分句策略拆分 text，返回带顺序编号的 ClauseTrace 列表。
+func moderationClauseTrace(text NormalizedComment, cfg appconfig.CommentModerationConfig) []ClauseTrace {
+	clauses := semanticClauses(text, cfg)
 	trace := make([]ClauseTrace, 0, len(clauses))
 	for index, clause := range clauses {
 		trace = append(trace, ClauseTrace{
@@ -138,6 +151,7 @@ func moderationClauseTrace(text NormalizedComment) []ClauseTrace {
 	return trace
 }
 
+// RecordBehavior 使用 ctx 将 req 代表的已落库评论行为写入 m 的行为存储；该方法无返回值。
 func (m *Moderator) RecordBehavior(ctx context.Context, req Request) {
 	if m == nil || m.behavior == nil {
 		return
@@ -145,6 +159,7 @@ func (m *Moderator) RecordBehavior(ctx context.Context, req Request) {
 	m.behavior.Record(ctx, req, m.config())
 }
 
+// config 从 m 的配置源读取快照并补齐默认值，返回本次审核使用的配置。
 func (m *Moderator) config() appconfig.CommentModerationConfig {
 	var cfg appconfig.CommentModerationConfig
 	if m != nil && m.configSource != nil {
@@ -154,6 +169,7 @@ func (m *Moderator) config() appconfig.CommentModerationConfig {
 	return cfg
 }
 
+// ApplyDefaults 对 cfg 中可缺省的检测器、阈值和行为规则填充安全默认值；函数原地修改 cfg，无返回值。
 func ApplyDefaults(cfg *appconfig.CommentModerationConfig) {
 	if cfg == nil {
 		return

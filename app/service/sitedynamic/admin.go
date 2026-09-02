@@ -37,10 +37,6 @@ func (s *siteDynamicService) AdminAddSiteDynamic(ctx context.Context, request *t
 	if err != nil {
 		return err
 	}
-	eventTime, err := parseSiteDynamicEventDate(request.EventDate)
-	if err != nil {
-		return err
-	}
 	now, err := siteDynamicNow()
 	if err != nil {
 		return err
@@ -51,12 +47,12 @@ func (s *siteDynamicService) AdminAddSiteDynamic(ctx context.Context, request *t
 		return fmt.Errorf("generate site dynamic id: %w", err)
 	}
 	item := &siteDynamicModel.SiteDynamic{
-		ID:         id,
-		Content:    content,
-		Status:     request.Status,
-		EventTime:  eventTime,
-		CreateTime: now,
-		UpdateTime: now,
+		ID:                  id,
+		Content:             content,
+		Status:              request.Status,
+		DeprecatedEventTime: now,
+		CreateTime:          now,
+		UpdateTime:          now,
 	}
 	if err = s.model.CreateSiteDynamic(ctx, item); err != nil {
 		s.logger.Error("failed to create site dynamic", zap.Error(err))
@@ -74,10 +70,6 @@ func (s *siteDynamicService) AdminUpdateSiteDynamic(ctx context.Context, request
 	if err != nil {
 		return err
 	}
-	eventTime, err := parseSiteDynamicEventDate(request.EventDate)
-	if err != nil {
-		return err
-	}
 	now, err := siteDynamicNow()
 	if err != nil {
 		return err
@@ -86,7 +78,6 @@ func (s *siteDynamicService) AdminUpdateSiteDynamic(ctx context.Context, request
 		ID:         id,
 		Content:    content,
 		Status:     request.Status,
-		EventTime:  eventTime,
 		UpdateTime: now,
 	}
 	if err = s.model.UpdateSiteDynamic(ctx, item); err != nil {

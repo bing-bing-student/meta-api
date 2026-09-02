@@ -41,9 +41,10 @@ type OAuthCallbackQueryRequest struct {
 }
 
 type OAuthCallbackRequest struct {
-	Provider string `uri:"provider" binding:"required,oneof=github google"`
-	Code     string `form:"code" binding:"required"`
-	State    string `form:"state" binding:"required,len=64"`
+	Provider    string `uri:"provider" binding:"required,oneof=github google"`
+	Code        string `form:"code" binding:"required"`
+	State       string `form:"state" binding:"required,len=64"`
+	FlowBinding string `json:"-" form:"-"`
 }
 
 type OAuthCallbackResponse struct {

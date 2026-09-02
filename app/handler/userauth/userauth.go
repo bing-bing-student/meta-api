@@ -32,7 +32,7 @@ func (h *userAuthHandler) OAuthLogin(c *gin.Context) {
 		Redirect: queryRequest.Redirect,
 	}
 
-	authURL, err := h.service.BuildOAuthLoginURL(ctx, request)
+	loginResult, err := h.service.BuildOAuthLoginURL(ctx, request)
 	if err != nil {
 		switch {
 		case errors.Is(err, userAuthService.ErrOAuthProviderMissing):
@@ -45,7 +45,8 @@ func (h *userAuthHandler) OAuthLogin(c *gin.Context) {
 		return
 	}
 
-	c.Redirect(http.StatusFound, authURL)
+	utils.SetCommentOAuthFlowCookie(c, loginResult.FlowBinding)
+	c.Redirect(http.StatusFound, loginResult.AuthorizationURL)
 }
 
 func (h *userAuthHandler) OAuthCallback(c *gin.Context) {
@@ -67,6 +68,12 @@ func (h *userAuthHandler) OAuthCallback(c *gin.Context) {
 		Code:     queryRequest.Code,
 		State:    queryRequest.State,
 	}
+	flowBinding, err := c.Cookie(utils.CommentOAuthFlowCookie)
+	if err != nil || flowBinding == "" {
+		c.Redirect(http.StatusFound, "/?comment_auth=failed")
+		return
+	}
+	request.FlowBinding = flowBinding
 
 	response, token, err := h.service.HandleOAuthCallback(ctx, request)
 	if err != nil {
@@ -75,6 +82,7 @@ func (h *userAuthHandler) OAuthCallback(c *gin.Context) {
 		return
 	}
 
+	utils.ClearCommentOAuthFlowCookie(c)
 	utils.SetCommentAuthCookie(c, token)
 	c.Redirect(http.StatusFound, response.RedirectPath)
 }

@@ -183,6 +183,7 @@ type CommentModerationStructurePatternsConfig struct {
 	RiskPatterns          []string `mapstructure:"risk_patterns"`
 	URLPatterns           []string `mapstructure:"url_patterns"`
 	ContactPatterns       []string `mapstructure:"contact_patterns"`
+	ContactLabels         []string `mapstructure:"contact_labels"`
 	NegatedContactMarkers []string `mapstructure:"negated_contact_markers"`
 	BenignContactPatterns []string `mapstructure:"benign_contact_patterns"`
 	MinNumericRunes       int      `mapstructure:"min_numeric_runes"`
@@ -269,6 +270,9 @@ type CommentModerationRelationVocabularyConfig struct {
 	QuestionMarkers          []string `mapstructure:"question_markers"`
 	FirstPersonMarkers       []string `mapstructure:"first_person_markers"`
 	ContrastMarkers          []string `mapstructure:"contrast_markers"`
+	ClauseBoundaryMarkers    []string `mapstructure:"clause_boundary_markers"`
+	GovernanceMarkers        []string `mapstructure:"governance_markers"`
+	GovernancePatterns       []string `mapstructure:"governance_patterns"`
 }
 
 // CommentModerationStanceOutcomeConfig 把一组评价结果词映射为同一种评论立场。
@@ -282,6 +286,7 @@ type CommentModerationStanceOutcomeConfig struct {
 type CommentModerationRiskEvaluationConfig struct {
 	Outcomes                 []CommentModerationStanceOutcomeConfig `mapstructure:"outcomes"`
 	OutcomeSuffixes          []string                               `mapstructure:"outcome_suffixes"`
+	OutcomeNegations         []string                               `mapstructure:"outcome_negations"`
 	JudgmentPredicates       []string                               `mapstructure:"judgment_predicates"`
 	DemonstrativePredicates  []string                               `mapstructure:"demonstrative_predicates"`
 	PostOutcomeRejections    []string                               `mapstructure:"post_outcome_rejections"`
@@ -571,6 +576,7 @@ func (c *Config) CommentModerationSnapshot() CommentModerationConfig {
 	snapshot.StructurePatterns.RiskPatterns = cloneStringSlice(snapshot.StructurePatterns.RiskPatterns)
 	snapshot.StructurePatterns.URLPatterns = cloneStringSlice(snapshot.StructurePatterns.URLPatterns)
 	snapshot.StructurePatterns.ContactPatterns = cloneStringSlice(snapshot.StructurePatterns.ContactPatterns)
+	snapshot.StructurePatterns.ContactLabels = cloneStringSlice(snapshot.StructurePatterns.ContactLabels)
 	snapshot.StructurePatterns.NegatedContactMarkers = cloneStringSlice(
 		snapshot.StructurePatterns.NegatedContactMarkers,
 	)
@@ -658,6 +664,9 @@ func cloneCommentModerationRelationVocabularyConfig(
 	cfg.QuestionMarkers = cloneStringSlice(cfg.QuestionMarkers)
 	cfg.FirstPersonMarkers = cloneStringSlice(cfg.FirstPersonMarkers)
 	cfg.ContrastMarkers = cloneStringSlice(cfg.ContrastMarkers)
+	cfg.ClauseBoundaryMarkers = cloneStringSlice(cfg.ClauseBoundaryMarkers)
+	cfg.GovernanceMarkers = cloneStringSlice(cfg.GovernanceMarkers)
+	cfg.GovernancePatterns = cloneStringSlice(cfg.GovernancePatterns)
 }
 
 func cloneCommentModerationRiskEvaluationConfig(cfg *CommentModerationRiskEvaluationConfig) {
@@ -673,6 +682,7 @@ func cloneCommentModerationRiskEvaluationConfig(cfg *CommentModerationRiskEvalua
 		cfg.Outcomes = outcomes
 	}
 	cfg.OutcomeSuffixes = cloneStringSlice(cfg.OutcomeSuffixes)
+	cfg.OutcomeNegations = cloneStringSlice(cfg.OutcomeNegations)
 	cfg.JudgmentPredicates = cloneStringSlice(cfg.JudgmentPredicates)
 	cfg.DemonstrativePredicates = cloneStringSlice(cfg.DemonstrativePredicates)
 	cfg.PostOutcomeRejections = cloneStringSlice(cfg.PostOutcomeRejections)

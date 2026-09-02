@@ -19,6 +19,8 @@ import (
 	"meta-api/common/types"
 )
 
+// AdminGetCommentList 校验 request 中的状态、文章 ID 和创建时间范围，并按筛选条件分页查询评论。
+// 输入 ctx 控制数据库操作；返回管理端评论列表及总数，请求非法时返回 ErrInvalidComment。
 func (s *commentService) AdminGetCommentList(ctx context.Context,
 	request *types.AdminGetCommentListRequest) (*types.AdminGetCommentListResponse, error) {
 
@@ -70,6 +72,8 @@ func (s *commentService) AdminGetCommentList(ctx context.Context,
 	}, nil
 }
 
+// AdminGetCommentDetail 查询 request.ID 对应评论及其最新审核审计，并组装与审核模拟一致的详情结构。
+// 输入 ctx 控制评论和审计查询；返回评论、可反馈分类及可选审核详情，目标不存在或快照格式无效时返回错误。
 func (s *commentService) AdminGetCommentDetail(ctx context.Context,
 	request *types.AdminGetCommentDetailRequest,
 ) (*types.AdminGetCommentDetailResponse, error) {
@@ -128,6 +132,8 @@ func (s *commentService) AdminGetCommentDetail(ctx context.Context,
 	return response, nil
 }
 
+// decodeCommentModerationAuditResult 从 audit 的当前版本结果快照中解码审核结果和文本视图。
+// 返回值依次为审核结果、归一化文本和错误；空审计、JSON 无效或旧快照结构均返回错误。
 func decodeCommentModerationAuditResult(audit *commentModel.CommentModerationAudit,
 ) (commentModerationResult, commentModerationTextView, error) {
 	if audit == nil {
@@ -145,6 +151,7 @@ func decodeCommentModerationAuditResult(audit *commentModel.CommentModerationAud
 	return snapshot.Result, snapshot.Text, nil
 }
 
+// optionalUint64String 将 value 转为十进制字符串；零值表示未提供并返回空串。
 func optionalUint64String(value uint64) string {
 	if value == 0 {
 		return ""
@@ -152,6 +159,8 @@ func optionalUint64String(value uint64) string {
 	return strconv.FormatUint(value, 10)
 }
 
+// AdminUpdateCommentStatus 校验 request 指定状态和评论 ID，更新评论状态后清理所属文章的前台评论缓存。
+// 输入 ctx 控制查询、更新和缓存操作；成功返回 nil，评论不存在或请求非法时返回业务错误。
 func (s *commentService) AdminUpdateCommentStatus(ctx context.Context,
 	request *types.AdminUpdateCommentStatusRequest) error {
 
@@ -165,6 +174,13 @@ func (s *commentService) AdminUpdateCommentStatus(ctx context.Context,
 		s.logger.Error("invalid comment id", zap.Error(err))
 		return ErrInvalidComment
 	}
+	item, err := s.commentModel.GetCommentByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrCommentNotFound
+		}
+		return err
+	}
 
 	loc, err := time.LoadLocation("Asia/Shanghai")
 	if err != nil {
@@ -175,10 +191,15 @@ func (s *commentService) AdminUpdateCommentStatus(ctx context.Context,
 		s.logger.Error("failed to update comment status", zap.Error(err))
 		return err
 	}
-
+	if err = s.clearApprovedArticleCommentCache(ctx, item.ArticleID); err != nil {
+		s.logger.Error("failed to clear approved comment cache after status update",
+			zap.Uint64("article_id", item.ArticleID), zap.Error(err))
+	}
 	return nil
 }
 
+// AdminReviewComment 审核真实评论，并可将管理员确认结果作为人工反馈与状态更新一并写入事务。
+// 输入 ctx 控制查询和事务，request 包含评论、审计、管理员及预期分类；成功返回 nil，关联关系或分类非法时返回业务错误。
 func (s *commentService) AdminReviewComment(ctx context.Context,
 	request *types.AdminReviewCommentRequest,
 ) error {
@@ -193,7 +214,8 @@ func (s *commentService) AdminReviewComment(ctx context.Context,
 	if err != nil {
 		return ErrInvalidComment
 	}
-	if _, err = s.commentModel.GetCommentByID(ctx, commentID); err != nil {
+	item, err := s.commentModel.GetCommentByID(ctx, commentID)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrCommentNotFound
 		}
@@ -244,9 +266,15 @@ func (s *commentService) AdminReviewComment(ctx context.Context,
 		}
 		return err
 	}
+	if err = s.clearApprovedArticleCommentCache(ctx, item.ArticleID); err != nil {
+		s.logger.Error("failed to clear approved comment cache after review",
+			zap.Uint64("article_id", item.ArticleID), zap.Error(err))
+	}
 	return nil
 }
 
+// AdminDeleteComment 批量校验并删除 request 指定的评论，同时清理所有受影响文章的前台评论缓存。
+// 输入 ctx 控制查询、删除和缓存操作；成功返回 nil，任一评论不存在或 ID 非法时不执行删除并返回错误。
 func (s *commentService) AdminDeleteComment(ctx context.Context, request *types.AdminDeleteCommentRequest) error {
 	ids, err := parseAdminDeleteCommentIDs(request)
 	if err != nil {
@@ -267,10 +295,18 @@ func (s *commentService) AdminDeleteComment(ctx context.Context, request *types.
 		s.logger.Error("failed to delete comments", zap.Error(err))
 		return err
 	}
-
+	articleIDs := make([]uint64, 0, len(items))
+	for _, item := range items {
+		articleIDs = append(articleIDs, item.ArticleID)
+	}
+	if err = s.clearApprovedArticleCommentCache(ctx, articleIDs...); err != nil {
+		s.logger.Error("failed to clear approved comment cache after delete", zap.Error(err))
+	}
 	return nil
 }
 
+// AdminPreviewCommentModeration 批量执行评论审核模拟，汇总状态并将每条完整审核现场写入模拟审计表。
+// 输入 ctx 控制审核相关查询和审计写入，request 提供评论及可选业务上下文；返回批次结果，输入或持久化失败时返回错误。
 func (s *commentService) AdminPreviewCommentModeration(ctx context.Context,
 	request *types.AdminPreviewCommentModerationRequest) (*types.AdminPreviewCommentModerationResponse, error) {
 
@@ -364,6 +400,8 @@ func (s *commentService) AdminPreviewCommentModeration(ctx context.Context,
 	return response, nil
 }
 
+// AdminSubmitCommentModerationFeedback 校验审计、管理员、预期状态、分类及可选关系修正后写入确认反馈。
+// 输入 ctx 控制审计查询和反馈写入；成功返回 nil，审计不存在返回 ErrCommentNotFound，其余非法输入返回 ErrInvalidComment。
 func (s *commentService) AdminSubmitCommentModerationFeedback(ctx context.Context,
 	request *types.AdminSubmitCommentModerationFeedbackRequest,
 ) error {
@@ -418,6 +456,8 @@ func (s *commentService) AdminSubmitCommentModerationFeedback(ctx context.Contex
 	return s.commentModel.CreateModerationFeedback(ctx, feedback)
 }
 
+// toAdminCommentItem 将数据库管理端列表行 row 转换为展示项并格式化时间和父评论 ID。
+// 返回值仅在待审核或已拒绝状态下附带面向管理员格式化的审核原因。
 func toAdminCommentItem(row commentModel.AdminListItem) types.AdminCommentItem {
 	item := types.AdminCommentItem{
 		ID:                  strconv.FormatUint(row.ID, 10),
@@ -440,6 +480,8 @@ func toAdminCommentItem(row commentModel.AdminListItem) types.AdminCommentItem {
 	return item
 }
 
+// parseOptionalAdminPreviewID 解析审核模拟中的可选 ID value。
+// 输入 name 用于错误定位；空值返回零和 nil，非空值返回解析结果或 ID 格式错误。
 func parseOptionalAdminPreviewID(name, value string) (uint64, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -448,11 +490,14 @@ func parseOptionalAdminPreviewID(name, value string) (uint64, error) {
 	return idutil.ParseID(name, value)
 }
 
+// adminPreviewCommentInput 保存一条审核模拟评论在原输入中的行号和清理后内容。
 type adminPreviewCommentInput struct {
 	line    int
 	content string
 }
 
+// parseAdminPreviewComments 从 request.Comments 或兼容的单条 Content 中解析审核模拟输入。
+// 返回非空、单条不超过 1000 字符且总数不超过 5000 的评论列表；违反约束时返回错误。
 func parseAdminPreviewComments(request *types.AdminPreviewCommentModerationRequest) ([]adminPreviewCommentInput, error) {
 	if request == nil {
 		return nil, errors.New("nil moderation preview request")
@@ -489,6 +534,8 @@ func parseAdminPreviewComments(request *types.AdminPreviewCommentModerationReque
 	return comments, nil
 }
 
+// toAdminPreviewCommentModerationItem 将 line、content 和审核 result 转换为管理端单条模拟结果。
+// 返回值包含状态、分值、原因、原始信号、文本视图和完整调试轨迹。
 func toAdminPreviewCommentModerationItem(line int, content string,
 	result commentModerationResult) types.AdminPreviewCommentModerationItem {
 
@@ -507,6 +554,8 @@ func toAdminPreviewCommentModerationItem(line int, content string,
 	}
 }
 
+// incrementAdminPreviewSummary 根据 status 原地增加 response 的通过、拒绝或待审核计数。
+// response 为空时不执行操作；方法无返回值。
 func incrementAdminPreviewSummary(response *types.AdminPreviewCommentModerationResponse, status string) {
 	if response == nil {
 		return
@@ -521,6 +570,8 @@ func incrementAdminPreviewSummary(response *types.AdminPreviewCommentModerationR
 	}
 }
 
+// toAdminCommentModerationTextView 将内部归一化 text 复制为管理端文本视图并返回。
+// 解码文本切片会创建副本，避免响应层共享底层数组。
 func toAdminCommentModerationTextView(text commentModerationTextView) types.AdminCommentModerationTextView {
 	return types.AdminCommentModerationTextView{
 		Raw:          text.Raw,
@@ -531,6 +582,8 @@ func toAdminCommentModerationTextView(text commentModerationTextView) types.Admi
 	}
 }
 
+// toAdminCommentModerationSignals 将内部审核 signals 转换为管理端信号列表，并补充中文原因文本。
+// 返回保持输入顺序的列表；空输入返回 nil。
 func toAdminCommentModerationSignals(signals []commentModerationSignal) []types.AdminCommentModerationSignal {
 	if len(signals) == 0 {
 		return nil
@@ -552,6 +605,8 @@ func toAdminCommentModerationSignals(signals []commentModerationSignal) []types.
 	return values
 }
 
+// toAdminCommentModerationTrace 将内部 trace 的分句、检测、抑制、行为、证据融合及决策链转换为管理端轨迹。
+// 返回可直接序列化的调试结构。
 func toAdminCommentModerationTrace(trace commentModeration.Trace) types.AdminCommentModerationTrace {
 	clauses := make([]types.AdminCommentModerationClause, 0, len(trace.Clauses))
 	for _, clause := range trace.Clauses {
@@ -570,6 +625,7 @@ func toAdminCommentModerationTrace(trace commentModeration.Trace) types.AdminCom
 	}
 }
 
+// toAdminCommentModerationBehaviorTrace 将内部行为 trace 及每项指标转换为管理端只读行为轨迹并返回。
 func toAdminCommentModerationBehaviorTrace(
 	trace commentModeration.BehaviorTrace,
 ) types.AdminCommentModerationBehaviorTrace {
@@ -589,6 +645,8 @@ func toAdminCommentModerationBehaviorTrace(
 	}
 }
 
+// toAdminCommentModerationDecisionEngineTrace 将内部决策引擎 trace 转换为管理端候选、证据、语境、融合和概率决策详情。
+// 输入 trace 为空时返回 nil，否则返回完整调试视图。
 func toAdminCommentModerationDecisionEngineTrace(
 	trace *commentModeration.DecisionEngineTrace,
 ) *types.AdminCommentModerationDecisionEngineTrace {
@@ -622,6 +680,8 @@ func toAdminCommentModerationDecisionEngineTrace(
 	}
 }
 
+// toAdminCommentModerationEvidenceFusion 将内部证据融合 trace 转换为管理端阈值、分类融合和去重明细。
+// 返回值保持分类及去重项顺序，便于还原本次决策过程。
 func toAdminCommentModerationEvidenceFusion(
 	trace commentModeration.EvidenceFusionTrace,
 ) types.AdminCommentModerationEvidenceFusion {
@@ -651,6 +711,8 @@ func toAdminCommentModerationEvidenceFusion(
 	}
 }
 
+// toAdminCommentModerationDecisionFlowTrace 将内部 trace 的规则初判、概率决策、硬安全、人工反馈和最终状态转换为管理端决策链。
+// 返回每个阶段的应用状态及前后快照。
 func toAdminCommentModerationDecisionFlowTrace(
 	trace commentModeration.DecisionFlowTrace,
 ) types.AdminCommentModerationDecisionFlowTrace {
@@ -684,6 +746,8 @@ func toAdminCommentModerationDecisionFlowTrace(
 	}
 }
 
+// toAdminCommentModerationRelations 将内部语义关系 items 转换为管理端关系列表。
+// 返回保持输入顺序的完整结构；空输入返回 nil。
 func toAdminCommentModerationRelations(
 	items []commentModeration.SemanticRelation,
 ) []types.AdminCommentModerationRelation {
@@ -715,6 +779,8 @@ func toAdminCommentModerationRelations(
 	return result
 }
 
+// toAdminCommentModerationRewriteCandidates 将内部改写候选 items 转换为管理端候选列表。
+// 返回每个候选的观测值、规范文本、方法、角色、置信度和分句编号；空输入返回 nil。
 func toAdminCommentModerationRewriteCandidates(
 	items []commentModeration.RewriteCandidate,
 ) []types.AdminCommentModerationRewriteCandidate {
@@ -738,6 +804,7 @@ func toAdminCommentModerationRewriteCandidates(
 	return result
 }
 
+// toAdminCommentModerationEvidence 将内部证据 items 批量转换为管理端证据列表；空输入返回 nil。
 func toAdminCommentModerationEvidence(items []commentModeration.Evidence) []types.AdminCommentModerationEvidence {
 	if len(items) == 0 {
 		return nil
@@ -749,6 +816,7 @@ func toAdminCommentModerationEvidence(items []commentModeration.Evidence) []type
 	return result
 }
 
+// toAdminCommentModerationEvidenceItem 将单条内部 evidence 转换为管理端证据并返回。
 func toAdminCommentModerationEvidenceItem(item commentModeration.Evidence) types.AdminCommentModerationEvidence {
 	return types.AdminCommentModerationEvidence{
 		ID: item.ID, Source: item.Source, Category: item.Category, Polarity: item.Polarity,
@@ -757,6 +825,8 @@ func toAdminCommentModerationEvidenceItem(item commentModeration.Evidence) types
 	}
 }
 
+// parseAdminCommentTimeRange 使用上海时区解析 startValue 和 endValue，并验证结束时间不早于开始时间。
+// 返回可选起止时间及错误；任一空值对应 nil，格式或时间顺序非法时返回错误。
 func parseAdminCommentTimeRange(startValue string, endValue string) (*time.Time, *time.Time, error) {
 	loc, err := time.LoadLocation("Asia/Shanghai")
 	if err != nil {
@@ -777,6 +847,8 @@ func parseAdminCommentTimeRange(startValue string, endValue string) (*time.Time,
 	return startTime, endTime, nil
 }
 
+// parseAdminCommentTime 使用 loc 按秒级格式解析 value，并兼容分钟级格式。
+// 返回解析时间；空值返回 nil 和 nil，格式无效时返回带原值的错误。
 func parseAdminCommentTime(value string, loc *time.Location) (*time.Time, error) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
@@ -792,6 +864,8 @@ func parseAdminCommentTime(value string, loc *time.Location) (*time.Time, error)
 	return &parsed, nil
 }
 
+// normalizeAdminAuthorHandle 清理作者编号 value，并把小于五位的正整数补齐为五位展示格式。
+// 返回规范编号；空值返回空串，非数字检索词原样返回。
 func normalizeAdminAuthorHandle(value string) string {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
@@ -807,6 +881,8 @@ func normalizeAdminAuthorHandle(value string) string {
 	return strconv.FormatUint(number, 10)
 }
 
+// parseAdminDeleteCommentIDs 合并 request 的单个 ID 与批量 ID，解析并去重。
+// 返回至少一个评论 ID；请求为空、ID 列表为空或任一 ID 非法时返回错误。
 func parseAdminDeleteCommentIDs(request *types.AdminDeleteCommentRequest) ([]uint64, error) {
 	rawIDs := make([]string, 0, len(request.IDList)+1)
 	if strings.TrimSpace(request.ID) != "" {

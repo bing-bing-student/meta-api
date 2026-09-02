@@ -17,6 +17,7 @@ func TestLoadConfigFileSetMergesModerationPolicyFiles(t *testing.T) {
 	}
 	writeTestConfig(t, filepath.Join(root, "comment_moderation.manifest.yml"), `
 comment_moderation:
+  disabled: true
   policy_files: [moderation/first.yml, moderation/second.yml]
 `)
 	writeTestConfig(t, filepath.Join(policyDir, "first.yml"), `

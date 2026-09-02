@@ -4,9 +4,8 @@ import "strings"
 
 const maxRewriteCandidates = 20
 
-// rewriteCandidates exposes deterministic text interpretations without replacing
-// the raw comment. Context-dependent interpretations are added by the local
-// context analyzer instead of being committed here as global string mappings.
+// rewriteCandidates 根据 text 生成确定性的文本改写候选，但不覆盖原评论。
+// 输入 text 是各阶段的归一化文本；返回值包含可供后续分析使用的候选文本、生成方式及置信度。
 func rewriteCandidates(text NormalizedComment) []RewriteCandidate {
 	candidates := make([]RewriteCandidate, 0, 5)
 	seen := map[string]struct{}{strings.TrimSpace(text.Raw): {}}
@@ -53,6 +52,8 @@ func rewriteCandidates(text NormalizedComment) []RewriteCandidate {
 	return candidates
 }
 
+// mergeRewriteCandidates 合并多个候选分组并按“方法、观测值、分类、角色和文本”去重。
+// 输入 groups 是不同分析器产生的候选集合；返回值最多包含 maxRewriteCandidates 个已清理候选。
 func mergeRewriteCandidates(groups ...[]RewriteCandidate) []RewriteCandidate {
 	merged := make([]RewriteCandidate, 0, maxRewriteCandidates)
 	seen := make(map[string]struct{}, maxRewriteCandidates)

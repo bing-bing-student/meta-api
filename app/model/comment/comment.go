@@ -126,58 +126,18 @@ func (m *commentModel) ListApprovedByArticleID(ctx context.Context, articleID ui
 	return rows, nil
 }
 
-func (m *commentModel) ListApprovedParentsByArticleID(ctx context.Context, articleID uint64, offset int, limit int) ([]ListItem, int64, error) {
-	query := m.mysql.WithContext(ctx).Model(&Comment{}).Table("comment as c").
-		Where("c.article_id = ? AND c.status = ? AND c.parent_id = 0", articleID, StatusApproved)
-
-	var total int64
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, fmt.Errorf("failed to count approved parent comments: %w", err)
+func (m *commentModel) ListApprovedArticleIDsByUserID(ctx context.Context, userID uint64) ([]uint64, error) {
+	articleIDs := make([]uint64, 0)
+	if userID == 0 {
+		return articleIDs, nil
 	}
-
-	rows := make([]ListItem, 0)
-	if total == 0 {
-		return rows, 0, nil
+	if err := m.mysql.WithContext(ctx).Model(&Comment{}).
+		Distinct("article_id").
+		Where("status = ? AND (user_id = ? OR reply_to_user_id = ?)", StatusApproved, userID, userID).
+		Pluck("article_id", &articleIDs).Error; err != nil {
+		return nil, fmt.Errorf("failed to list approved comment article ids by user: %w", err)
 	}
-
-	if err := query.
-		Joins("LEFT JOIN `user` as u ON u.id = c.user_id").
-		Select("c.id, c.article_id, c.parent_id, c.user_id, c.reply_to_user_id, c.reply_to_comment_id, '' as reply_to_author_name, '' as reply_to_author_handle, '' as reply_to_content, c.author_name, u.handle as author_handle, u.avatar_url, c.content, c.create_time").
-		Order("c.create_time ASC").
-		Offset(offset).
-		Limit(limit).
-		Find(&rows).Error; err != nil {
-		return nil, 0, fmt.Errorf("failed to list approved parent comments: %w", err)
-	}
-	return rows, total, nil
-}
-
-func (m *commentModel) ListApprovedRepliesByParentID(ctx context.Context, parentID uint64, offset int, limit int) ([]ListItem, int64, error) {
-	query := m.mysql.WithContext(ctx).Model(&Comment{}).Table("comment as c").
-		Where("c.parent_id = ? AND c.status = ?", parentID, StatusApproved)
-
-	var total int64
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, fmt.Errorf("failed to count approved comment replies: %w", err)
-	}
-
-	rows := make([]ListItem, 0)
-	if total == 0 {
-		return rows, 0, nil
-	}
-
-	if err := query.
-		Joins("LEFT JOIN `user` as u ON u.id = c.user_id").
-		Joins("LEFT JOIN `user` as ru ON ru.id = c.reply_to_user_id").
-		Joins("LEFT JOIN `comment` as rc ON rc.id = c.reply_to_comment_id").
-		Select("c.id, c.article_id, c.parent_id, c.user_id, c.reply_to_user_id, c.reply_to_comment_id, ru.display_name as reply_to_author_name, ru.handle as reply_to_author_handle, rc.content as reply_to_content, c.author_name, u.handle as author_handle, u.avatar_url, c.content, c.create_time").
-		Order("c.create_time ASC").
-		Offset(offset).
-		Limit(limit).
-		Find(&rows).Error; err != nil {
-		return nil, 0, fmt.Errorf("failed to list approved comment replies: %w", err)
-	}
-	return rows, total, nil
+	return articleIDs, nil
 }
 
 func (m *commentModel) ListComments(ctx context.Context, filter AdminListFilter) ([]AdminListItem, int64, error) {

@@ -17,7 +17,11 @@ func RouterEngine(bs *bootstrap.Bootstrap) (*gin.Engine, error) {
 	if err := r.SetTrustedProxies([]string{"172.16.0.0/12"}); err != nil {
 		return nil, fmt.Errorf("set trusted proxies: %w", err)
 	}
-	r.TrustedPlatform = "X-Client-IP"
+	// 仅当 TCP 对端位于可信 Docker 代理网段时，Gin 才会解析这些代理头。
+	// 不使用 TrustedPlatform：该配置会无条件信任指定请求头，绕过上面的网段校验。
+	// 保留线上 Nginx 已规范化的 X-Client-IP，但它现在和其他代理头一样，
+	// 只有在 TCP 对端属于可信代理网段时才会被采用。
+	r.RemoteIPHeaders = []string{"X-Client-IP", "X-Forwarded-For", "X-Real-IP"}
 
 	r.Use(
 		middlewares.TimeoutMiddleware(3*time.Second, timeoutOverrides()...),

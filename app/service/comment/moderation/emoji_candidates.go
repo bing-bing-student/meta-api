@@ -13,6 +13,8 @@ const (
 	maxEmojiRationaleRunes  = 80
 )
 
+// emojiVariantCandidates 将 clause 中 Emoji 的 CLDR 中文注释组合成解释文本，并与 riskIndex 匹配风险词。
+// 输入 ctx 控制取消，clauseID 标识分句，maxCandidates 限制数量；返回本地、含歧义标记的改写候选。
 func emojiVariantCandidates(ctx context.Context, clause NormalizedComment, clauseID int,
 	riskIndex riskTermIndex, annotationIndex *emojiAnnotationIndex, maxCandidates int,
 ) []RewriteCandidate {
@@ -80,6 +82,8 @@ func emojiVariantCandidates(ctx context.Context, clause NormalizedComment, claus
 	return result
 }
 
+// buildEmojiInterpretations 用每个 Emoji 的可用中文注释替换 value 中对应序列，生成受上限约束的组合解释。
+// 输入 occurrences 必须按位置排列；返回包含非 Emoji 原文的候选解释集合。
 func buildEmojiInterpretations(value string, occurrences []emojiOccurrence) []string {
 	states := []string{""}
 	cursor := 0
@@ -117,6 +121,8 @@ func buildEmojiInterpretations(value string, occurrences []emojiOccurrence) []st
 	return states
 }
 
+// usableEmojiAnnotations 清理、去重并限制 values 中的 Emoji 中文注释。
+// 返回最多 maxEmojiAnnotationTerms 个长度合适的紧凑词项。
 func usableEmojiAnnotations(values []string) []string {
 	result := make([]string, 0, min(len(values), maxEmojiAnnotationTerms))
 	seen := make(map[string]struct{})
@@ -137,6 +143,7 @@ func usableEmojiAnnotations(values []string) []string {
 	return result
 }
 
+// emojiObservation 按出现顺序连接 occurrences 中的原始 Emoji，返回用于证据展示的观测字符串。
 func emojiObservation(occurrences []emojiOccurrence) string {
 	values := make([]string, 0, len(occurrences))
 	for _, occurrence := range occurrences {
@@ -145,6 +152,7 @@ func emojiObservation(occurrences []emojiOccurrence) string {
 	return strings.Join(values, "…")
 }
 
+// truncateEmojiRationale 将 value 限制为审核原因允许的最大字符数；超长时返回带省略号的截断结果。
 func truncateEmojiRationale(value string) string {
 	runes := []rune(value)
 	if len(runes) <= maxEmojiRationaleRunes {

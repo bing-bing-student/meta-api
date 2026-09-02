@@ -15,6 +15,7 @@ const (
 	relationSubtypeRiskEducation                  = "risk_education"
 )
 
+// harmfulRelationMatch 表示分句中识别到的有害行为概念、观测形式、子类型和辅助动作。
 type harmfulRelationMatch struct {
 	Canonical  string
 	Observed   string
@@ -23,38 +24,13 @@ type harmfulRelationMatch struct {
 	Confidence float64
 }
 
-func resolvedHarmfulValuePolicy(
-	policy appconfig.CommentModerationHarmfulValuePolicyConfig,
-) appconfig.CommentModerationHarmfulValuePolicyConfig {
-	if len(policy.SelfPronouns) == 0 {
-		policy.SelfPronouns = []string{"我们", "自己", "本人", "我"}
-	}
-	if len(policy.OtherPronouns) == 0 {
-		policy.OtherPronouns = []string{"你们", "他们", "她们", "您", "你", "他", "她"}
-	}
-	if len(policy.AdditionalTargets) == 0 {
-		policy.AdditionalTargets = []string{"同学", "孩子", "家人", "大家", "别人"}
-	}
-	if len(policy.AddressedTargets) == 0 {
-		policy.AddressedTargets = []string{"你", "您", "你们", "同学", "大家"}
-	}
-	if len(policy.ReferenceSuffixes) == 0 {
-		policy.ReferenceSuffixes = []string{"事件", "案例", "新闻", "原因", "现象", "知识", "问题", "话题", "含义"}
-	}
-	if len(policy.OutcomeNegations) == 0 {
-		policy.OutcomeNegations = []string{"没有", "并无", "并不", "并非", "不算", "不能算", "不是", "不属于", "谈不上", "无"}
-	}
-	if len(policy.PromotionConflicts) == 0 {
-		policy.PromotionConflicts = []string{"值得加入", "建议加入", "鼓励加入", "值得支持", "鼓励传播", "建议照做"}
-	}
-	return policy
-}
-
+// appendHarmfulValueRelations 从单个分句提取自伤诱导、危险行为、死亡诅咒、风险防范和科普关系。
+// 输入 clauseID 标识分句，candidates 和 evidence 提供还原及证据，cfg 提供策略；结果通过 appendRelation 回调输出。
 func appendHarmfulValueRelations(clauseID int, clause NormalizedComment,
 	candidates []RewriteCandidate, evidence []Evidence, cfg appconfig.CommentModerationConfig,
 	appendRelation func(SemanticRelation),
 ) {
-	policy := resolvedHarmfulValuePolicy(cfg.SemanticRules.HarmfulValuePolicy)
+	policy := cfg.SemanticRules.HarmfulValuePolicy
 	if policy.Disabled {
 		return
 	}
@@ -112,6 +88,8 @@ func appendHarmfulValueRelations(clauseID int, clause NormalizedComment,
 	}
 }
 
+// harmfulRelationMatches 汇总 clause 中直接命中及候选还原得到的有害概念。
+// 输入 clauseID 用于筛选 candidates，policy 提供概念词和摄入动作；返回去重且通过必要动作约束的匹配。
 func harmfulRelationMatches(clauseID int, clause NormalizedComment, candidates []RewriteCandidate,
 	policy appconfig.CommentModerationHarmfulValuePolicyConfig,
 ) []harmfulRelationMatch {
@@ -177,6 +155,8 @@ func harmfulRelationMatches(clauseID int, clause NormalizedComment, candidates [
 	return filtered
 }
 
+// appendRiskEducationRelations 将“主体科普风险并说明危害”的结构转换为对应分类的反向语义关系。
+// 输入 evidence 用于定位被科普对象，policy 和 cfg 提供语法词项；关系通过 appendRelation 回调输出，无返回值。
 func appendRiskEducationRelations(clauseID int, clause NormalizedComment, evidence []Evidence,
 	policy appconfig.CommentModerationHarmfulValuePolicyConfig, cfg appconfig.CommentModerationConfig,
 	appendRelation func(SemanticRelation),
@@ -210,15 +190,17 @@ func appendRiskEducationRelations(clauseID int, clause NormalizedComment, eviden
 	}
 }
 
+// isRiskEducationSemanticClause 判断 clause 是否满足启用状态下的风险科普语法；返回对应结果。
 func isRiskEducationSemanticClause(clause NormalizedComment, cfg appconfig.CommentModerationConfig) bool {
 	if cfg.SemanticRules.HarmfulValuePolicy.Disabled {
 		return false
 	}
-	_, _, _, ok := riskEducationComponents(clause,
-		resolvedHarmfulValuePolicy(cfg.SemanticRules.HarmfulValuePolicy), cfg)
+	_, _, _, ok := riskEducationComponents(clause, cfg.SemanticRules.HarmfulValuePolicy, cfg)
 	return ok
 }
 
+// riskEducationComponents 从 clause 中提取科普主体、动作和危害结果。
+// 输入 policy 和 cfg 提供词项及冲突规则；返回三个组成部分和结构是否完整且无否定、推广冲突。
 func riskEducationComponents(clause NormalizedComment,
 	policy appconfig.CommentModerationHarmfulValuePolicyConfig, cfg appconfig.CommentModerationConfig,
 ) (string, string, string, bool) {
@@ -231,6 +213,7 @@ func riskEducationComponents(clause NormalizedComment,
 	return actor, action, outcome, ok
 }
 
+// policyContains 判断规范化后的 canonical 是否与 terms 中任一策略词完全相等；返回对应结果。
 func policyContains(terms []string, canonical string) bool {
 	canonical = compactText(normalizeText(canonical))
 	for _, term := range terms {
@@ -241,6 +224,8 @@ func policyContains(terms []string, canonical string) bool {
 	return false
 }
 
+// harmfulIngestionNear 在 focus 之前的局部窗口中查找最长摄入动作。
+// 输入 value 是分句、actions 是动作词；返回匹配动作，未命中时返回空串。
 func harmfulIngestionNear(value, focus string, actions []string) string {
 	prefix, _ := relationWindows(value, focus, 5, 2)
 	best := ""
@@ -253,6 +238,8 @@ func harmfulIngestionNear(value, focus string, actions []string) string {
 	return best
 }
 
+// harmfulPreventionNear 在 focus 前后窗口中查找劝阻或防范标记。
+// 输入 markers 是防范词；返回首个命中标记，未命中时返回空串。
 func harmfulPreventionNear(value, focus string, markers []string) string {
 	prefix, suffix := relationWindows(value, focus, 12, 10)
 	for _, marker := range markers {
@@ -264,6 +251,8 @@ func harmfulPreventionNear(value, focus string, markers []string) string {
 	return ""
 }
 
+// harmfulIncitementNear 在 focus 附近查找策略定义的教唆前缀或后缀。
+// 返回命中的指令词；未形成指令结构时返回空串。
 func harmfulIncitementNear(value, focus string,
 	policy appconfig.CommentModerationHarmfulValuePolicyConfig,
 ) string {
@@ -283,6 +272,8 @@ func harmfulIncitementNear(value, focus string,
 	return ""
 }
 
+// relationWindows 返回 focus 在 value 中的前后局部文本窗口。
+// 输入 before 和 after 是字符数上限；focus 不存在时两个返回值均为完整规范化文本。
 func relationWindows(value, focus string, before, after int) (string, string) {
 	value = compactText(normalizeText(value))
 	focus = compactText(normalizeText(focus))
@@ -301,6 +292,8 @@ func relationWindows(value, focus string, before, after int) (string, string) {
 	return string(prefixRunes), string(suffixRunes)
 }
 
+// isSelfHarmExpression 判断 match 是否为带第一人称意念标记的自伤表达。
+// 输入 value 是分句、policy 提供代词和意念词；返回 true 表示表达自身风险而非教唆他人。
 func isSelfHarmExpression(value string, match harmfulRelationMatch,
 	policy appconfig.CommentModerationHarmfulValuePolicyConfig,
 ) bool {
@@ -314,6 +307,8 @@ func isSelfHarmExpression(value string, match harmfulRelationMatch,
 	return nearestRelationPerson(prefix, policy) == "self"
 }
 
+// nearestRelationPerson 查找 value 中最后出现的人称代词并判断其属于自己还是他人。
+// 返回 "self"、"other" 或未命中时的空串。
 func nearestRelationPerson(value string, policy appconfig.CommentModerationHarmfulValuePolicyConfig) string {
 	lastIndex := -1
 	role := ""
@@ -334,15 +329,19 @@ func nearestRelationPerson(value string, policy appconfig.CommentModerationHarmf
 	return role
 }
 
+// harmfulRelationTarget 从 focus 之前的窗口中寻找受有害动作影响的对象。
+// 输入 policy 和 cfg 提供附加及通用人物目标；返回首个目标词，未命中时返回空串。
 func harmfulRelationTarget(value, focus string, policy appconfig.CommentModerationHarmfulValuePolicyConfig,
 	cfg appconfig.CommentModerationConfig,
 ) string {
 	prefix, _ := relationWindows(value, focus, 18, 0)
-	targets := append([]string(nil), resolvedRelationVocabulary(cfg).PersonTargets...)
+	targets := append([]string(nil), cfg.SemanticRules.RelationVocabulary.PersonTargets...)
 	targets = append(targets, policy.AdditionalTargets...)
 	return firstContainedRelationTerm(prefix, targets)
 }
 
+// harmfulTargetIsAddressed 判断 target 是否被评论直接称呼或置于明确指令结构中。
+// 输入 value、focus、directive 描述完整语境；返回 true 表示有害动作确实指向该对象。
 func harmfulTargetIsAddressed(value, target, focus, directive string,
 	policy appconfig.CommentModerationHarmfulValuePolicyConfig,
 ) bool {
@@ -356,6 +355,8 @@ func harmfulTargetIsAddressed(value, target, focus, directive string,
 	})
 }
 
+// harmfulConceptIsReferenced 判断 focus 后是否紧跟引用后缀。
+// 输入 value 是分句、policy 提供引用标记；返回 true 表示只是在提及概念而非实施或教唆。
 func harmfulConceptIsReferenced(value, focus string,
 	policy appconfig.CommentModerationHarmfulValuePolicyConfig,
 ) bool {
@@ -368,11 +369,14 @@ func harmfulConceptIsReferenced(value, focus string,
 	return false
 }
 
+// criticalOutcomeNegated 判断 outcome 前的局部窗口是否包含任一否定 markers；返回对应结果。
 func criticalOutcomeNegated(value, outcome string, markers []string) bool {
 	prefix, _ := relationWindows(value, outcome, 6, 0)
 	return containsAnyNormalized(prefix, markers)
 }
 
+// educationHasPromotionalConflict 判断风险科普语境是否同时出现行动推广或策略冲突词。
+// 返回 true 表示不能按良性科普关系处理。
 func educationHasPromotionalConflict(value string, cfg appconfig.CommentModerationConfig,
 	policy appconfig.CommentModerationHarmfulValuePolicyConfig,
 ) bool {
@@ -383,6 +387,7 @@ func educationHasPromotionalConflict(value string, cfg appconfig.CommentModerati
 	return containsAnyNormalized(value, policy.PromotionConflicts)
 }
 
+// evidenceObjectInClause 从 evidence 中提取实际出现在 clause 里的最长有效词项并返回。
 func evidenceObjectInClause(clause, value string) string {
 	best := ""
 	for _, term := range evidenceTerms(value) {
@@ -393,6 +398,7 @@ func evidenceObjectInClause(clause, value string) string {
 	return best
 }
 
+// matchResult 将 match 的辅助摄入动作与规范概念组合成关系结果并返回。
 func matchResult(match harmfulRelationMatch) string {
 	if match.Auxiliary != "" {
 		return match.Auxiliary + match.Canonical
@@ -400,6 +406,7 @@ func matchResult(match harmfulRelationMatch) string {
 	return match.Canonical
 }
 
+// matchEvidence 构造 match 的可审计证据；观测形式与规范形式不同时返回“观测→还原结果”。
 func matchEvidence(match harmfulRelationMatch) string {
 	result := matchResult(match)
 	if match.Observed != match.Canonical {
@@ -408,6 +415,7 @@ func matchEvidence(match harmfulRelationMatch) string {
 	return result
 }
 
+// minProbability 返回 left 和 right 中较小的概率值。
 func minProbability(left, right float64) float64 {
 	if left < right {
 		return left

@@ -22,6 +22,8 @@ const (
 	replyToContentExcerptMaxRunes = 48
 )
 
+// UserGetCommentList 校验 request 中的文章 ID，并读取该文章已通过的一级评论及首屏回复。
+// 输入 ctx 控制缓存和数据库操作；返回分页响应，ID 非法时返回 ErrInvalidComment，读取失败时返回底层错误。
 func (s *commentService) UserGetCommentList(ctx context.Context,
 	request *types.UserGetCommentListRequest) (*types.UserGetCommentListResponse, error) {
 
@@ -31,27 +33,15 @@ func (s *commentService) UserGetCommentList(ctx context.Context,
 		return nil, ErrInvalidComment
 	}
 
-	start := (request.Page - 1) * request.PageSize
-	parentRows, total, err := s.commentModel.ListApprovedParentsByArticleID(ctx, articleID, start, request.PageSize)
+	approvedComments, err := s.getApprovedArticleComments(ctx, articleID)
 	if err != nil {
 		return nil, err
 	}
-
-	rows := make([]types.UserCommentItem, 0, len(parentRows))
-	for _, row := range parentRows {
-		item := toUserCommentItem(row)
-		if err = s.attachReplyPage(ctx, &item, row.ID, 1, initialReplyPageSize); err != nil {
-			return nil, err
-		}
-		rows = append(rows, item)
-	}
-
-	return &types.UserGetCommentListResponse{
-		Rows:  rows,
-		Total: int(total),
-	}, nil
+	return buildUserCommentListResponse(approvedComments, request.Page, request.PageSize), nil
 }
 
+// UserGetCommentReplyList 校验 request 指定的一级评论并返回其已通过回复分页。
+// 输入 ctx 控制查询；返回回复响应，父评论不存在、不是一级评论或未通过审核时返回相应业务错误。
 func (s *commentService) UserGetCommentReplyList(ctx context.Context,
 	request *types.UserGetCommentReplyListRequest) (*types.UserGetCommentReplyListResponse, error) {
 
@@ -73,49 +63,16 @@ func (s *commentService) UserGetCommentReplyList(ctx context.Context,
 		return nil, ErrInvalidComment
 	}
 
-	start := (request.Page - 1) * request.PageSize
-	replyRows, total, err := s.commentModel.ListApprovedRepliesByParentID(ctx, parentID, start, request.PageSize)
+	approvedComments, err := s.getApprovedArticleComments(ctx, parent.ArticleID)
 	if err != nil {
 		return nil, err
 	}
-
-	rows := make([]types.UserCommentItem, 0, len(replyRows))
-	for _, row := range replyRows {
-		rows = append(rows, toUserCommentItem(row))
-	}
-
-	hasMore := request.Page*request.PageSize < int(total)
-	nextPage := 0
-	if hasMore {
-		nextPage = request.Page + 1
-	}
-	return &types.UserGetCommentReplyListResponse{
-		Rows:     rows,
-		Total:    int(total),
-		HasMore:  hasMore,
-		NextPage: nextPage,
-	}, nil
+	return buildUserCommentReplyListResponse(approvedComments, strconv.FormatUint(parentID, 10),
+		request.Page, request.PageSize), nil
 }
 
-func (s *commentService) attachReplyPage(ctx context.Context, item *types.UserCommentItem, parentID uint64, page int, pageSize int) error {
-	start := (page - 1) * pageSize
-	replyRows, total, err := s.commentModel.ListApprovedRepliesByParentID(ctx, parentID, start, pageSize)
-	if err != nil {
-		return err
-	}
-	if len(replyRows) > 0 {
-		item.Replies = make([]types.UserCommentItem, 0, len(replyRows))
-		for _, row := range replyRows {
-			item.Replies = append(item.Replies, toUserCommentItem(row))
-		}
-	}
-	if page*pageSize < int(total) {
-		item.ReplyHasMore = true
-		item.ReplyNextPage = page + 1
-	}
-	return nil
-}
-
+// UserAddComment 完成用户会话、禁言、限流、文章、回复关系和内容校验，审核评论后将评论与审计记录原子落库。
+// 输入 ctx 控制所有下游操作，request 携带身份、文章、回复目标及内容；返回评论 ID 和审核状态，失败时返回业务或存储错误。
 func (s *commentService) UserAddComment(ctx context.Context,
 	request *types.UserAddCommentRequest) (*types.UserAddCommentResponse, error) {
 
@@ -278,6 +235,12 @@ func (s *commentService) UserAddComment(ctx context.Context,
 		return nil, err
 	}
 	s.recordCommentModerationBehavior(ctx, moderationInput)
+	if moderation.Status == commentModel.StatusApproved {
+		if err = s.clearApprovedArticleCommentCache(ctx, articleID); err != nil {
+			s.logger.Error("failed to clear approved comment cache after create",
+				zap.Uint64("article_id", articleID), zap.Error(err))
+		}
+	}
 
 	return &types.UserAddCommentResponse{
 		ID:     strconv.FormatUint(commentID, 10),
@@ -285,6 +248,8 @@ func (s *commentService) UserAddComment(ctx context.Context,
 	}, nil
 }
 
+// toUserCommentItem 将数据库列表行 row 转换为前台评论项。
+// 返回值会格式化 ID、时间、回复对象，并为被回复评论生成受长度限制的摘要。
 func toUserCommentItem(row commentModel.ListItem) types.UserCommentItem {
 	item := types.UserCommentItem{
 		ID:           strconv.FormatUint(row.ID, 10),
@@ -311,6 +276,8 @@ func toUserCommentItem(row commentModel.ListItem) types.UserCommentItem {
 	return item
 }
 
+// truncateString 将 value 按 Unicode 字符数限制为 maxLen。
+// 返回原字符串或截断结果；该函数按字符而非字节截断，避免破坏 UTF-8。
 func truncateString(value string, maxLen int) string {
 	runes := []rune(value)
 	if len(runes) <= maxLen {
@@ -319,6 +286,8 @@ func truncateString(value string, maxLen int) string {
 	return string(runes[:maxLen])
 }
 
+// buildCommentExcerpt 将 value 的连续空白压缩为空格，并限制为回复摘要最大字符数。
+// 返回清理后的完整文本或带省略号的截断摘要。
 func buildCommentExcerpt(value string) string {
 	content := strings.Join(strings.Fields(value), " ")
 	runes := []rune(content)

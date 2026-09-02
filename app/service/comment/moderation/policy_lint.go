@@ -91,6 +91,7 @@ func LintConfig(cfg appconfig.CommentModerationConfig) []PolicyIssue {
 	return issues
 }
 
+// duplicateTermIssues 检查 path 对应的 values 中是否有归一化后的重复词，返回所有重复问题。
 func duplicateTermIssues(path string, values []string) []PolicyIssue {
 	issues := make([]PolicyIssue, 0)
 	seen := make(map[string]struct{}, len(values))
@@ -109,6 +110,7 @@ func duplicateTermIssues(path string, values []string) []PolicyIssue {
 	return issues
 }
 
+// containedTermIssues 检查 path 对应的 values 中是否存在长词包含短词的模糊匹配风险，返回问题列表。
 func containedTermIssues(path string, values []string) []PolicyIssue {
 	terms := compactPolicyTerms(values)
 	issues := make([]PolicyIssue, 0)
@@ -126,6 +128,7 @@ func containedTermIssues(path string, values []string) []PolicyIssue {
 	return issues
 }
 
+// stringSet 将 values 转换为去重集合，返回以原字符串为键的 map。
 func stringSet(values []string) map[string]struct{} {
 	result := make(map[string]struct{}, len(values))
 	for _, value := range values {

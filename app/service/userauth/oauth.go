@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -32,8 +35,10 @@ const (
 )
 
 type oauthStatePayload struct {
-	Provider     string `json:"provider"`
-	RedirectPath string `json:"redirectPath"`
+	Provider        string `json:"provider"`
+	RedirectPath    string `json:"redirectPath"`
+	FlowBindingHash string `json:"flowBindingHash"`
+	CodeVerifier    string `json:"codeVerifier"`
 }
 
 type oauthProviderConfig struct {
@@ -47,30 +52,40 @@ type oauthProviderConfig struct {
 	Scopes       []string
 }
 
-func (s *userAuthService) BuildOAuthLoginURL(ctx context.Context, request *types.OAuthLoginRequest) (string, error) {
+func (s *userAuthService) BuildOAuthLoginURL(ctx context.Context, request *types.OAuthLoginRequest) (*OAuthLoginResult, error) {
 	provider, err := s.loadOAuthProviderConfig(request.Provider)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	redirectPath, err := normalizeRedirectPath(request.Redirect)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	state, err := generateOAuthState()
 	if err != nil {
-		return "", fmt.Errorf("failed to generate oauth state: %w", err)
+		return nil, fmt.Errorf("failed to generate oauth state: %w", err)
+	}
+	flowBinding, err := generateOAuthFlowSecret()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate oauth flow binding: %w", err)
+	}
+	codeVerifier, err := generateOAuthFlowSecret()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate oauth code verifier: %w", err)
 	}
 
 	payload, err := json.Marshal(oauthStatePayload{
-		Provider:     provider.Provider,
-		RedirectPath: redirectPath,
+		Provider:        provider.Provider,
+		RedirectPath:    redirectPath,
+		FlowBindingHash: hashOAuthFlowBinding(flowBinding),
+		CodeVerifier:    codeVerifier,
 	})
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal oauth state: %w", err)
+		return nil, fmt.Errorf("failed to marshal oauth state: %w", err)
 	}
 	if err = s.redis.Set(ctx, cachekey.UserOAuthState(state).String(), string(payload), oauthStateTTL).Err(); err != nil {
-		return "", fmt.Errorf("failed to store oauth state: %w", err)
+		return nil, fmt.Errorf("failed to store oauth state: %w", err)
 	}
 
 	query := url.Values{}
@@ -79,20 +94,35 @@ func (s *userAuthService) BuildOAuthLoginURL(ctx context.Context, request *types
 	query.Set("response_type", "code")
 	query.Set("scope", strings.Join(provider.Scopes, " "))
 	query.Set("state", state)
+	query.Set("code_challenge", oauthPKCEChallenge(codeVerifier))
+	query.Set("code_challenge_method", "S256")
 	if provider.Provider == "google" {
 		query.Set("access_type", "online")
 	}
-	return provider.AuthURL + "?" + query.Encode(), nil
+	return &OAuthLoginResult{
+		AuthorizationURL: provider.AuthURL + "?" + query.Encode(),
+		FlowBinding:      flowBinding,
+	}, nil
 }
 
 func (s *userAuthService) HandleOAuthCallback(ctx context.Context,
 	request *types.OAuthCallbackRequest) (*types.OAuthCallbackResponse, string, error) {
 
+	// 先读取但不消费 state。只有浏览器流程 Cookie 匹配后才执行 GETDEL，
+	// 避免第三方拿到 state 后用错误 Cookie 提前使正常登录失效。
+	statePreview, err := s.getOAuthState(ctx, request.State)
+	if err != nil {
+		return nil, "", err
+	}
+	if statePreview.Provider != request.Provider || !oauthFlowBindingMatches(statePreview.FlowBindingHash, request.FlowBinding) {
+		return nil, "", ErrInvalidOAuthState
+	}
+
 	statePayload, err := s.consumeOAuthState(ctx, request.State)
 	if err != nil {
 		return nil, "", err
 	}
-	if statePayload.Provider != request.Provider {
+	if statePayload.Provider != request.Provider || !oauthFlowBindingMatches(statePayload.FlowBindingHash, request.FlowBinding) {
 		return nil, "", ErrInvalidOAuthState
 	}
 
@@ -100,7 +130,7 @@ func (s *userAuthService) HandleOAuthCallback(ctx context.Context,
 	if err != nil {
 		return nil, "", err
 	}
-	accessToken, err := exchangeOAuthToken(ctx, provider, request.Code)
+	accessToken, err := exchangeOAuthToken(ctx, provider, request.Code, statePayload.CodeVerifier)
 	if err != nil {
 		s.logger.Error("failed to exchange oauth token", zap.String("provider", provider.Provider), zap.Error(err))
 		return nil, "", ErrUserAuthFailed
@@ -149,6 +179,7 @@ func (s *userAuthService) HandleOAuthCallback(ctx context.Context,
 	if account == nil {
 		return nil, "", ErrUserHandleTaken
 	}
+	s.clearApprovedCommentCachesForUser(ctx, account.ID)
 
 	publicUser := toPublicUserInfo(account)
 	token, err := utils.GenerateCommentUserToken(publicUser)
@@ -160,6 +191,29 @@ func (s *userAuthService) HandleOAuthCallback(ctx context.Context,
 		User:         *publicUser,
 		RedirectPath: statePayload.RedirectPath,
 	}, token, nil
+}
+
+func (s *userAuthService) clearApprovedCommentCachesForUser(ctx context.Context, userID uint64) {
+	if s == nil || s.redis == nil || s.commentModel == nil || userID == 0 {
+		return
+	}
+	articleIDs, err := s.commentModel.ListApprovedArticleIDsByUserID(ctx, userID)
+	if err != nil {
+		s.logger.Warn("failed to list comment caches affected by oauth profile update",
+			zap.Uint64("user_id", userID), zap.Error(err))
+		return
+	}
+	keys := make([]string, 0, len(articleIDs))
+	for _, articleID := range articleIDs {
+		keys = append(keys, cachekey.CommentApprovedArticle(strconv.FormatUint(articleID, 10)).String())
+	}
+	if len(keys) == 0 {
+		return
+	}
+	if err = s.redis.Del(ctx, keys...).Err(); err != nil {
+		s.logger.Warn("failed to clear comment caches after oauth profile update",
+			zap.Uint64("user_id", userID), zap.Error(err))
+	}
 }
 
 func (s *userAuthService) GetCurrentUser(ctx context.Context, userID string, sessionVersion int64) (*types.PublicUserInfo, error) {
@@ -186,11 +240,24 @@ func (s *userAuthService) consumeOAuthState(ctx context.Context, state string) (
 		return nil, ErrInvalidOAuthState
 	}
 
-	payload := new(oauthStatePayload)
-	if err = json.Unmarshal([]byte(raw), payload); err != nil {
+	return decodeOAuthState(raw)
+}
+
+func (s *userAuthService) getOAuthState(ctx context.Context, state string) (*oauthStatePayload, error) {
+	raw, err := s.redis.Get(ctx, cachekey.UserOAuthState(state).String()).Result()
+	if err != nil {
 		return nil, ErrInvalidOAuthState
 	}
-	if payload.Provider == "" || payload.RedirectPath == "" {
+	return decodeOAuthState(raw)
+}
+
+func decodeOAuthState(raw string) (*oauthStatePayload, error) {
+	payload := new(oauthStatePayload)
+	if err := json.Unmarshal([]byte(raw), payload); err != nil {
+		return nil, ErrInvalidOAuthState
+	}
+	if payload.Provider == "" || payload.RedirectPath == "" || len(payload.FlowBindingHash) != sha256.Size*2 ||
+		len(payload.CodeVerifier) < 43 || len(payload.CodeVerifier) > 128 {
 		return nil, ErrInvalidOAuthState
 	}
 	return payload, nil
@@ -245,13 +312,14 @@ func envOrConfig(envKey string, fallback string) string {
 	return strings.TrimSpace(fallback)
 }
 
-func exchangeOAuthToken(ctx context.Context, provider *oauthProviderConfig, code string) (string, error) {
+func exchangeOAuthToken(ctx context.Context, provider *oauthProviderConfig, code string, codeVerifier string) (string, error) {
 	form := url.Values{}
 	form.Set("client_id", provider.ClientID)
 	form.Set("client_secret", provider.ClientSecret)
 	form.Set("code", code)
 	form.Set("grant_type", "authorization_code")
 	form.Set("redirect_uri", provider.RedirectURI)
+	form.Set("code_verifier", codeVerifier)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, provider.TokenURL, strings.NewReader(form.Encode()))
 	if err != nil {
@@ -379,14 +447,61 @@ func generateOAuthState() (string, error) {
 	return hex.EncodeToString(buf), nil
 }
 
+func generateOAuthFlowSecret() (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
+}
+
+func hashOAuthFlowBinding(binding string) string {
+	digest := sha256.Sum256([]byte(binding))
+	return hex.EncodeToString(digest[:])
+}
+
+func oauthFlowBindingMatches(expectedHash string, binding string) bool {
+	if binding == "" {
+		return false
+	}
+	expected, err := hex.DecodeString(expectedHash)
+	if err != nil || len(expected) != sha256.Size {
+		return false
+	}
+	actual := sha256.Sum256([]byte(binding))
+	return subtle.ConstantTimeCompare(expected, actual[:]) == 1
+}
+
+func oauthPKCEChallenge(verifier string) string {
+	digest := sha256.Sum256([]byte(verifier))
+	return base64.RawURLEncoding.EncodeToString(digest[:])
+}
+
 func normalizeRedirectPath(raw string) (string, error) {
-	if strings.TrimSpace(raw) == "" {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
 		return "/", nil
 	}
-	if !strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, "//") || strings.Contains(raw, "://") {
+	if containsUnsafeOAuthRedirectChars(raw) {
 		return "", ErrInvalidOAuthRedirect
 	}
-	return raw, nil
+
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.IsAbs() || parsed.Host != "" || parsed.User != nil || parsed.Opaque != "" ||
+		!strings.HasPrefix(parsed.Path, "/") || strings.HasPrefix(parsed.Path, "//") ||
+		containsUnsafeOAuthRedirectChars(parsed.Path) || containsUnsafeOAuthRedirectChars(parsed.Fragment) {
+		return "", ErrInvalidOAuthRedirect
+	}
+	if decodedQuery, decodeErr := url.QueryUnescape(parsed.RawQuery); decodeErr != nil || containsUnsafeOAuthRedirectChars(decodedQuery) {
+		return "", ErrInvalidOAuthRedirect
+	}
+	return parsed.String(), nil
+}
+
+func containsUnsafeOAuthRedirectChars(value string) bool {
+	return strings.Contains(value, "\\") || strings.IndexFunc(value, func(r rune) bool {
+		return r < 0x20 || r == 0x7f
+	}) >= 0
 }
 
 func nowInShanghai() (time.Time, error) {

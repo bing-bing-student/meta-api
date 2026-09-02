@@ -16,20 +16,25 @@ import (
 	appconfig "meta-api/config"
 )
 
+// BehaviorStore 封装基于 Redis 的评论频率、重复和近重复行为读写。
 type BehaviorStore struct {
 	redis  *redis.Client
 	logger *zap.Logger
 }
 
+// NewBehaviorStore 使用 redis（行为数据客户端）和 logger（日志器）创建存储，返回 BehaviorStore。
 func NewBehaviorStore(redis *redis.Client, logger *zap.Logger) *BehaviorStore {
 	return &BehaviorStore{redis: redis, logger: logger}
 }
 
+// Signals 由 s 使用 ctx 查询 req 和 text 的行为状态，并按 cfg 评估，返回触发的行为信号。
 func (s *BehaviorStore) Signals(ctx context.Context, req Request, text NormalizedComment,
 	cfg appconfig.CommentModerationConfig) []Signal {
 	return s.Evaluate(ctx, req, text, cfg).Signals
 }
 
+// Evaluate 由 s 使用 ctx 对 req 和 text 执行只读行为查询，并根据 cfg 生成信号；
+// 返回同时包含信号和指标轨迹的 BehaviorEvaluation。
 func (s *BehaviorStore) Evaluate(ctx context.Context, req Request, text NormalizedComment,
 	cfg appconfig.CommentModerationConfig) BehaviorEvaluation {
 	contextProvided := req.UserID != 0 || req.ArticleID != 0 || strings.TrimSpace(req.ClientIP) != ""
@@ -106,6 +111,7 @@ func (s *BehaviorStore) Evaluate(ctx context.Context, req Request, text Normaliz
 	}
 }
 
+// behaviorMetricTrace 将 state（行为计数）、signals（触发信号）和 cfg（阈值配置）组装为指标轨迹列表。
 func behaviorMetricTrace(state BehaviorState, signals []Signal,
 	cfg appconfig.CommentModerationConfig,
 ) []BehaviorMetricTrace {
@@ -157,6 +163,7 @@ func behaviorMetricTrace(state BehaviorState, signals []Signal,
 	return metrics
 }
 
+// behaviorMetricSkippedReason 根据 evaluated 判断指标是否已评估；已评估返回空字符串，否则返回 reason。
 func behaviorMetricSkippedReason(evaluated bool, reason string) string {
 	if evaluated {
 		return ""
@@ -164,6 +171,7 @@ func behaviorMetricSkippedReason(evaluated bool, reason string) string {
 	return reason
 }
 
+// Record 由 s 使用 ctx 将 req 的已落库评论按 cfg 写入各行为窗口；无返回值，写入失败仅记录日志。
 func (s *BehaviorStore) Record(ctx context.Context, req Request, cfg appconfig.CommentModerationConfig) {
 	if s == nil || s.redis == nil || req.CommentID == 0 || cfg.Disabled {
 		return
@@ -200,6 +208,7 @@ func (s *BehaviorStore) Record(ctx context.Context, req Request, cfg appconfig.C
 	}
 }
 
+// BehaviorSignals 将 state 中的发布前计数与 cfg 阈值比较，返回频率、重复或近重复风险信号。
 func BehaviorSignals(state BehaviorState, cfg appconfig.CommentModerationConfig) []Signal {
 	signals := make([]Signal, 0, 3)
 	user := userRule(cfg)
@@ -226,6 +235,7 @@ func BehaviorSignals(state BehaviorState, cfg appconfig.CommentModerationConfig)
 	return signals
 }
 
+// behaviorSignal 根据 category、level、evidence 和 cfg 构造一条标准行为信号，返回 Signal。
 func behaviorSignal(category, level, evidence string, cfg appconfig.CommentModerationConfig) Signal {
 	return Signal{
 		Source:   SourceBehavior,
@@ -238,11 +248,13 @@ func behaviorSignal(category, level, evidence string, cfg appconfig.CommentModer
 	}
 }
 
+// countEvents 由 s 统计 key 在 now 之前 window 时长内的有序集事件，返回数量和 Redis 错误。
 func (s *BehaviorStore) countEvents(ctx context.Context, key string, now time.Time, window time.Duration) (int64, error) {
 	cutoff := now.Add(-window).Unix()
 	return s.redis.ZCount(ctx, key, strconv.FormatInt(cutoff, 10), "+inf").Result()
 }
 
+// getCounter 由 s 读取 key 的整数计数；key 不存在时返回 0，其他情况返回计数和错误。
 func (s *BehaviorStore) getCounter(ctx context.Context, key string) (int64, error) {
 	count, err := s.redis.Get(ctx, key).Int64()
 	if errors.Is(err, redis.Nil) {
@@ -251,6 +263,8 @@ func (s *BehaviorStore) getCounter(ctx context.Context, key string) (int64, erro
 	return count, err
 }
 
+// countNearDuplicates 由 s 在 key 的时间窗口内查找与 content 相似的指纹，rule 给出距离和样本限制；
+// 返回近重复数量和 Redis 错误。
 func (s *BehaviorStore) countNearDuplicates(ctx context.Context, key string, now time.Time,
 	content string, rule appconfig.CommentModerationNearDuplicateConfig) (int64, error) {
 	contentRunes := len([]rune(compactText(content)))
@@ -270,6 +284,7 @@ func (s *BehaviorStore) countNearDuplicates(ctx context.Context, key string, now
 	return countSimilarFingerprints(values, simHash(content), contentRunes, rule), nil
 }
 
+// countSimilarFingerprints 在 values 中按 fingerprint、contentRunes 和 rule 过滤可比指纹，返回汉明距离达标的数量。
 func countSimilarFingerprints(values []string, fingerprint uint64, contentRunes int,
 	rule appconfig.CommentModerationNearDuplicateConfig) int64 {
 	var count int64
@@ -291,6 +306,7 @@ func countSimilarFingerprints(values []string, fingerprint uint64, contentRunes 
 	return count
 }
 
+// withinLengthDifference 比较 left 和 right 两个文本长度，返回它们的差异百分比是否不超过 maxPercent。
 func withinLengthDifference(left, right, maxPercent int) bool {
 	if left <= 0 || right <= 0 {
 		return false
@@ -302,6 +318,7 @@ func withinLengthDifference(left, right, maxPercent int) bool {
 	return difference*100 <= max(left, right)*maxPercent
 }
 
+// BuildBehaviorKeys 使用 userID、articleID、clientIP 和 normalized（归一化内容）构造脱敏 Redis Key，返回 BehaviorKeys。
 func BuildBehaviorKeys(userID, articleID uint64, clientIP, normalized string) BehaviorKeys {
 	userHash := ratelimit.HashPart(strconv.FormatUint(userID, 10))
 	articleHash := ratelimit.HashPart(strconv.FormatUint(articleID, 10))
@@ -315,10 +332,12 @@ func BuildBehaviorKeys(userID, articleID uint64, clientIP, normalized string) Be
 	}
 }
 
+// normalizeRateLimitValue 对 value（限流维度原值）执行文本归一化，返回可稳定哈希的字符串。
 func normalizeRateLimitValue(value string) string {
 	return normalizeText(value)
 }
 
+// userRule 从 cfg 解析用户频率规则并补齐缺省值，返回有效阈值配置。
 func userRule(cfg appconfig.CommentModerationConfig) appconfig.CommentModerationBehaviorThresholdConfig {
 	rule := cfg.BehaviorRules.UserFrequency
 	if rule.WindowSeconds <= 0 {
@@ -330,6 +349,7 @@ func userRule(cfg appconfig.CommentModerationConfig) appconfig.CommentModeration
 	return rule
 }
 
+// ipRule 从 cfg 解析 IP 频率规则并补齐缺省值，返回有效阈值配置。
 func ipRule(cfg appconfig.CommentModerationConfig) appconfig.CommentModerationBehaviorThresholdConfig {
 	rule := cfg.BehaviorRules.IPFrequency
 	if rule.WindowSeconds <= 0 {
@@ -341,6 +361,7 @@ func ipRule(cfg appconfig.CommentModerationConfig) appconfig.CommentModerationBe
 	return rule
 }
 
+// duplicateRule 从 cfg 解析精确重复规则并修正无效阈值，返回有效配置。
 func duplicateRule(cfg appconfig.CommentModerationConfig) appconfig.CommentModerationBehaviorThresholdConfig {
 	rule := cfg.BehaviorRules.DuplicateContent
 	if rule.WindowSeconds <= 0 {
@@ -355,6 +376,7 @@ func duplicateRule(cfg appconfig.CommentModerationConfig) appconfig.CommentModer
 	return rule
 }
 
+// nearDuplicateRule 从 cfg 解析 SimHash 近重复规则并补齐窗口、距离和样本缺省值，返回有效配置。
 func nearDuplicateRule(cfg appconfig.CommentModerationConfig) appconfig.CommentModerationNearDuplicateConfig {
 	rule := cfg.BehaviorRules.NearDuplicate
 	if rule.WindowSeconds <= 0 {
@@ -378,6 +400,7 @@ func nearDuplicateRule(cfg appconfig.CommentModerationConfig) appconfig.CommentM
 	return rule
 }
 
+// durationSeconds 将 seconds 转换为 time.Duration；非正数输入按 1 秒处理，返回始终为正的时长。
 func durationSeconds(seconds int64) time.Duration {
 	if seconds <= 0 {
 		return time.Second

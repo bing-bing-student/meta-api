@@ -14,20 +14,22 @@ const (
 )
 
 type SiteDynamic struct {
-	ID         uint64    `gorm:"primary_key;NOT NULL"`
-	Content    string    `gorm:"column:content;type:varchar(50);NOT NULL"`
-	Status     string    `gorm:"column:status;type:varchar(20);NOT NULL;default:published;index:idx_site_dynamic_status_sort,priority:1"`
-	SortOrder  int       `gorm:"column:sort_order;NOT NULL;default:0;index:idx_site_dynamic_status_sort,priority:2;index:idx_site_dynamic_sort,priority:1"`
-	EventTime  time.Time `gorm:"column:event_time;NOT NULL;index:idx_site_dynamic_sort,priority:2"`
-	CreateTime time.Time `gorm:"column:create_time;NOT NULL"`
-	UpdateTime time.Time `gorm:"column:update_time;NOT NULL"`
+	ID        uint64 `gorm:"primary_key;NOT NULL"`
+	Content   string `gorm:"column:content;type:varchar(50);NOT NULL"`
+	Status    string `gorm:"column:status;type:varchar(20);NOT NULL;default:published;index:idx_site_dynamic_status_sort,priority:1"`
+	SortOrder int    `gorm:"column:sort_order;NOT NULL;default:0;index:idx_site_dynamic_status_sort,priority:2;index:idx_site_dynamic_sort,priority:1"`
+	// DeprecatedEventTime only keeps existing schemas writable. It is not part of
+	// the site-dynamic domain, API contract, or ordering and can be removed by a
+	// dedicated database migration after the stored values are no longer needed.
+	DeprecatedEventTime time.Time `gorm:"column:event_time;NOT NULL;index:idx_site_dynamic_sort,priority:2"`
+	CreateTime          time.Time `gorm:"column:create_time;NOT NULL"`
+	UpdateTime          time.Time `gorm:"column:update_time;NOT NULL"`
 }
 
 func (m *siteDynamicModel) ListSiteDynamics(ctx context.Context) ([]SiteDynamic, error) {
 	rows := make([]SiteDynamic, 0)
 	if err := m.mysql.WithContext(ctx).Model(&SiteDynamic{}).
 		Order("sort_order ASC").
-		Order("event_time DESC").
 		Order("id DESC").
 		Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("list site dynamics: %w", err)
@@ -40,7 +42,6 @@ func (m *siteDynamicModel) ListPublishedSiteDynamics(ctx context.Context) ([]Sit
 	if err := m.mysql.WithContext(ctx).Model(&SiteDynamic{}).
 		Where("status = ?", StatusPublished).
 		Order("sort_order ASC").
-		Order("event_time DESC").
 		Order("id DESC").
 		Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("list published site dynamics: %w", err)
@@ -66,7 +67,6 @@ func (m *siteDynamicModel) UpdateSiteDynamic(ctx context.Context, item *SiteDyna
 	updates := map[string]any{
 		"content":     item.Content,
 		"status":      item.Status,
-		"event_time":  item.EventTime,
 		"update_time": item.UpdateTime,
 	}
 	result := m.mysql.WithContext(ctx).Model(&SiteDynamic{}).Where("id = ?", item.ID).Updates(updates)

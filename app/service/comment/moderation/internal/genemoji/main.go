@@ -25,26 +25,31 @@ const (
 	emojiTestURL       = "https://www.unicode.org/Public/emoji/16.0/emoji-test.txt"
 )
 
+// annotation 表示 CLDR 为单个 Emoji 提供的搜索关键词和文本转语音名称。
 type annotation struct {
 	Default []string `json:"default"`
 	TTS     []string `json:"tts"`
 }
 
+// annotationSection 对应 CLDR 文档中的 Emoji 注释映射区域。
 type annotationSection struct {
 	Annotations map[string]annotation `json:"annotations"`
 }
 
+// annotationDocument 兼容基础注释与派生注释两种 CLDR 文档结构。
 type annotationDocument struct {
 	Annotations        annotationSection `json:"annotations"`
 	AnnotationsDerived annotationSection `json:"annotationsDerived"`
 }
 
+// generatedData 是写入审核服务嵌入文件的精简版本信息和中文注释数据。
 type generatedData struct {
 	CLDRVersion  string              `json:"cldrVersion"`
 	EmojiVersion string              `json:"emojiVersion"`
 	Annotations  map[string][]string `json:"annotations"`
 }
 
+// main 解析输出参数并运行 Emoji 注释生成任务；生成失败时输出错误并以非零状态退出。
 func main() {
 	output := flag.String("output", "emoji_annotations_zh.json.gz", "generated gzip output")
 	flag.Parse()
@@ -54,6 +59,8 @@ func main() {
 	}
 }
 
+// run 下载指定版本的 CLDR 和 Emoji 序列数据，合并中文注释并写入 output。
+// 输入 output 是 gzip 产物路径；返回下载、解析、覆盖率校验或写入错误。
 func run(output string) error {
 	client := &http.Client{Timeout: 30 * time.Second}
 	annotations := make(map[string]annotation)
@@ -103,6 +110,8 @@ func run(output string) error {
 	return writeGenerated(output, generated)
 }
 
+// fetch 使用 client 下载 source，并限制响应体最大为 8 MiB。
+// 返回响应字节；网络、非成功状态码或读取失败时返回错误。
 func fetch(client *http.Client, source string) ([]byte, error) {
 	response, err := client.Get(source)
 	if err != nil {
@@ -119,6 +128,7 @@ func fetch(client *http.Client, source string) ([]byte, error) {
 	return body, nil
 }
 
+// mergeAnnotation 合并 left 与 right 的 TTS 名称和默认关键词并去重；返回新注释。
 func mergeAnnotation(left, right annotation) annotation {
 	return annotation{
 		TTS:     appendUnique(left.TTS, right.TTS...),
@@ -126,11 +136,13 @@ func mergeAnnotation(left, right annotation) annotation {
 	}
 }
 
+// annotationValues 将 value 的 TTS 名称置于默认关键词之前并去重，返回可嵌入词项。
 func annotationValues(value annotation) []string {
 	result := appendUnique(nil, value.TTS...)
 	return appendUnique(result, value.Default...)
 }
 
+// appendUnique 将 additions 清理后追加到 values，并保持首次出现顺序去重；返回合并切片。
 func appendUnique(values []string, additions ...string) []string {
 	seen := make(map[string]struct{}, len(values)+len(additions))
 	for _, value := range values {
@@ -150,6 +162,8 @@ func appendUnique(values []string, additions ...string) []string {
 	return values
 }
 
+// parseEmojiSequences 从 emoji-test.txt 内容 value 中解析并排序所有唯一 Emoji 序列。
+// 返回序列集合；码点解码或扫描失败时返回错误。
 func parseEmojiSequences(value string) ([]string, error) {
 	seen := make(map[string]struct{})
 	result := make([]string, 0, 5000)
@@ -180,6 +194,8 @@ func parseEmojiSequences(value string) ([]string, error) {
 	return result, nil
 }
 
+// decodeCodePoints 将十六进制 Unicode 码点 values 解码为字符串。
+// 返回 Emoji 序列；空输入、非法十六进制或无效码点会返回错误。
 func decodeCodePoints(values []string) (string, error) {
 	if len(values) == 0 {
 		return "", errors.New("empty code point sequence")
@@ -202,6 +218,7 @@ func decodeCodePoints(values []string) (string, error) {
 	return builder.String(), nil
 }
 
+// leftPadHex 为奇数长度十六进制字符串 value 补一个前导零，并返回偶数长度结果。
 func leftPadHex(value string) string {
 	if len(value)%2 != 0 {
 		return "0" + value
@@ -209,6 +226,7 @@ func leftPadHex(value string) string {
 	return value
 }
 
+// stripVariationSelectors 移除 value 中的文本和 Emoji 变体选择符，返回基础序列。
 func stripVariationSelectors(value string) string {
 	return strings.Map(func(r rune) rune {
 		if r == '\ufe0e' || r == '\ufe0f' {
@@ -218,6 +236,8 @@ func stripVariationSelectors(value string) string {
 	}, value)
 }
 
+// writeGenerated 将 value 以时间戳固定的 gzip JSON 写入 output，确保生成结果可复现。
+// 返回文件创建、编码、压缩关闭或文件关闭错误。
 func writeGenerated(output string, value generatedData) error {
 	file, err := os.Create(output)
 	if err != nil {

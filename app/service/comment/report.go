@@ -20,6 +20,8 @@ import (
 
 const defaultCommentReportThreshold int64 = 3
 
+// UserReportComment 校验举报用户、目标评论、重复举报和限流后创建举报记录，并在达到阈值时把评论转为待审核。
+// 输入 ctx 控制查询与事务，request 携带用户会话、评论和原因；返回举报计数及评论状态，失败时返回业务或存储错误。
 func (s *commentService) UserReportComment(ctx context.Context,
 	request *types.UserReportCommentRequest) (*types.UserReportCommentResponse, error) {
 
@@ -90,6 +92,10 @@ func (s *commentService) UserReportComment(ctx context.Context,
 	status := item.Status
 	if movedToPending {
 		status = commentModel.StatusPending
+		if err = s.clearApprovedArticleCommentCache(ctx, item.ArticleID); err != nil {
+			s.logger.Error("failed to clear approved comment cache after report",
+				zap.Uint64("article_id", item.ArticleID), zap.Error(err))
+		}
 	}
 
 	return &types.UserReportCommentResponse{
@@ -99,6 +105,8 @@ func (s *commentService) UserReportComment(ctx context.Context,
 	}, nil
 }
 
+// UserGetCommentReportStatus 查询当前用户在 request.CommentIDs 中已经举报过的评论。
+// 输入 ctx 控制用户和举报查询；返回去重后的已举报 ID 列表，身份或评论 ID 非法时返回业务错误。
 func (s *commentService) UserGetCommentReportStatus(ctx context.Context,
 	request *types.UserGetCommentReportStatusRequest) (*types.UserGetCommentReportStatusResponse, error) {
 
@@ -137,6 +145,8 @@ func (s *commentService) UserGetCommentReportStatus(ctx context.Context,
 	return &types.UserGetCommentReportStatusResponse{ReportedCommentIDs: responseIDs}, nil
 }
 
+// AdminGetCommentReportList 根据 request 中的评论、作者、举报人和状态条件分页查询举报记录。
+// 输入 ctx 控制数据库操作；返回管理端列表和总数，状态非法时返回 ErrInvalidComment。
 func (s *commentService) AdminGetCommentReportList(ctx context.Context,
 	request *types.AdminGetCommentReportListRequest) (*types.AdminGetCommentReportListResponse, error) {
 
@@ -169,6 +179,8 @@ func (s *commentService) AdminGetCommentReportList(ctx context.Context,
 	}, nil
 }
 
+// AdminHandleCommentReport 接受或驳回指定评论的待处理举报，并同步更新评论状态和清理文章评论缓存。
+// 输入 ctx 控制事务及缓存操作，request 指定评论和动作；成功返回 nil，目标或动作非法时返回业务错误。
 func (s *commentService) AdminHandleCommentReport(ctx context.Context,
 	request *types.AdminHandleCommentReportRequest) error {
 
@@ -178,7 +190,8 @@ func (s *commentService) AdminHandleCommentReport(ctx context.Context,
 		return ErrInvalidComment
 	}
 
-	if _, err = s.commentModel.GetCommentByID(ctx, commentID); err != nil {
+	item, err := s.commentModel.GetCommentByID(ctx, commentID)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrCommentNotFound
 		}
@@ -202,9 +215,15 @@ func (s *commentService) AdminHandleCommentReport(ctx context.Context,
 		s.logger.Error("failed to resolve comment reports", zap.Error(err))
 		return err
 	}
+	if err = s.clearApprovedArticleCommentCache(ctx, item.ArticleID); err != nil {
+		s.logger.Error("failed to clear approved comment cache after handling report",
+			zap.Uint64("article_id", item.ArticleID), zap.Error(err))
+	}
 	return nil
 }
 
+// getActiveCommentUser 解析 rawUserID，读取用户并验证 sessionVersion。
+// 输入 ctx 控制用户查询；返回有效用户，身份不存在或会话失效时返回对应评论业务错误。
 func (s *commentService) getActiveCommentUser(ctx context.Context, rawUserID string,
 	sessionVersion int64) (*userModel.User, error) {
 
@@ -231,6 +250,8 @@ func (s *commentService) getActiveCommentUser(ctx context.Context, rawUserID str
 	return user, nil
 }
 
+// commentReportThreshold 从当前审核配置读取评论自动转待审核的举报阈值。
+// 无显式输入；返回正整数阈值，服务、配置缺失或配置无效时返回默认值 3。
 func (s *commentService) commentReportThreshold() int64 {
 	if s == nil || s.config == nil {
 		return defaultCommentReportThreshold
@@ -242,6 +263,8 @@ func (s *commentService) commentReportThreshold() int64 {
 	return cfg.ReportThreshold
 }
 
+// resolveCommentReportAction 将管理端 action 映射为举报状态和评论状态。
+// 返回值依次为举报处置状态、评论新状态和错误；仅 accept、reject 为有效动作。
 func resolveCommentReportAction(action string) (string, string, error) {
 	switch strings.TrimSpace(action) {
 	case "accept":
@@ -253,6 +276,8 @@ func resolveCommentReportAction(action string) (string, string, error) {
 	}
 }
 
+// toAdminCommentReportItem 将数据库举报列表行 row 转换为管理端展示项并格式化 ID 与时间。
+// 返回完整展示数据；评论作者 ID 为零时输出空字符串。
 func toAdminCommentReportItem(row commentModel.AdminReportListItem) types.AdminCommentReportItem {
 	item := types.AdminCommentReportItem{
 		ID:                  strconv.FormatUint(row.ID, 10),
@@ -279,6 +304,7 @@ func toAdminCommentReportItem(row commentModel.AdminReportListItem) types.AdminC
 	return item
 }
 
+// commentServiceNow 返回 Asia/Shanghai 时区下的当前时间；时区加载失败时返回零值和错误。
 func commentServiceNow() (time.Time, error) {
 	loc, err := time.LoadLocation("Asia/Shanghai")
 	if err != nil {

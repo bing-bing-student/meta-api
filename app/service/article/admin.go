@@ -411,6 +411,10 @@ func (a *articleService) AdminDeleteArticle(ctx context.Context, request *types.
 		a.logger.Error("failed to delete hash", zap.Error(err))
 		return err
 	}
+	// 文章删除会级联删除评论，同步删除前台评论快照。
+	if err = a.redis.Del(ctx, cachekey.CommentApprovedArticle(articleID).String()).Err(); err != nil {
+		a.logger.Error("failed to delete approved comment cache", zap.Error(err))
+	}
 
 	// 删除article:time:ZSet里面的成员
 	if err = a.redis.ZRem(ctx, cachekey.ArticleTimeZSet().String(), articleID).Err(); err != nil {
@@ -443,6 +447,7 @@ func (a *articleService) AdminDeleteArticle(ctx context.Context, request *types.
 	return nil
 }
 
+// AdminUploadArticleImage 上传文章图片
 func (a *articleService) AdminUploadArticleImage(ctx context.Context, fileName string, contentType string,
 	content []byte) (*types.AdminUploadArticleImageResponse, error) {
 
@@ -503,6 +508,7 @@ func (a *articleService) AdminUploadArticleImage(ctx context.Context, fileName s
 	}, nil
 }
 
+// detectArticleImageType 检测文章图片类型
 func detectArticleImageType(fileName string, contentType string, content []byte) (articleImageType, error) {
 	normalizedContentType := strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
 	if normalizedContentType == "image/jpg" {
@@ -536,6 +542,7 @@ func detectArticleImageType(fileName string, contentType string, content []byte)
 	return articleImageType{}, fmt.Errorf("unsupported image type")
 }
 
+// looksLikeSVG 检查内容是否像 SVG 图片
 func looksLikeSVG(content []byte) bool {
 	snippet := string(content)
 	if len(snippet) > 1024 {
@@ -545,6 +552,7 @@ func looksLikeSVG(content []byte) bool {
 	return strings.Contains(strings.ToLower(snippet), "<svg")
 }
 
+// isSafeArticleSVG 检查文章 SVG 是否安全
 func isSafeArticleSVG(content []byte) bool {
 	text := strings.ToLower(string(content))
 	return strings.Contains(text, "<svg") && !dangerousSVGPattern.MatchString(text)

@@ -23,6 +23,7 @@ var (
 	localHanRunRegexp    = regexp.MustCompile(`\p{Han}{2,}`)
 )
 
+// ContextInput 汇总一次本地上下文分析所需的业务请求、文本视图、改写候选和规则证据。
 type ContextInput struct {
 	Request    Request
 	Text       NormalizedComment
@@ -30,10 +31,13 @@ type ContextInput struct {
 	Evidence   []Evidence
 }
 
+// ContextAnalyzer 定义本地上下文分析器契约。
+// Analyze 的输入依次为调用上下文、分析输入和审核配置；返回语境评估及执行错误。
 type ContextAnalyzer interface {
 	Analyze(context.Context, ContextInput, appconfig.CommentModerationConfig) (ContextAssessment, error)
 }
 
+// riskTerm 表示可通过拼音、首字母或近音形式识别的规范风险词及其语义角色。
 type riskTerm struct {
 	Text            string
 	Category        string
@@ -47,6 +51,7 @@ type riskTerm struct {
 	AllowPureASCII  bool
 }
 
+// riskTermIndex 保存风险词的多维倒排索引，以避免每次评论审核都全量扫描和计算拼音。
 type riskTermIndex struct {
 	byPinyin      map[string][]riskTerm
 	byASCIIPinyin map[string][]riskTerm
@@ -56,6 +61,8 @@ type riskTermIndex struct {
 	terms         []riskTerm
 }
 
+// LocalContextAnalyzer 使用本地词索引、文本候选和关系规则完成上下文分析，不依赖外部模型服务。
+// 实例内部缓存由当前审核配置生成的索引，并通过读写锁支持并发审核与配置热更新。
 type LocalContextAnalyzer struct {
 	logger   *zap.Logger
 	builtins []riskTerm
@@ -65,6 +72,8 @@ type LocalContextAnalyzer struct {
 	index     riskTermIndex
 }
 
+// NewLocalContextAnalyzer 创建本地上下文分析器并加载内置敏感词作为基础风险词。
+// 输入 logger 用于记录加载失败；返回值始终可用，内置词加载失败时仍可使用配置词分析。
 func NewLocalContextAnalyzer(logger *zap.Logger) *LocalContextAnalyzer {
 	analyzer := &LocalContextAnalyzer{logger: logger}
 	builtins, err := loadBuiltinRiskTerms()
@@ -78,6 +87,8 @@ func NewLocalContextAnalyzer(logger *zap.Logger) *LocalContextAnalyzer {
 	return analyzer
 }
 
+// Analyze 对评论执行本地候选还原、语义关系分析和意图评估。
+// 输入 ctx 控制取消，input 提供评论及已有证据，cfg 提供审核策略；返回上下文评估或初始化、取消错误。
 func (a *LocalContextAnalyzer) Analyze(ctx context.Context, input ContextInput,
 	cfg appconfig.CommentModerationConfig,
 ) (ContextAssessment, error) {
@@ -95,7 +106,7 @@ func (a *LocalContextAnalyzer) Analyze(ctx context.Context, input ContextInput,
 	if maxCandidates <= 0 {
 		maxCandidates = 16
 	}
-	variantCandidates, err := localVariantCandidates(ctx, input.Text, index, maxCandidates)
+	variantCandidates, err := localVariantCandidates(ctx, input.Text, index, maxCandidates, cfg)
 	if err != nil {
 		return ContextAssessment{}, err
 	}
@@ -133,6 +144,8 @@ func (a *LocalContextAnalyzer) Analyze(ctx context.Context, input ContextInput,
 	}, nil
 }
 
+// resolveIndex 根据 cfg 和内置风险词构建或复用当前分析器的词项索引。
+// 返回匹配当前配置签名的 riskTermIndex；配置序列化失败时返回错误。
 func (a *LocalContextAnalyzer) resolveIndex(cfg appconfig.CommentModerationConfig) (riskTermIndex, error) {
 	encoded, err := json.Marshal(struct {
 		Context       appconfig.CommentModerationContextAnalysisConfig
@@ -212,6 +225,8 @@ func (a *LocalContextAnalyzer) resolveIndex(cfg appconfig.CommentModerationConfi
 	return index, nil
 }
 
+// loadBuiltinRiskTerms 从本地 SWD 默认词典加载带分类的规范风险词。
+// 无输入；返回可用于上下文索引的词项集合，词典加载失败时返回错误。
 func loadBuiltinRiskTerms() ([]riskTerm, error) {
 	loader := dictionary.NewLoader()
 	if err := loader.LoadDefaultWords(context.Background()); err != nil {
@@ -229,10 +244,14 @@ func loadBuiltinRiskTerms() ([]riskTerm, error) {
 	return terms, nil
 }
 
+// newRiskTerm 将 value 和 category 构造为默认“概念”角色的风险词。
+// 返回规范词项及成功标记；文本不满足长度、中文或拼音条件时返回 false。
 func newRiskTerm(value, category string) (riskTerm, bool) {
 	return newRiskTermWithRole(value, category, CandidateRoleConcept)
 }
 
+// newRiskTermWithRole 将原始词、分类和语义角色编译为可检索的风险词项。
+// 返回值依次为包含拼音正则的词项和有效标记；无效或过长词项不会进入索引。
 func newRiskTermWithRole(value, category, role string) (riskTerm, bool) {
 	compact := compactText(normalizeText(value))
 	category = strings.ToLower(strings.TrimSpace(category))
@@ -263,9 +282,8 @@ func newRiskTermWithRole(value, category, role string) (riskTerm, bool) {
 	}, true
 }
 
-// compilePhoneticVariantPattern derives mixed Han/pinyin forms from the
-// canonical risk term itself. It deliberately contains no observed-form map:
-// every Han rune may remain literal or be represented by its local pinyin.
+// compilePhoneticVariantPattern 从规范风险词 value 动态生成汉字与拼音混写的正则表达式。
+// 输入 style 指定全拼或首字母模式；返回值不依赖观测形式映射，每个汉字可保留原字或替换为对应拼音。
 func compilePhoneticVariantPattern(value string, style int) *regexp.Regexp {
 	var pattern strings.Builder
 	for _, r := range value {
@@ -291,6 +309,8 @@ func compilePhoneticVariantPattern(value string, style int) *regexp.Regexp {
 	return regexp.MustCompile(pattern.String())
 }
 
+// buildRiskTermIndex 对 terms 去重，并建立全拼、ASCII 全拼、首字母和字符长度索引。
+// 返回的索引具有稳定词项顺序，可直接用于候选生成。
 func buildRiskTermIndex(terms []riskTerm) riskTermIndex {
 	index := riskTermIndex{
 		byPinyin:      make(map[string][]riskTerm),
@@ -331,8 +351,10 @@ func buildRiskTermIndex(terms []riskTerm) riskTermIndex {
 	return index
 }
 
+// localVariantCandidates 从评论的拼音、首字母、同音、近音和 Emoji 注释中生成风险词候选。
+// 输入 ctx 控制取消，text 是评论，index 是词索引，maxCandidates 是上限，cfg 是配置；返回按置信度排序的候选或错误。
 func localVariantCandidates(ctx context.Context, text NormalizedComment, index riskTermIndex,
-	maxCandidates int,
+	maxCandidates int, cfg appconfig.CommentModerationConfig,
 ) ([]RewriteCandidate, error) {
 	emojiIndex, err := resolveEmojiAnnotationIndex()
 	if err != nil {
@@ -364,7 +386,7 @@ func localVariantCandidates(ctx context.Context, text NormalizedComment, index r
 		}
 	}
 
-	for clauseIndex, clause := range semanticClauses(text) {
+	for clauseIndex, clause := range semanticClauses(text, cfg) {
 		if ctx.Err() != nil || len(candidates) >= maxCandidates {
 			break
 		}
@@ -395,9 +417,8 @@ func localVariantCandidates(ctx context.Context, text NormalizedComment, index r
 			}
 			if term.InitialsPattern != nil {
 				observed := term.InitialsPattern.FindString(clause.Compact)
-				// Pure ASCII initials are already handled by the exact index above.
-				// Requiring a literal Han rune prevents short initials from matching
-				// arbitrary substrings inside longer Latin words.
+				// 纯 ASCII 首字母已由上面的精确索引处理；这里要求至少包含一个汉字，
+				// 防止短首字母在较长英文单词中产生任意子串误报。
 				if observed != "" && containsHan(observed) {
 					appendMatches(observed, "pinyin_initials", 0.82, clauseIndex+1, []riskTerm{term})
 				}
@@ -432,6 +453,8 @@ func localVariantCandidates(ctx context.Context, text NormalizedComment, index r
 	return candidates, nil
 }
 
+// applySurroundingContext 使用文章标题、分类及回复上下文印证 candidates 中的规范词。
+// 输入 candidates 会原地提高已获上下文印证候选的置信度并更新原因；req 提供周边业务文本，无返回值。
 func applySurroundingContext(candidates []RewriteCandidate, req Request) {
 	surrounding := compactText(normalizeText(strings.Join([]string{
 		req.ArticleTitle,
@@ -454,6 +477,8 @@ func applySurroundingContext(candidates []RewriteCandidate, req Request) {
 	}
 }
 
+// candidateEvidence 将具有关系支撑的改写 candidates 转换为本地上下文证据。
+// 输入 relations 用于过滤反证和孤立歧义候选，cfg 提供语义规则；返回有效正向证据集合。
 func candidateEvidence(candidates []RewriteCandidate, relations []SemanticRelation,
 	cfg appconfig.CommentModerationConfig,
 ) []Evidence {
@@ -507,6 +532,8 @@ func candidateEvidence(candidates []RewriteCandidate, relations []SemanticRelati
 	return evidence
 }
 
+// hasCorroboratingInitialCandidate 判断 candidate 是否在同分句、同分类和同角色下有另一首字母候选互相印证。
+// 返回 true 表示弱混写首字母不是孤立命中。
 func hasCorroboratingInitialCandidate(candidate RewriteCandidate, candidates []RewriteCandidate) bool {
 	for _, other := range candidates {
 		if other.Clause == candidate.Clause && other.Category == candidate.Category &&
@@ -518,8 +545,10 @@ func hasCorroboratingInitialCandidate(candidate RewriteCandidate, candidates []R
 	return false
 }
 
+// relationActionIsOnlyGeneric 判断 action 是否只是 cfg 中的第一人称通用标记。
+// 返回 true 表示该动作不足以单独支撑同音候选。
 func relationActionIsOnlyGeneric(action string, cfg appconfig.CommentModerationConfig) bool {
-	for _, marker := range resolvedRelationVocabulary(cfg).FirstPersonMarkers {
+	for _, marker := range cfg.SemanticRules.RelationVocabulary.FirstPersonMarkers {
 		if action == compactText(normalizeText(marker)) {
 			return true
 		}
@@ -527,6 +556,8 @@ func relationActionIsOnlyGeneric(action string, cfg appconfig.CommentModerationC
 	return action == ""
 }
 
+// candidateSemanticRelation 在 relations 中查找能够支撑 candidate 的同分句、同分类关系。
+// 返回值依次为匹配关系和是否找到；证据、动作、对象或结果任一包含候选即可匹配。
 func candidateSemanticRelation(candidate RewriteCandidate, relations []SemanticRelation) (SemanticRelation, bool) {
 	for _, relation := range relations {
 		if relation.Clause != candidate.Clause || relation.Category != candidate.Category {
@@ -542,6 +573,7 @@ func candidateSemanticRelation(candidate RewriteCandidate, relations []SemanticR
 	return SemanticRelation{}, false
 }
 
+// localIntentProfile 是由语义关系汇总出的局部意图、可信度、良性概率和风险增益。
 type localIntentProfile struct {
 	intent            string
 	confidence        float64
@@ -550,6 +582,8 @@ type localIntentProfile struct {
 	explanation       string
 }
 
+// phoneticSignature 按 style 将 value 转换为连续小写拼音签名，并保留可识别的非汉字字母数字。
+// 返回值用于风险词索引和候选匹配。
 func phoneticSignature(value string, style int) string {
 	args := pinyin.NewArgs()
 	args.Style = style
@@ -562,6 +596,7 @@ func phoneticSignature(value string, style int) string {
 	return strings.ToLower(strings.Join(pinyin.LazyPinyin(value, args), ""))
 }
 
+// initialsCandidateConfidence 根据 token 字符数返回首字母候选的启发式置信度；较长缩写获得略高值。
 func initialsCandidateConfidence(token string) float64 {
 	switch len([]rune(token)) {
 	case 2:
@@ -573,6 +608,7 @@ func initialsCandidateConfidence(token string) float64 {
 	}
 }
 
+// containsHan 判断 value 是否至少包含一个汉字；返回对应布尔结果。
 func containsHan(value string) bool {
 	for _, r := range value {
 		if unicode.Is(unicode.Han, r) {

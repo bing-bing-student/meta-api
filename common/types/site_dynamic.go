@@ -5,14 +5,12 @@ type AdminSiteDynamicItem struct {
 	Content    string `json:"content"`
 	Status     string `json:"status"`
 	SortOrder  int    `json:"sortOrder"`
-	EventDate  string `json:"eventDate"`
 	CreateTime string `json:"createTime"`
 	UpdateTime string `json:"updateTime"`
 }
 
 type UserSiteDynamicItem struct {
-	Content   string `json:"content"`
-	EventDate string `json:"eventDate"`
+	Content string `json:"content"`
 }
 
 type AdminGetSiteDynamicListResponse struct {
@@ -21,16 +19,14 @@ type AdminGetSiteDynamicListResponse struct {
 }
 
 type AdminAddSiteDynamicRequest struct {
-	Content   string `json:"content" binding:"required,lte=50"`
-	Status    string `json:"status" binding:"required,oneof=published hidden"`
-	EventDate string `json:"eventDate" binding:"required,len=10"`
+	Content string `json:"content" binding:"required,lte=50"`
+	Status  string `json:"status" binding:"required,oneof=published hidden"`
 }
 
 type AdminUpdateSiteDynamicRequest struct {
-	ID        string `json:"id" binding:"required,lte=19"`
-	Content   string `json:"content" binding:"required,lte=50"`
-	Status    string `json:"status" binding:"required,oneof=published hidden"`
-	EventDate string `json:"eventDate" binding:"required,len=10"`
+	ID      string `json:"id" binding:"required,lte=19"`
+	Content string `json:"content" binding:"required,lte=50"`
+	Status  string `json:"status" binding:"required,oneof=published hidden"`
 }
 
 type AdminReorderSiteDynamicRequest struct {

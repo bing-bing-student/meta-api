@@ -30,19 +30,22 @@ const (
 	unknownCommentRateLimitClientValue    = "unknown"
 )
 
+// commentSubmitLimitKeys 保存一次评论提交在 IP、用户和用户文章三个维度的 Redis 限流键。
 type commentSubmitLimitKeys struct {
 	ip          string
 	user        string
 	userArticle string
 }
 
+// commentReportLimitKeys 保存一次评论举报在 IP、用户和 IP 评论组合维度的 Redis 限流键。
 type commentReportLimitKeys struct {
 	ip        string
 	user      string
 	ipComment string
 }
 
-// checkCommentSubmitLimit 检查前台评论提交限流。
+// checkCommentSubmitLimit 检查 userID、articleID 和 clientIP 对应的前台评论提交限流。
+// 输入 ctx 控制 Redis 操作；未超限返回 nil，超限返回限流错误，存储故障转换为评论服务错误。
 func (s *commentService) checkCommentSubmitLimit(ctx context.Context, userID, articleID uint64, clientIP string) error {
 	cfg := s.commentSubmitRateLimitConfig()
 	if cfg.Disabled {
@@ -57,7 +60,8 @@ func (s *commentService) checkCommentSubmitLimit(ctx context.Context, userID, ar
 	return s.normalizeCommentRateLimitError(err)
 }
 
-// checkCommentReportLimit 检查前台评论举报限流。
+// checkCommentReportLimit 检查 userID、commentID 和 clientIP 对应的前台评论举报限流。
+// 输入 ctx 控制 Redis 操作；返回值规则与评论提交限流一致。
 func (s *commentService) checkCommentReportLimit(ctx context.Context, userID, commentID uint64, clientIP string) error {
 	cfg := s.commentReportRateLimitConfig()
 	if cfg.Disabled {
@@ -72,7 +76,7 @@ func (s *commentService) checkCommentReportLimit(ctx context.Context, userID, co
 	return s.normalizeCommentRateLimitError(err)
 }
 
-// buildCommentSubmitLimitKeys 构造评论提交相关 Redis 限流 Key。
+// buildCommentSubmitLimitKeys 根据 userID、articleID 和 clientIP 构造脱敏的评论提交 Redis 限流键并返回。
 func buildCommentSubmitLimitKeys(userID, articleID uint64, clientIP string) commentSubmitLimitKeys {
 	userHash := ratelimit.HashPart(strconv.FormatUint(userID, 10))
 	articleHash := ratelimit.HashPart(strconv.FormatUint(articleID, 10))
@@ -84,7 +88,7 @@ func buildCommentSubmitLimitKeys(userID, articleID uint64, clientIP string) comm
 	}
 }
 
-// buildCommentReportLimitKeys 构造评论举报相关 Redis 限流 Key。
+// buildCommentReportLimitKeys 根据 userID、commentID 和 clientIP 构造脱敏的举报 Redis 限流键并返回。
 func buildCommentReportLimitKeys(userID, commentID uint64, clientIP string) commentReportLimitKeys {
 	userHash := ratelimit.HashPart(strconv.FormatUint(userID, 10))
 	commentHash := ratelimit.HashPart(strconv.FormatUint(commentID, 10))
@@ -96,7 +100,8 @@ func buildCommentReportLimitKeys(userID, commentID uint64, clientIP string) comm
 	}
 }
 
-// normalizeCommentRateLimitError 将存储层错误转换为评论业务错误。
+// normalizeCommentRateLimitError 将 err 中的存储层故障转换为评论业务错误，同时保留标准限流错误。
+// 输入为空时返回 nil；不可识别故障会记录日志并返回暂不可用错误。
 func (s *commentService) normalizeCommentRateLimitError(err error) error {
 	if err == nil {
 		return nil
@@ -110,7 +115,7 @@ func (s *commentService) normalizeCommentRateLimitError(err error) error {
 	return errors.New("评论服务暂不可用，请稍后再试")
 }
 
-// commentSubmitRateLimitConfig 获取当前评论提交限流配置并填充默认值。
+// commentSubmitRateLimitConfig 获取当前评论提交限流配置并填充默认值，返回可直接执行的独立配置。
 func (s *commentService) commentSubmitRateLimitConfig() appconfig.CommentSubmitRateLimitConfig {
 	cfg := appconfig.CommentSubmitRateLimitConfig{}
 	if s != nil && s.config != nil {
@@ -120,7 +125,7 @@ func (s *commentService) commentSubmitRateLimitConfig() appconfig.CommentSubmitR
 	return cfg
 }
 
-// commentReportRateLimitConfig 获取当前评论举报限流配置并填充默认值。
+// commentReportRateLimitConfig 获取当前评论举报限流配置并填充默认值，返回可直接执行的独立配置。
 func (s *commentService) commentReportRateLimitConfig() appconfig.CommentReportRateLimitConfig {
 	cfg := appconfig.CommentReportRateLimitConfig{}
 	if s != nil && s.config != nil {
@@ -130,21 +135,21 @@ func (s *commentService) commentReportRateLimitConfig() appconfig.CommentReportR
 	return cfg
 }
 
-// fillCommentSubmitRateLimitDefaults 填充评论提交限流默认配置。
+// fillCommentSubmitRateLimitDefaults 为 cfg 的 IP、用户和用户文章窗口原地填充默认值；无返回值。
 func fillCommentSubmitRateLimitDefaults(cfg *appconfig.CommentSubmitRateLimitConfig) {
 	fillCommentWindowConfig(&cfg.IP, defaultCommentSubmitIPLimit, defaultCommentSubmitIPWindow)
 	fillCommentWindowConfig(&cfg.User, defaultCommentSubmitUserLimit, defaultCommentSubmitUserWindow)
 	fillCommentWindowConfig(&cfg.UserArticle, defaultCommentSubmitUserArticleLimit, defaultCommentSubmitUserArticleWindow)
 }
 
-// fillCommentReportRateLimitDefaults 填充评论举报限流默认配置。
+// fillCommentReportRateLimitDefaults 为 cfg 的 IP、用户和 IP 评论窗口原地填充默认值；无返回值。
 func fillCommentReportRateLimitDefaults(cfg *appconfig.CommentReportRateLimitConfig) {
 	fillCommentWindowConfig(&cfg.IP, defaultCommentReportIPLimit, defaultCommentReportIPWindow)
 	fillCommentWindowConfig(&cfg.User, defaultCommentReportUserLimit, defaultCommentReportUserWindow)
 	fillCommentWindowConfig(&cfg.IPComment, defaultCommentReportIPCommentLimit, defaultCommentReportIPCommentWindow)
 }
 
-// fillCommentWindowConfig 填充单条窗口规则默认值。
+// fillCommentWindowConfig 使用 defaultLimit 和 defaultWindow 原地修正 cfg 中非正数限制及窗口；无返回值。
 func fillCommentWindowConfig(cfg *appconfig.RateLimitWindowConfig, defaultLimit int64, defaultWindow time.Duration) {
 	if cfg.Limit <= 0 {
 		cfg.Limit = defaultLimit
@@ -154,7 +159,7 @@ func fillCommentWindowConfig(cfg *appconfig.RateLimitWindowConfig, defaultLimit 
 	}
 }
 
-// commentRateLimitRule 将配置项转换为限流规则。
+// commentRateLimitRule 将 key 和窗口 cfg 转换为限流器可执行的 Rule 并返回。
 func commentRateLimitRule(key string, cfg appconfig.RateLimitWindowConfig) ratelimit.Rule {
 	return ratelimit.Rule{
 		Key:    key,
@@ -163,7 +168,7 @@ func commentRateLimitRule(key string, cfg appconfig.RateLimitWindowConfig) ratel
 	}
 }
 
-// commentSecondsToDuration 将配置秒数转换为 Duration。
+// commentSecondsToDuration 将 seconds 转换为 time.Duration；非正数按一秒处理，返回始终为正的时长。
 func commentSecondsToDuration(seconds int64) time.Duration {
 	if seconds <= 0 {
 		return time.Second
@@ -171,7 +176,7 @@ func commentSecondsToDuration(seconds int64) time.Duration {
 	return time.Duration(seconds) * time.Second
 }
 
-// normalizeCommentRateLimitValue 标准化评论限流身份值。
+// normalizeCommentRateLimitValue 对限流身份 value 去空白并转小写；空值返回稳定的 unknown 占位符。
 func normalizeCommentRateLimitValue(value string) string {
 	value = strings.TrimSpace(strings.ToLower(value))
 	if value == "" {

@@ -9,53 +9,7 @@ import (
 	appconfig "meta-api/config"
 )
 
-var (
-	relationNegationMarkers = []string{
-		"不要", "不用", "不需要", "无需", "不能", "不可", "不是", "禁止", "拒绝", "没有",
-	}
-	relationImmediateNegationMarkers = []string{"别", "勿", "不", "没", "未"}
-	relationActors                   = []string{
-		"我这边", "我们", "本人", "商家", "店主", "对方", "有人", "我", "他", "她",
-	}
-	relationTargets = []string{
-		"这个人", "这人", "作者", "博主", "楼主", "你们", "他们", "她们", "你", "您", "他", "她",
-	}
-	relationContentTargets = []string{
-		"这种内容", "这个内容", "这种教程", "这个教程", "这篇文章", "这段代码",
-		"这种逻辑", "这个结论", "这种错误", "这篇东西", "这种东西", "内容", "教程",
-		"文章", "代码", "结论", "逻辑", "错误", "观点",
-	}
-	relationResultConnectors = []string{
-		"导致", "造成", "以致", "从而", "直到", "结果", "保证", "包过", "让",
-	}
-	discoursePromotionActions = []string{
-		"接单", "接活", "承接", "可以做", "能做", "代做", "提供", "出售", "私聊", "联系",
-	}
-)
-
-// resolvedRelationVocabulary 优先读取策略包中的语言角色；内置值只作为配置缺失时的
-// 保守安全基线。审核算法只依赖这些稳定字段，不再直接依赖某个站点的词表文件布局。
-func resolvedRelationVocabulary(cfg appconfig.CommentModerationConfig) appconfig.CommentModerationRelationVocabularyConfig {
-	vocabulary := cfg.SemanticRules.RelationVocabulary
-	if len(vocabulary.NegationMarkers) > 0 && len(vocabulary.Actors) > 0 && len(vocabulary.PersonTargets) > 0 {
-		return vocabulary
-	}
-	return appconfig.CommentModerationRelationVocabularyConfig{
-		NegationMarkers:          relationNegationMarkers,
-		ImmediateNegationMarkers: relationImmediateNegationMarkers,
-		Actors:                   relationActors,
-		PersonTargets:            relationTargets,
-		ContentTargets:           relationContentTargets,
-		ResultConnectors:         relationResultConnectors,
-		PromotionActions:         discoursePromotionActions,
-		WeakReportingMarkers:     []string{"审核", "规范", "讨论", "说明", "分析", "研究", "批评", "测试", "培训", "治理", "公告", "统计", "调查", "字段"},
-		InterrogativePrefixes:    []string{"是不是", "是不是有", "是不是个", "是否", "是否有", "是否是"},
-		QuestionMarkers:          []string{"什么意思", "是什么", "指什么", "怎么理解", "如何理解", "是否代表", "是不是指"},
-		FirstPersonMarkers:       []string{"我本人", "我这边", "我这里", "我有", "我能", "我可以", "我也能", "我仍然", "我照样", "手上还有"},
-		ContrastMarkers:          []string{"所以", "但是", "不过", "然而", "可是", "例外"},
-	}
-}
-
+// candidateRelationTerm 表示参与关系组合的规范词、实际观测形式、置信度及是否来自改写候选。
 type candidateRelationTerm struct {
 	Canonical  string
 	Observed   string
@@ -63,11 +17,13 @@ type candidateRelationTerm struct {
 	Candidate  bool
 }
 
+// analyzeSemanticRelations 将规则证据和改写候选组织为“主体—动作—对象—结果—立场”关系。
+// 输入 text、candidates、evidence、cfg 分别为评论、还原候选、已有证据和策略；返回去重、编号且概率规范化的关系集合。
 func analyzeSemanticRelations(text NormalizedComment, candidates []RewriteCandidate, evidence []Evidence,
 	cfg appconfig.CommentModerationConfig,
 ) []SemanticRelation {
-	clauses := semanticClauses(text)
-	vocabulary := resolvedRelationVocabulary(cfg)
+	clauses := semanticClauses(text, cfg)
+	vocabulary := cfg.SemanticRules.RelationVocabulary
 	result := make([]SemanticRelation, 0, len(clauses)*2)
 	seen := make(map[string]struct{})
 	appendRelation := func(relation SemanticRelation) {
@@ -257,6 +213,8 @@ func analyzeSemanticRelations(text NormalizedComment, candidates []RewriteCandid
 	return result
 }
 
+// appendCandidateCombinationRelations 将候选还原词与同分句的直接词项组合成语义关系。
+// 输入 clauseID 标识分句，candidates 和 cfg 提供候选及组合规则；结果通过 appendRelation 回调输出。
 func appendCandidateCombinationRelations(clauseID int, clause NormalizedComment,
 	candidates []RewriteCandidate, cfg appconfig.CommentModerationConfig,
 	appendRelation func(SemanticRelation),
@@ -328,6 +286,7 @@ func appendCandidateCombinationRelations(clauseID int, clause NormalizedComment,
 	}
 }
 
+// directCandidateRelationTerms 将 value 中直接命中的 terms 转换为非候选关系词项并返回。
 func directCandidateRelationTerms(value string, terms []string) []candidateRelationTerm {
 	contained := containedRelationTerms(value, terms)
 	result := make([]candidateRelationTerm, 0, len(contained))
@@ -339,6 +298,7 @@ func directCandidateRelationTerms(value string, terms []string) []candidateRelat
 	return result
 }
 
+// relationRuleContainsTerm 判断 canonical 是否与 terms 中任一规范化词项完全相等；返回对应结果。
 func relationRuleContainsTerm(terms []string, canonical string) bool {
 	for _, term := range terms {
 		if compactText(normalizeText(term)) == canonical {
@@ -348,6 +308,8 @@ func relationRuleContainsTerm(terms []string, canonical string) bool {
 	return false
 }
 
+// candidateRelationEvidence 格式化 object 与 action 组成的关系证据。
+// 对发生还原的候选保留“观测→规范”形式；返回两部分以加号连接的字符串。
 func candidateRelationEvidence(object, action candidateRelationTerm) string {
 	format := func(term candidateRelationTerm) string {
 		if term.Candidate && term.Observed != term.Canonical {
@@ -358,6 +320,8 @@ func candidateRelationEvidence(object, action candidateRelationTerm) string {
 	return format(object) + "+" + format(action)
 }
 
+// buildClauseRelation 根据分句、主体、动作、对象及分类创建基础语义关系。
+// 输入 cfg 用于结果、否定、引用和转述判断，confidence 是初始置信度；返回尚未编号的关系。
 func buildClauseRelation(clauseID int, clause NormalizedComment, subject, action, object, category,
 	evidence string, cfg appconfig.CommentModerationConfig, confidence float64,
 ) SemanticRelation {
@@ -380,6 +344,7 @@ func buildClauseRelation(clauseID int, clause NormalizedComment, subject, action
 	}
 }
 
+// containedRelationTerms 返回 terms 中所有实际包含于 value 的规范化非空词项。
 func containedRelationTerms(value string, terms []string) []string {
 	result := make([]string, 0, 2)
 	for _, term := range terms {
@@ -391,6 +356,7 @@ func containedRelationTerms(value string, terms []string) []string {
 	return result
 }
 
+// firstContainedRelationTerm 返回 terms 中首个包含于 value 的规范化词项；未命中时返回空串。
 func firstContainedRelationTerm(value string, terms []string) string {
 	for _, term := range terms {
 		term = compactText(normalizeText(term))
@@ -401,6 +367,8 @@ func firstContainedRelationTerm(value string, terms []string) string {
 	return ""
 }
 
+// nearestRelationAction 在 value 中寻找与 object 距离最近、范围可关联且属于 category 的动作词。
+// 输入 cfg 提供行动标记和组合谓词；返回最佳动作，未找到时返回空串。
 func nearestRelationAction(value, object, category string, cfg appconfig.CommentModerationConfig) string {
 	value = normalizeText(value)
 	markers := append([]string(nil), cfg.SemanticRules.Contexts.ActionableMarkers...)
@@ -445,10 +413,13 @@ func nearestRelationAction(value, object, category string, cfg appconfig.Comment
 	return best
 }
 
+// byteRangesOverlap 判断两个左闭右开字节区间是否相交；返回对应结果。
 func byteRangesOverlap(leftStart, leftEnd, rightStart, rightEnd int) bool {
 	return leftStart < rightEnd && rightStart < leftEnd
 }
 
+// relationTermIndex 在 value 中查找 marker 的首个合法位置。
+// 对纯 ASCII marker 额外验证单词边界；返回字节下标，未找到时返回 -1。
 func relationTermIndex(value, marker string) int {
 	start := 0
 	for start <= len(value) {
@@ -465,6 +436,7 @@ func relationTermIndex(value, marker string) int {
 	return -1
 }
 
+// isASCIIWord 判断 value 是否为非空且全部由 ASCII 字母数字组成；返回对应结果。
 func isASCIIWord(value string) bool {
 	if value == "" {
 		return false
@@ -477,6 +449,7 @@ func isASCIIWord(value string) bool {
 	return true
 }
 
+// asciiWordBoundary 判断 value 中 index、size 指定的片段两侧是否均为 ASCII 单词边界；返回对应结果。
 func asciiWordBoundary(value string, index, size int) bool {
 	before := []rune(value[:index])
 	after := []rune(value[index+size:])
@@ -484,10 +457,13 @@ func asciiWordBoundary(value string, index, size int) bool {
 		(len(after) == 0 || !isASCIIAlphaNumeric(after[0]))
 }
 
+// isASCIIAlphaNumeric 判断字符 r 是否为 ASCII 字母或数字；返回对应结果。
 func isASCIIAlphaNumeric(r rune) bool {
 	return r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9'
 }
 
+// inferRelationActor 在 action 所在局部范围内查找其前方最近的配置主体词。
+// 输入 value 是分句、cfg 提供主体词；返回主体，无法可靠推断时返回空串。
 func inferRelationActor(value, action string, cfg appconfig.CommentModerationConfig) string {
 	value = relationTextScope(value, action)
 	focus := strings.Index(value, action)
@@ -496,7 +472,7 @@ func inferRelationActor(value, action string, cfg appconfig.CommentModerationCon
 	}
 	best := ""
 	bestIndex := -1
-	for _, actor := range resolvedRelationVocabulary(cfg).Actors {
+	for _, actor := range cfg.SemanticRules.RelationVocabulary.Actors {
 		index := strings.LastIndex(value[:focus], actor)
 		if index > bestIndex {
 			best = actor
@@ -509,6 +485,8 @@ func inferRelationActor(value, action string, cfg appconfig.CommentModerationCon
 	return ""
 }
 
+// locateRelationClause 在 clauses 中寻找包含任一 terms 的首个分句。
+// 返回从 1 开始的分句编号；未找到时返回 0。
 func locateRelationClause(clauses []NormalizedComment, terms ...string) int {
 	for index, clause := range clauses {
 		for _, term := range terms {
@@ -521,6 +499,8 @@ func locateRelationClause(clauses []NormalizedComment, terms ...string) int {
 	return 0
 }
 
+// relationMarkerBefore 判断 focus 前 maxDistance 个字符内是否存在任一 markers。
+// 输入 value 是完整分句；返回 true 表示前置语义标记在允许窗口内。
 func relationMarkerBefore(value, focus string, markers []string, maxDistance int) bool {
 	value = relationTextScope(value, focus)
 	focus = compactText(normalizeText(focus))
@@ -547,6 +527,8 @@ func relationMarkerBefore(value, focus string, markers []string, maxDistance int
 	return false
 }
 
+// relationMarkerAfter 判断 focus 后 maxDistance 个字符内是否存在任一 markers。
+// 输入 value 是完整分句；返回 true 表示后置语义标记在允许窗口内。
 func relationMarkerAfter(value, focus string, markers []string, maxDistance int) bool {
 	scope := relationTextScope(value, focus)
 	focus = compactText(normalizeText(focus))
@@ -572,8 +554,10 @@ func relationMarkerAfter(value, focus string, markers []string, maxDistance int)
 	return false
 }
 
+// relationNegatedNear 判断 focus 是否受附近否定词或拒绝语境支配。
+// 输入 value 是分句、cfg 提供否定及疑问词；返回 true 表示该关系应标记为否定。
 func relationNegatedNear(value, focus string, cfg appconfig.CommentModerationConfig) bool {
-	vocabulary := resolvedRelationVocabulary(cfg)
+	vocabulary := cfg.SemanticRules.RelationVocabulary
 	markers := append([]string(nil), vocabulary.NegationMarkers...)
 	markers = append(markers, cfg.SemanticRules.Contexts.RejectionMarkers...)
 	interrogative := relationHasInterrogativePrefix(value, focus, cfg)
@@ -593,6 +577,7 @@ func relationNegatedNear(value, focus string, cfg appconfig.CommentModerationCon
 	return relationMarkerBefore(value, focus, vocabulary.ImmediateNegationMarkers, 1)
 }
 
+// relationHasInterrogativePrefix 判断 focus 前是否紧邻配置的疑问前缀；返回对应结果。
 func relationHasInterrogativePrefix(value, focus string, cfg appconfig.CommentModerationConfig) bool {
 	scope := relationTextScope(value, focus)
 	focus = compactText(normalizeText(focus))
@@ -601,7 +586,7 @@ func relationHasInterrogativePrefix(value, focus string, cfg appconfig.CommentMo
 		return false
 	}
 	prefix := scope[:index]
-	for _, suffix := range resolvedRelationVocabulary(cfg).InterrogativePrefixes {
+	for _, suffix := range cfg.SemanticRules.RelationVocabulary.InterrogativePrefixes {
 		if strings.HasSuffix(prefix, suffix) {
 			return true
 		}
@@ -609,6 +594,7 @@ func relationHasInterrogativePrefix(value, focus string, cfg appconfig.CommentMo
 	return false
 }
 
+// relationMarkersExcept 返回 markers 中除规范化后等于 excluded 以外的词项。
 func relationMarkersExcept(markers []string, excluded string) []string {
 	result := make([]string, 0, len(markers))
 	excluded = compactText(normalizeText(excluded))
@@ -620,20 +606,41 @@ func relationMarkersExcept(markers []string, excluded string) []string {
 	return result
 }
 
+// relationReportedNear 判断 focus 是否处于转述、治理或强报告语境。
+// 输入 value 是分句、cfg 提供报告词和治理规则；返回 true 表示关系不是评论者直接实施。
 func relationReportedNear(value, focus string, cfg appconfig.CommentModerationConfig) bool {
 	scope := relationTextScope(value, focus)
-	if strings.Contains(scope, "说明你") || strings.Contains(scope, "说明他") ||
-		strings.Contains(scope, "说明她") || strings.Contains(scope, "说明这个人") {
+	vocabulary := cfg.SemanticRules.RelationVocabulary
+	if relationWeakReportingTargetsPerson(scope, vocabulary) {
 		return false
 	}
 	if relationGovernanceContext(value, focus, cfg) {
 		return true
 	}
 	markers := strongRelationReportingMarkers(cfg.SemanticRules.Contexts.ReportingMarkers,
-		resolvedRelationVocabulary(cfg).WeakReportingMarkers)
+		vocabulary.WeakReportingMarkers)
 	return relationMarkerBefore(value, focus, markers, 16) || relationMarkerAfter(value, focus, markers, 18)
 }
 
+// relationWeakReportingTargetsPerson 判断弱报告词是否直接修饰人物目标。
+// 输入 scope 是局部文本、vocabulary 提供词表；返回 true 时不能仅凭弱词认定为转述。
+func relationWeakReportingTargetsPerson(scope string,
+	vocabulary appconfig.CommentModerationRelationVocabularyConfig,
+) bool {
+	scope = compactText(normalizeText(scope))
+	for _, marker := range vocabulary.WeakReportingMarkers {
+		marker = compactText(normalizeText(marker))
+		for _, target := range vocabulary.PersonTargets {
+			target = compactText(normalizeText(target))
+			if marker != "" && target != "" && strings.Contains(scope, marker+target) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// strongRelationReportingMarkers 从 markers 中剔除 weakMarkers，返回可独立支撑转述判断的强报告词。
 func strongRelationReportingMarkers(markers, weakMarkers []string) []string {
 	weak := make(map[string]struct{}, len(weakMarkers))
 	for _, marker := range weakMarkers {
@@ -648,30 +655,29 @@ func strongRelationReportingMarkers(markers, weakMarkers []string) []string {
 	return result
 }
 
+// relationGovernanceContext 判断 focus 是否位于治理、禁止或反对风险行为的语境。
+// 输入 value 是完整分句、cfg 提供治理模式；返回 true 表示可作为转述或反向关系处理。
 func relationGovernanceContext(value, focus string, cfg appconfig.CommentModerationConfig) bool {
 	full := compactText(normalizeText(value))
 	scope := relationTextScope(value, focus)
-	vocabulary := resolvedRelationVocabulary(cfg)
+	vocabulary := cfg.SemanticRules.RelationVocabulary
 	if containsAnyNormalized(scope, vocabulary.ContrastMarkers) {
 		return false
 	}
 	if containsAnyNormalized(scope, vocabulary.FirstPersonMarkers) {
 		return false
 	}
-	if strings.Contains(full, "平台") && containsAnyNormalized(full, []string{"统计", "处置率"}) ||
-		strings.Contains(full, "配置") && containsAnyNormalized(full, []string{"字段", "分类", "开关"}) {
+	if matchesAnySemanticPattern(full, vocabulary.GovernancePatterns) {
 		return true
 	}
-	if strings.Contains(full, "如果有人") &&
-		containsAnyNormalized(full, []string{"怎么处理", "如何处理", "怎么审核", "如何审核"}) {
-		return true
-	}
-	if !containsAnyNormalized(full, []string{"如果有人", "假如有人", "发现", "请对", "平台禁止", "审核系统应该"}) {
+	if !containsAnyNormalized(full, vocabulary.GovernanceMarkers) {
 		return false
 	}
 	return containsAnyNormalized(full, cfg.SemanticRules.Contexts.RejectionMarkers)
 }
 
+// relationTextScope 返回 value 中包含 focus 的逗号局部片段。
+// 找不到对应片段时返回完整规范化紧凑文本，用于限制关系词的作用范围。
 func relationTextScope(value, focus string) string {
 	focus = compactText(normalizeText(focus))
 	for _, segment := range strings.FieldsFunc(value, func(r rune) bool { return r == '，' || r == ',' }) {
@@ -683,6 +689,7 @@ func relationTextScope(value, focus string) string {
 	return compactText(normalizeText(value))
 }
 
+// relationTermsShareScope 判断全部 terms 是否共同出现在 value 的同一逗号片段；返回对应结果。
 func relationTermsShareScope(value string, terms ...string) bool {
 	for _, segment := range strings.FieldsFunc(value, func(r rune) bool { return r == '，' || r == ',' }) {
 		compact := compactText(normalizeText(segment))
@@ -701,6 +708,8 @@ func relationTermsShareScope(value string, terms ...string) bool {
 	return false
 }
 
+// relationTermsCanRelate 判断 object 与 action 是否位于同一作用域，或可从相邻分句安全承接。
+// 输入 value 是文本、cfg 提供良性及主体标记；返回 true 表示两词可组成同一关系。
 func relationTermsCanRelate(value, object, action string, cfg appconfig.CommentModerationConfig) bool {
 	if relationTermsShareScope(value, object, action) {
 		return true
@@ -720,7 +729,7 @@ func relationTermsCanRelate(value, object, action string, cfg appconfig.CommentM
 		return false
 	}
 	actionScope := compactText(normalizeText(segments[actionIndex]))
-	vocabulary := resolvedRelationVocabulary(cfg)
+	vocabulary := cfg.SemanticRules.RelationVocabulary
 	if containsAnyNormalized(actionScope, vocabulary.FirstPersonMarkers) {
 		return true
 	}
@@ -735,12 +744,14 @@ func relationTermsCanRelate(value, object, action string, cfg appconfig.CommentM
 		!containsAnyNormalized(actionScope, benignMarkers)
 }
 
+// analyzeDiscourseCarryRelations 分析相邻分句中“前句对象、后句第一人称动作”的承接关系。
+// 输入 clauses 和 cfg 提供分句及组合规则；推断关系通过 appendRelation 回调输出。
 func analyzeDiscourseCarryRelations(clauses []NormalizedComment, cfg appconfig.CommentModerationConfig,
 	appendRelation func(SemanticRelation),
 ) {
 	for index := 1; index < len(clauses); index++ {
 		previous, current := clauses[index-1], clauses[index]
-		vocabulary := resolvedRelationVocabulary(cfg)
+		vocabulary := cfg.SemanticRules.RelationVocabulary
 		if !containsAnyNormalized(current.Compact, vocabulary.FirstPersonMarkers) {
 			continue
 		}
@@ -763,6 +774,7 @@ func analyzeDiscourseCarryRelations(clauses []NormalizedComment, cfg appconfig.C
 	}
 }
 
+// relationTermsQuoted 判断 terms 中任一词是否出现在 raw 的引号片段内；返回对应结果。
 func relationTermsQuoted(raw string, terms ...string) bool {
 	segments := quotedRelationSegments(raw)
 	for _, segment := range segments {
@@ -777,6 +789,7 @@ func relationTermsQuoted(raw string, terms ...string) bool {
 	return false
 }
 
+// quotedRelationSegments 提取 value 中成对中英文引号、书名号或反引号包围的文本并返回。
 func quotedRelationSegments(value string) []string {
 	closing := map[rune]rune{
 		'“': '”', '‘': '’', '「': '」', '『': '』', '《': '》', '`': '`', '"': '"', '\'': '\'',
@@ -801,8 +814,10 @@ func quotedRelationSegments(value string) []string {
 	return segments
 }
 
+// extractRelationResult 在 value 中查找配置的结果连接词，并返回连接词及其后最多 24 个字符。
+// 未命中连接词时返回空串。
 func extractRelationResult(value string, cfg appconfig.CommentModerationConfig) string {
-	for _, connector := range resolvedRelationVocabulary(cfg).ResultConnectors {
+	for _, connector := range cfg.SemanticRules.RelationVocabulary.ResultConnectors {
 		index := strings.Index(value, connector)
 		if index < 0 {
 			continue
@@ -816,12 +831,15 @@ func extractRelationResult(value string, cfg appconfig.CommentModerationConfig) 
 	return ""
 }
 
+// relationIsCounterEvidence 判断 relation 是否属于否定、引用、转述、谴责、警告或拒绝关系；返回对应结果。
 func relationIsCounterEvidence(relation SemanticRelation) bool {
 	return relation.Negated || relation.Quoted || relation.Reported ||
 		relation.Stance == RelationStanceCondemnation || relation.Stance == RelationStanceWarning ||
 		relation.Stance == RelationStanceRejection || relation.Stance == RelationStanceReporting
 }
 
+// relationEvidence 将 relations 转换为可融合的正向风险证据或反向语境证据。
+// 返回值会避免在同分类存在可执行关系时生成会与之冲突的全局反证。
 func relationEvidence(relations []SemanticRelation) []Evidence {
 	result := make([]Evidence, 0, len(relations))
 	activeCategories := make(map[string]struct{})
@@ -876,11 +894,13 @@ func relationEvidence(relations []SemanticRelation) []Evidence {
 	return result
 }
 
+// relationIsActionableRisk 判断 relation 是否为分类明确且具备动作和对象的可执行风险关系；返回对应结果。
 func relationIsActionableRisk(relation SemanticRelation) bool {
 	return relation.Type != RelationTypeEvaluation && !relationIsCounterEvidence(relation) && relation.Category != "" &&
 		relation.Action != "" && relation.Object != ""
 }
 
+// relationCounterRuleID 返回 relation 反向证据的规则标识，优先使用子类型，缺失时返回通用作用域标识。
 func relationCounterRuleID(relation SemanticRelation) string {
 	if relation.Subtype != "" {
 		return relation.Subtype
@@ -888,6 +908,8 @@ func relationCounterRuleID(relation SemanticRelation) string {
 	return "relation_scope"
 }
 
+// relationFingerprint 对 relations 的结构字段排序并计算稳定 SHA-256 指纹。
+// 返回值不包含评论原文；空关系集合返回空串。
 func relationFingerprint(relations []SemanticRelation) string {
 	if len(relations) == 0 {
 		return ""
@@ -913,12 +935,14 @@ func relationFingerprint(relations []SemanticRelation) string {
 	return fmt.Sprintf("%x", digest[:])
 }
 
-// RelationFingerprint exposes the stable structural key used by human
-// feedback policy. Literal comment text is intentionally not part of the key.
+// RelationFingerprint 暴露供人工反馈策略使用的稳定关系结构键。
+// 输入 relations 是语义关系集合；返回结构指纹，特意不纳入评论原文字面内容。
 func RelationFingerprint(relations []SemanticRelation) string {
 	return relationFingerprint(relations)
 }
 
+// relationIntentProfile 根据 relations 的可执行关系与反向关系汇总局部意图。
+// 输入 text 和 cfg 用于无关系时的疑问、技术语境兜底；返回意图、置信度、良性概率、风险增益和解释。
 func relationIntentProfile(relations []SemanticRelation, text NormalizedComment,
 	cfg appconfig.CommentModerationConfig,
 ) localIntentProfile {
@@ -980,7 +1004,7 @@ func relationIntentProfile(relations []SemanticRelation, text NormalizedComment,
 		return localIntentProfile{"reporting", 0.92, 0.94, 0, "风险关系位于引用或转述范围"}
 	}
 	compact := text.Compact
-	if containsAnyNormalized(compact, resolvedRelationVocabulary(cfg).QuestionMarkers) {
+	if containsAnyNormalized(compact, cfg.SemanticRules.RelationVocabulary.QuestionMarkers) {
 		return localIntentProfile{"question", 0.84, 0.94, 0, "未形成实施关系，评论为询问表达"}
 	}
 	if containsAnyNormalized(compact, cfg.SemanticRules.Contexts.TechnicalMarkers) {
@@ -989,6 +1013,8 @@ func relationIntentProfile(relations []SemanticRelation, text NormalizedComment,
 	return localIntentProfile{"unknown", 0.72, 0.08, 0, "未形成足够完整的关系"}
 }
 
+// relationsAreUntargetedAbuseOpinions 判断 relations 是否全部为未达到严重攻击的内容评价型辱骂。
+// 第二个配置参数保留接口一致性；返回 true 表示可按内容批评而非对人攻击处理。
 func relationsAreUntargetedAbuseOpinions(relations []SemanticRelation,
 	_ appconfig.CommentModerationConfig,
 ) bool {
@@ -1003,6 +1029,7 @@ func relationsAreUntargetedAbuseOpinions(relations []SemanticRelation,
 	return true
 }
 
+// absInt 返回整数 value 的绝对值。
 func absInt(value int) int {
 	if value < 0 {
 		return -value

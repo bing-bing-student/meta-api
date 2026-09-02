@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/bytedance/sonic"
 	"github.com/redis/go-redis/v9"
@@ -13,8 +12,6 @@ import (
 	"meta-api/common/cachekey"
 	"meta-api/common/types"
 )
-
-const publishedCacheTTL = 10 * time.Minute
 
 func (s *siteDynamicService) UserGetSiteDynamicList(ctx context.Context) (*types.UserGetSiteDynamicListResponse, error) {
 	key := cachekey.SiteDynamicPublishedList().String()
@@ -65,10 +62,12 @@ func (s *siteDynamicService) getPublishedFromCache(ctx context.Context, key stri
 	return items, nil
 }
 
-func (s *siteDynamicService) setPublishedCache(ctx context.Context, key string, items []types.UserSiteDynamicItem) error {
+func (s *siteDynamicService) setPublishedCache(ctx context.Context, key string,
+	items []types.UserSiteDynamicItem) error {
 	value, err := sonic.Marshal(items)
 	if err != nil {
 		return fmt.Errorf("marshal site dynamic cache: %w", err)
 	}
-	return s.redis.Set(ctx, key, value, publishedCacheTTL).Err()
+	// 站点动态由后台变更主动删除缓存，不需要基于时间过期。
+	return s.redis.Set(ctx, key, value, 0).Err()
 }

@@ -5,6 +5,8 @@ import (
 	"strings"
 )
 
+// encodeCommentModerationReasons 清理 reasons 后编码为 JSON 数组字符串。
+// 返回可写入数据库的文本；无有效原因或编码失败时返回空串。
 func encodeCommentModerationReasons(reasons []string) string {
 	values := compactCommentModerationReasons(reasons)
 	if len(values) == 0 {
@@ -17,6 +19,8 @@ func encodeCommentModerationReasons(reasons []string) string {
 	return string(raw)
 }
 
+// decodeCommentModerationReasons 将数据库字段 value 解码为审核原因列表。
+// 返回清理后的原因；空值返回 nil，旧格式或非法 JSON 会作为单条原始原因保留。
 func decodeCommentModerationReasons(value string) []string {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -30,6 +34,8 @@ func decodeCommentModerationReasons(value string) []string {
 	return compactCommentModerationReasons(reasons)
 }
 
+// formatCommentModerationReasons 将机器可读 reasons 转换为面向管理员的中文说明。
+// 返回保持输入顺序的格式化列表；无有效原因时返回 nil。
 func formatCommentModerationReasons(reasons []string) []string {
 	reasons = compactCommentModerationReasons(reasons)
 	if len(reasons) == 0 {
@@ -42,6 +48,8 @@ func formatCommentModerationReasons(reasons []string) []string {
 	return values
 }
 
+// formatCommentModerationReason 解析单条 reason 的来源、分类、等级和证据并生成中文描述。
+// 输入不符合标准四段格式时原样返回，避免丢失未知或历史原因。
 func formatCommentModerationReason(reason string) string {
 	parts := strings.Split(reason, ":")
 	if len(parts) < 4 {
@@ -59,6 +67,7 @@ func formatCommentModerationReason(reason string) string {
 	return source + "：" + evidence + "（" + category + "，" + level + "）"
 }
 
+// compactCommentModerationReasons 去除 reasons 中的首尾空白和空项，返回保持原顺序的新切片。
 func compactCommentModerationReasons(reasons []string) []string {
 	if len(reasons) == 0 {
 		return nil
@@ -73,6 +82,7 @@ func compactCommentModerationReasons(reasons []string) []string {
 	return values
 }
 
+// moderationReasonSourceLabel 将审核来源标识 value 转换为中文名称；未知来源原样返回。
 func moderationReasonSourceLabel(value string) string {
 	switch value {
 	case "lexicon":
@@ -88,6 +98,7 @@ func moderationReasonSourceLabel(value string) string {
 	}
 }
 
+// moderationReasonCategoryLabel 将审核分类标识 value 转换为中文名称；未知分类原样返回。
 func moderationReasonCategoryLabel(value string) string {
 	switch value {
 	case "sensitive":
@@ -131,6 +142,7 @@ func moderationReasonCategoryLabel(value string) string {
 	}
 }
 
+// moderationReasonLevelLabel 将审核等级 value 转换为面向管理员的中文处置建议；未知等级原样返回。
 func moderationReasonLevelLabel(value string) string {
 	switch value {
 	case "review":
@@ -142,6 +154,8 @@ func moderationReasonLevelLabel(value string) string {
 	}
 }
 
+// moderationReasonEvidenceLabel 根据 source 将证据标识 value 转换为易读说明。
+// 返回中文标签或原值；上下文组合证据会把加号展开为可读分隔。
 func moderationReasonEvidenceLabel(source, value string) string {
 	switch value {
 	case "contact":

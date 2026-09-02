@@ -21,6 +21,8 @@ func FeedbackCategories(cfg appconfig.CommentModerationConfig) []string {
 	return values
 }
 
+// IsFeedbackCategory 判断 value 是否存在于 cfg 的统一分类注册表且允许用于人工反馈。
+// 返回 true 表示管理员可提交该分类。
 func IsFeedbackCategory(value string, cfg appconfig.CommentModerationConfig) bool {
 	value = strings.ToLower(strings.TrimSpace(value))
 	category, ok := cfg.Categories[value]

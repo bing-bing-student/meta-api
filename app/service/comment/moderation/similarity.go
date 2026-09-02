@@ -9,6 +9,8 @@ import (
 	appconfig "meta-api/config"
 )
 
+// confusableSkeleton 将 value 中跨文字体系的形近字符转换为统一骨架。
+// 返回值用于相似匹配，不直接替换用户原文。
 func confusableSkeleton(value string) string {
 	var builder strings.Builder
 	builder.Grow(len(value))
@@ -18,6 +20,7 @@ func confusableSkeleton(value string) string {
 	return builder.String()
 }
 
+// confusableRune 将单个形近字符 r 映射到拉丁骨架字符；没有映射时原样返回。
 func confusableRune(r rune) rune {
 	switch r {
 	case 'а', 'ɑ', 'α':
@@ -59,6 +62,8 @@ func confusableRune(r rune) rune {
 	}
 }
 
+// fuzzyLexiconSignals 在评论分句中对配置词表执行受限编辑距离匹配。
+// 输入 text 是归一化评论，cfg 提供候选词及阈值；返回值是去重后的相似风险信号。
 func fuzzyLexiconSignals(text NormalizedComment, cfg appconfig.CommentModerationConfig) []Signal {
 	rule := cfg.Lexicon.Fuzzy
 	if rule.Disabled || len(rule.CandidateWords) == 0 {
@@ -75,7 +80,7 @@ func fuzzyLexiconSignals(text NormalizedComment, cfg appconfig.CommentModeration
 
 	signals := make([]Signal, 0, 1)
 	seen := make(map[string]struct{})
-	for clauseIndex, clause := range semanticClauses(text) {
+	for clauseIndex, clause := range semanticClauses(text, cfg) {
 		views := []string{clause.Compact}
 		if skeleton := confusableSkeleton(clause.Compact); skeleton != clause.Compact {
 			views = append(views, skeleton)
@@ -112,6 +117,8 @@ func fuzzyLexiconSignals(text NormalizedComment, cfg appconfig.CommentModeration
 	return signals
 }
 
+// closestFuzzyWindow 在多个文本视图中查找与 candidate 编辑成本最低的窗口。
+// 输入 maxDistance 是允许的最大编辑距离；返回最佳窗口及折算距离，未达到阈值时返回空串和零。
 func closestFuzzyWindow(views []string, candidate string, maxDistance int) (string, int) {
 	target := []rune(candidate)
 	maxCost := maxDistance * 2
@@ -144,6 +151,8 @@ func closestFuzzyWindow(views []string, candidate string, maxDistance int) (stri
 	return best, (bestCost + 1) / 2
 }
 
+// weightedEditDistance 计算 left 与 right 的加权编辑成本，其中形近字符替换成本低于普通替换。
+// 返回值使用二倍刻度表示成本，插入、删除和普通替换的成本均为 2。
 func weightedEditDistance(left, right []rune) int {
 	if len(left) == 0 {
 		return len(right) * 2
@@ -173,6 +182,8 @@ func weightedEditDistance(left, right []rune) int {
 	return previous[len(right)]
 }
 
+// simHash 为 value 的字符二元组生成 64 位局部敏感指纹。
+// 输入会先进行归一化和紧凑化；返回值用于近重复比较，空文本返回零。
 func simHash(value string) uint64 {
 	runes := []rune(compactText(normalizeText(value)))
 	if len(runes) == 0 {
@@ -201,6 +212,8 @@ func simHash(value string) uint64 {
 	return result
 }
 
+// runeNGrams 将 runes 按 size 生成连续字符片段。
+// 返回全部 N 元组；字符数不超过 size 时返回整个输入组成的单个片段。
 func runeNGrams(runes []rune, size int) []string {
 	if len(runes) <= size {
 		return []string{string(runes)}
@@ -212,6 +225,7 @@ func runeNGrams(runes []rune, size int) []string {
 	return result
 }
 
+// simHashDistance 计算两个 64 位 SimHash 指纹的汉明距离；返回不同位的数量。
 func simHashDistance(left, right uint64) int {
 	return bits.OnesCount64(left ^ right)
 }

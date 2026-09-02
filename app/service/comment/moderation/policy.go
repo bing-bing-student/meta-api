@@ -10,12 +10,14 @@ import (
 	appconfig "meta-api/config"
 )
 
+// policyCache 缓存最近一份通过校验和编译的审核策略，并用签名避免重复编译。
 type policyCache struct {
 	mu        sync.RWMutex
 	signature string
 	config    appconfig.CommentModerationConfig
 }
 
+// Resolve 由 c 根据 cfg 签名复用或重新编译策略，返回可直接执行的配置和校验错误。
 func (c *policyCache) Resolve(cfg appconfig.CommentModerationConfig) (appconfig.CommentModerationConfig, error) {
 	encoded, err := json.Marshal(cfg)
 	if err != nil {
@@ -43,7 +45,8 @@ func (c *policyCache) Resolve(cfg appconfig.CommentModerationConfig) (appconfig.
 	return compiled, nil
 }
 
-// ValidateConfig rejects policy mistakes that could silently disable detection.
+// ValidateConfig 校验 cfg 中可能静默关闭检测、破坏分类引用或产生无效阈值的策略错误。
+// 返回首个配置错误；全部规则有效时返回 nil，函数不会修改输入配置。
 func ValidateConfig(cfg appconfig.CommentModerationConfig) error {
 	if err := validatePolicyRegistry(cfg); err != nil {
 		return err
@@ -158,32 +161,104 @@ func ValidateConfig(cfg appconfig.CommentModerationConfig) error {
 			return fmt.Errorf("structure_patterns.%s must be in [0, 1]", name)
 		}
 	}
-	return validatePatterns(
-		"semantic_rules.contexts.actionable_patterns",
-		cfg.SemanticRules.Contexts.ActionablePatterns,
-	)
+	if err := validatePatterns("semantic_rules.contexts.actionable_patterns",
+		cfg.SemanticRules.Contexts.ActionablePatterns); err != nil {
+		return err
+	}
+	return validatePatterns("semantic_rules.relation_vocabulary.governance_patterns",
+		cfg.SemanticRules.RelationVocabulary.GovernancePatterns)
 }
 
+// validatePolicyRegistry 检查 cfg 中的策略文件、分类、语义词组和校准来源是否完整，返回首个配置错误。
 func validatePolicyRegistry(cfg appconfig.CommentModerationConfig) error {
-	if len(cfg.PolicyFiles) > 0 {
+	if len(cfg.PolicyFiles) > 0 && !cfg.Disabled {
 		if len(cfg.Categories) == 0 {
 			return fmt.Errorf("categories are required when policy_files are configured")
 		}
+		structure := cfg.StructurePatterns
+		if err := validateRequiredPolicyTerms("structure_patterns",
+			requiredPolicyTerms{"url_patterns", structure.URLPatterns},
+			requiredPolicyTerms{"contact_patterns", structure.ContactPatterns},
+			requiredPolicyTerms{"contact_labels", structure.ContactLabels},
+			requiredPolicyTerms{"negated_contact_markers", structure.NegatedContactMarkers},
+			requiredPolicyTerms{"benign_contact_patterns", structure.BenignContactPatterns},
+		); err != nil {
+			return err
+		}
+		contexts := cfg.SemanticRules.Contexts
+		if err := validateRequiredPolicyTerms("semantic_rules.contexts",
+			requiredPolicyTerms{"reporting_markers", contexts.ReportingMarkers},
+			requiredPolicyTerms{"rejection_markers", contexts.RejectionMarkers},
+			requiredPolicyTerms{"technical_markers", contexts.TechnicalMarkers},
+			requiredPolicyTerms{"actionable_markers", contexts.ActionableMarkers},
+		); err != nil {
+			return err
+		}
 		vocabulary := cfg.SemanticRules.RelationVocabulary
-		if len(vocabulary.NegationMarkers) == 0 || len(vocabulary.Actors) == 0 ||
-			len(vocabulary.PersonTargets) == 0 {
-			return fmt.Errorf("semantic_rules.relation_vocabulary requires negation_markers, actors and person_targets")
+		if err := validateRequiredPolicyTerms("semantic_rules.relation_vocabulary",
+			requiredPolicyTerms{"negation_markers", vocabulary.NegationMarkers},
+			requiredPolicyTerms{"immediate_negation_markers", vocabulary.ImmediateNegationMarkers},
+			requiredPolicyTerms{"actors", vocabulary.Actors},
+			requiredPolicyTerms{"person_targets", vocabulary.PersonTargets},
+			requiredPolicyTerms{"content_targets", vocabulary.ContentTargets},
+			requiredPolicyTerms{"result_connectors", vocabulary.ResultConnectors},
+			requiredPolicyTerms{"promotion_actions", vocabulary.PromotionActions},
+			requiredPolicyTerms{"weak_reporting_markers", vocabulary.WeakReportingMarkers},
+			requiredPolicyTerms{"interrogative_prefixes", vocabulary.InterrogativePrefixes},
+			requiredPolicyTerms{"question_markers", vocabulary.QuestionMarkers},
+			requiredPolicyTerms{"first_person_markers", vocabulary.FirstPersonMarkers},
+			requiredPolicyTerms{"contrast_markers", vocabulary.ContrastMarkers},
+			requiredPolicyTerms{"clause_boundary_markers", vocabulary.ClauseBoundaryMarkers},
+			requiredPolicyTerms{"governance_markers", vocabulary.GovernanceMarkers},
+			requiredPolicyTerms{"governance_patterns", vocabulary.GovernancePatterns},
+		); err != nil {
+			return err
 		}
 		riskEvaluation := cfg.SemanticRules.RiskEvaluation
-		if len(riskEvaluation.Outcomes) == 0 || len(riskEvaluation.JudgmentPredicates) == 0 ||
-			len(riskEvaluation.QuestionMarkers) == 0 {
-			return fmt.Errorf("semantic_rules.risk_evaluation requires outcomes, judgment_predicates and question_markers")
+		if len(riskEvaluation.Outcomes) == 0 {
+			return fmt.Errorf("semantic_rules.risk_evaluation.outcomes is required")
+		}
+		if err := validateRequiredPolicyTerms("semantic_rules.risk_evaluation",
+			requiredPolicyTerms{"outcome_suffixes", riskEvaluation.OutcomeSuffixes},
+			requiredPolicyTerms{"outcome_negations", riskEvaluation.OutcomeNegations},
+			requiredPolicyTerms{"judgment_predicates", riskEvaluation.JudgmentPredicates},
+			requiredPolicyTerms{"demonstrative_predicates", riskEvaluation.DemonstrativePredicates},
+			requiredPolicyTerms{"post_outcome_rejections", riskEvaluation.PostOutcomeRejections},
+			requiredPolicyTerms{"warning_predicates", riskEvaluation.WarningPredicates},
+			requiredPolicyTerms{"governance_actions", riskEvaluation.GovernanceActions},
+			requiredPolicyTerms{"governance_modals", riskEvaluation.GovernanceModals},
+			requiredPolicyTerms{"promotion_markers", riskEvaluation.PromotionMarkers},
+			requiredPolicyTerms{"question_markers", riskEvaluation.QuestionMarkers},
+			requiredPolicyTerms{"promotion_contrast_markers", riskEvaluation.PromotionContrastMarkers},
+			requiredPolicyTerms{"promotion_action_markers", riskEvaluation.PromotionActionMarkers},
+		); err != nil {
+			return err
 		}
 		harmful := cfg.SemanticRules.HarmfulValuePolicy
-		if !harmful.Disabled && (len(harmful.SelfPronouns) == 0 || len(harmful.OtherPronouns) == 0 ||
-			len(harmful.AddressedTargets) == 0 || len(harmful.ReferenceSuffixes) == 0 ||
-			len(harmful.OutcomeNegations) == 0) {
-			return fmt.Errorf("semantic_rules.harmful_value_policy requires pronouns, targets, reference_suffixes and outcome_negations")
+		if !harmful.Disabled {
+			if err := validateRequiredPolicyTerms("semantic_rules.harmful_value_policy",
+				requiredPolicyTerms{"self_harm_actions", harmful.SelfHarmActions},
+				requiredPolicyTerms{"death_wish_actions", harmful.DeathWishActions},
+				requiredPolicyTerms{"dangerous_actions", harmful.DangerousActions},
+				requiredPolicyTerms{"dangerous_substances", harmful.DangerousSubstances},
+				requiredPolicyTerms{"ingestion_actions", harmful.IngestionActions},
+				requiredPolicyTerms{"incitement_markers", harmful.IncitementMarkers},
+				requiredPolicyTerms{"incitement_suffixes", harmful.IncitementSuffixes},
+				requiredPolicyTerms{"ideation_markers", harmful.IdeationMarkers},
+				requiredPolicyTerms{"prevention_markers", harmful.PreventionMarkers},
+				requiredPolicyTerms{"education_actors", harmful.EducationActors},
+				requiredPolicyTerms{"education_actions", harmful.EducationActions},
+				requiredPolicyTerms{"critical_outcomes", harmful.CriticalOutcomes},
+				requiredPolicyTerms{"self_pronouns", harmful.SelfPronouns},
+				requiredPolicyTerms{"other_pronouns", harmful.OtherPronouns},
+				requiredPolicyTerms{"additional_targets", harmful.AdditionalTargets},
+				requiredPolicyTerms{"addressed_targets", harmful.AddressedTargets},
+				requiredPolicyTerms{"reference_suffixes", harmful.ReferenceSuffixes},
+				requiredPolicyTerms{"outcome_negations", harmful.OutcomeNegations},
+				requiredPolicyTerms{"promotion_conflicts", harmful.PromotionConflicts},
+			); err != nil {
+				return err
+			}
 		}
 		if len(cfg.DecisionEngine.Calibration.Sources) == 0 {
 			return fmt.Errorf("decision_engine.calibration.sources are required")
@@ -247,6 +322,7 @@ func validatePolicyRegistry(cfg appconfig.CommentModerationConfig) error {
 	return nil
 }
 
+// validateConfiguredCategories 校验 cfg 中词库、结构和上下文所引用的分类是否已注册，返回未知分类错误。
 func validateConfiguredCategories(cfg appconfig.CommentModerationConfig) error {
 	require := func(path, category string) error {
 		category = strings.ToLower(strings.TrimSpace(category))
@@ -283,6 +359,7 @@ func validateConfiguredCategories(cfg appconfig.CommentModerationConfig) error {
 	return nil
 }
 
+// validateConceptReferences 校验 ruleID 规则的 field 中 refs 是否存在且符合 expectedRole，返回首个引用错误。
 func validateConceptReferences(ruleID, field string, refs []string, expectedRole string,
 	sets map[string]appconfig.CommentModerationConceptSetConfig,
 ) error {
@@ -301,6 +378,7 @@ func validateConceptReferences(ruleID, field string, refs []string, expectedRole
 	return nil
 }
 
+// validatePatterns 逐个编译 patterns 中的正则，path 用于定位配置字段；返回空表达式或编译错误。
 func validatePatterns(path string, patterns []string) error {
 	for index, pattern := range patterns {
 		pattern = strings.TrimSpace(pattern)
@@ -314,6 +392,23 @@ func validatePatterns(path string, patterns []string) error {
 	return nil
 }
 
+// requiredPolicyTerms 将必填策略字段名与其词项绑定，供统一完整性校验使用。
+type requiredPolicyTerms struct {
+	name   string
+	values []string
+}
+
+// validateRequiredPolicyTerms 检查 scope 下的 groups 是否都含有非空词项，返回首个缺失字段错误。
+func validateRequiredPolicyTerms(scope string, groups ...requiredPolicyTerms) error {
+	for _, group := range groups {
+		if len(compactPolicyTerms(group.values)) == 0 {
+			return fmt.Errorf("%s.%s is required", scope, group.name)
+		}
+	}
+	return nil
+}
+
+// compileConfig 对 cfg 执行词项归一化、概念引用展开和去重，返回不依赖原切片的可执行策略。
 func compileConfig(cfg appconfig.CommentModerationConfig) appconfig.CommentModerationConfig {
 	for id, concept := range cfg.ConceptSets {
 		concept.Terms = compactPolicyTerms(concept.Terms)
@@ -321,6 +416,7 @@ func compileConfig(cfg appconfig.CommentModerationConfig) appconfig.CommentModer
 		cfg.ConceptSets[id] = concept
 	}
 	cfg.StructurePatterns.RiskPhrases = compactPolicyTerms(cfg.StructurePatterns.RiskPhrases)
+	cfg.StructurePatterns.ContactLabels = compactPolicyTerms(cfg.StructurePatterns.ContactLabels)
 	cfg.StructurePatterns.NegatedContactMarkers = compactPolicyTerms(
 		cfg.StructurePatterns.NegatedContactMarkers,
 	)
@@ -372,6 +468,7 @@ func compileConfig(cfg appconfig.CommentModerationConfig) appconfig.CommentModer
 	return cfg
 }
 
+// expandConceptReferences 将 values 与 refs 在 sets 中指向的概念词合并，返回展开后的词项列表。
 func expandConceptReferences(values, refs []string,
 	sets map[string]appconfig.CommentModerationConceptSetConfig,
 ) []string {
@@ -382,6 +479,7 @@ func expandConceptReferences(values, refs []string,
 	return result
 }
 
+// compileRelationVocabulary 对 cfg 中所有关系分析词组原地归一化和去重；无返回值。
 func compileRelationVocabulary(cfg *appconfig.CommentModerationRelationVocabularyConfig) {
 	if cfg == nil {
 		return
@@ -398,8 +496,11 @@ func compileRelationVocabulary(cfg *appconfig.CommentModerationRelationVocabular
 	cfg.QuestionMarkers = compactPolicyTerms(cfg.QuestionMarkers)
 	cfg.FirstPersonMarkers = compactPolicyTerms(cfg.FirstPersonMarkers)
 	cfg.ContrastMarkers = compactPolicyTerms(cfg.ContrastMarkers)
+	cfg.ClauseBoundaryMarkers = compactPolicyTerms(cfg.ClauseBoundaryMarkers)
+	cfg.GovernanceMarkers = compactPolicyTerms(cfg.GovernanceMarkers)
 }
 
+// compileRiskEvaluationPolicy 对 cfg 中的风险评价立场和词组原地规范化；无返回值。
 func compileRiskEvaluationPolicy(cfg *appconfig.CommentModerationRiskEvaluationConfig) {
 	if cfg == nil {
 		return
@@ -409,6 +510,7 @@ func compileRiskEvaluationPolicy(cfg *appconfig.CommentModerationRiskEvaluationC
 		cfg.Outcomes[index].Roots = compactPolicyTerms(cfg.Outcomes[index].Roots)
 	}
 	cfg.OutcomeSuffixes = compactPolicyTerms(cfg.OutcomeSuffixes)
+	cfg.OutcomeNegations = compactPolicyTerms(cfg.OutcomeNegations)
 	cfg.JudgmentPredicates = compactPolicyTerms(cfg.JudgmentPredicates)
 	cfg.DemonstrativePredicates = compactPolicyTerms(cfg.DemonstrativePredicates)
 	cfg.PostOutcomeRejections = compactPolicyTerms(cfg.PostOutcomeRejections)
@@ -421,6 +523,7 @@ func compileRiskEvaluationPolicy(cfg *appconfig.CommentModerationRiskEvaluationC
 	cfg.PromotionActionMarkers = compactPolicyTerms(cfg.PromotionActionMarkers)
 }
 
+// compactStringValues 对 values 去除首尾空白、空值和重复项，返回保持首次出现顺序的列表。
 func compactStringValues(values []string) []string {
 	result := make([]string, 0, len(values))
 	seen := make(map[string]struct{}, len(values))
@@ -438,6 +541,7 @@ func compactStringValues(values []string) []string {
 	return result
 }
 
+// compactPolicyTerms 对 values 执行文本归一化、紧凑化和去重，返回可直接用于匹配的词项列表。
 func compactPolicyTerms(values []string) []string {
 	result := make([]string, 0, len(values))
 	seen := make(map[string]struct{}, len(values))

@@ -288,6 +288,15 @@ comment_moderation:
       question_markers: [什么意思, 是什么, 指什么, 怎么理解, 如何理解, 是否代表, 是不是指]
       first_person_markers: [我本人, 我这边, 我这里, 我有, 我能, 我可以, 我也能, 我仍然, 我照样, 手上还有]
       contrast_markers: [所以, 但是, 不过, 然而, 可是, 例外]
+      # 逗号后出现这些表达时开启新的语义分句，避免把前后相反立场合并。
+      clause_boundary_markers: [但是, 不过, 然而, 可是, 但我, 但这里, 但本人, 我这边, 我这里, 本人, 手上还有]
+      # governance_markers 必须与 rejection_markers 同时出现才表示治理语境。
+      governance_markers: [如果有人, 假如有人, 发现, 请对, 平台禁止, 审核系统应该]
+      # governance_patterns 用于不依赖拒绝词的明确审核、配置和统计语境。
+      governance_patterns:
+        - '(平台.{0,12}(统计|处置率)|(统计|处置率).{0,12}平台)'
+        - '(配置.{0,12}(字段|分类|开关)|(字段|分类|开关).{0,12}配置)'
+        - '(如果有人|假如有人).{0,16}(怎么处理|如何处理|怎么审核|如何审核)'
 
     # 风险评价语义用于识别“某种行为属于诈骗/违法”一类评论。
     # outcomes.stance 只能使用 warning 或 condemnation；它表达评论者对风险对象的立场。
@@ -300,6 +309,8 @@ comment_moderation:
         - stance: condemnation
           roots: [有害, 危害, 危险, 不道德, 可耻, 缺德]
       outcome_suffixes: [产业链, 产业, 行业, 行为, 活动, 生意, 内容, 问题]
+      # 这些否定词只作用于风险评价结果，不再借用 harmful_value_policy 的配置。
+      outcome_negations: [没有, 并无, 并不, 并非, 不算, 不能算, 不是, 不属于, 谈不上, 无]
       judgment_predicates: [基本都是, 很可能是, 大概率是, 本质上是, 本质是, 大多是, 往往是, 可能是, 多半是, 基本是, 都属于, 属于, 算是, 构成, 就是, 都是, 是, 这种, 这类]
       demonstrative_predicates: [这种, 这类]
       post_outcome_rejections: [不可信, 不靠谱, 不能信, 不要信, 不要相信, 别信, 应举报, 应该举报, 建议举报, 必须举报]

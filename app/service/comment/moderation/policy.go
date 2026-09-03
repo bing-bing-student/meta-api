@@ -204,11 +204,14 @@ func validatePolicyRegistry(cfg appconfig.CommentModerationConfig) error {
 			requiredPolicyTerms{"result_connectors", vocabulary.ResultConnectors},
 			requiredPolicyTerms{"promotion_actions", vocabulary.PromotionActions},
 			requiredPolicyTerms{"weak_reporting_markers", vocabulary.WeakReportingMarkers},
+			requiredPolicyTerms{"quote_endorsement_markers", vocabulary.QuoteEndorsementMarkers},
 			requiredPolicyTerms{"interrogative_prefixes", vocabulary.InterrogativePrefixes},
 			requiredPolicyTerms{"question_markers", vocabulary.QuestionMarkers},
 			requiredPolicyTerms{"first_person_markers", vocabulary.FirstPersonMarkers},
 			requiredPolicyTerms{"contrast_markers", vocabulary.ContrastMarkers},
 			requiredPolicyTerms{"clause_boundary_markers", vocabulary.ClauseBoundaryMarkers},
+			requiredPolicyTerms{"sequence_markers", vocabulary.SequenceMarkers},
+			requiredPolicyTerms{"generic_action_markers", vocabulary.GenericActionMarkers},
 			requiredPolicyTerms{"governance_markers", vocabulary.GovernanceMarkers},
 			requiredPolicyTerms{"governance_patterns", vocabulary.GovernancePatterns},
 		); err != nil {
@@ -218,7 +221,11 @@ func validatePolicyRegistry(cfg appconfig.CommentModerationConfig) error {
 		if len(riskEvaluation.Outcomes) == 0 {
 			return fmt.Errorf("semantic_rules.risk_evaluation.outcomes is required")
 		}
+		if len(riskEvaluation.AttributeOutcomes) == 0 {
+			return fmt.Errorf("semantic_rules.risk_evaluation.attribute_outcomes is required")
+		}
 		if err := validateRequiredPolicyTerms("semantic_rules.risk_evaluation",
+			requiredPolicyTerms{"topic_suffixes", riskEvaluation.TopicSuffixes},
 			requiredPolicyTerms{"outcome_suffixes", riskEvaluation.OutcomeSuffixes},
 			requiredPolicyTerms{"outcome_negations", riskEvaluation.OutcomeNegations},
 			requiredPolicyTerms{"judgment_predicates", riskEvaluation.JudgmentPredicates},
@@ -246,6 +253,7 @@ func validatePolicyRegistry(cfg appconfig.CommentModerationConfig) error {
 				requiredPolicyTerms{"incitement_suffixes", harmful.IncitementSuffixes},
 				requiredPolicyTerms{"ideation_markers", harmful.IdeationMarkers},
 				requiredPolicyTerms{"prevention_markers", harmful.PreventionMarkers},
+				requiredPolicyTerms{"postvention_markers", harmful.PostventionMarkers},
 				requiredPolicyTerms{"education_actors", harmful.EducationActors},
 				requiredPolicyTerms{"education_actions", harmful.EducationActions},
 				requiredPolicyTerms{"critical_outcomes", harmful.CriticalOutcomes},
@@ -288,6 +296,20 @@ func validatePolicyRegistry(cfg appconfig.CommentModerationConfig) error {
 		}
 		if len(compactPolicyTerms(outcome.Roots)) == 0 {
 			return fmt.Errorf("semantic_rules.risk_evaluation.outcomes[%d]: roots are required", index)
+		}
+	}
+	for index, outcome := range cfg.SemanticRules.RiskEvaluation.AttributeOutcomes {
+		stance := strings.ToLower(strings.TrimSpace(outcome.Stance))
+		if stance != RelationStanceWarning && stance != RelationStanceCondemnation {
+			return fmt.Errorf("semantic_rules.risk_evaluation.attribute_outcomes[%d]: invalid stance %q",
+				index, outcome.Stance)
+		}
+		if err := validateRequiredPolicyTerms(
+			fmt.Sprintf("semantic_rules.risk_evaluation.attribute_outcomes[%d]", index),
+			requiredPolicyTerms{"attributes", outcome.Attributes},
+			requiredPolicyTerms{"descriptors", outcome.Descriptors},
+		); err != nil {
+			return err
 		}
 	}
 	for id, concept := range cfg.ConceptSets {
@@ -453,6 +475,7 @@ func compileConfig(cfg appconfig.CommentModerationConfig) appconfig.CommentModer
 	harmfulPolicy.IncitementSuffixes = compactPolicyTerms(harmfulPolicy.IncitementSuffixes)
 	harmfulPolicy.IdeationMarkers = compactPolicyTerms(harmfulPolicy.IdeationMarkers)
 	harmfulPolicy.PreventionMarkers = compactPolicyTerms(harmfulPolicy.PreventionMarkers)
+	harmfulPolicy.PostventionMarkers = compactPolicyTerms(harmfulPolicy.PostventionMarkers)
 	harmfulPolicy.EducationActors = compactPolicyTerms(harmfulPolicy.EducationActors)
 	harmfulPolicy.EducationActions = compactPolicyTerms(harmfulPolicy.EducationActions)
 	harmfulPolicy.CriticalOutcomes = compactPolicyTerms(harmfulPolicy.CriticalOutcomes)
@@ -492,11 +515,14 @@ func compileRelationVocabulary(cfg *appconfig.CommentModerationRelationVocabular
 	cfg.ResultConnectors = compactPolicyTerms(cfg.ResultConnectors)
 	cfg.PromotionActions = compactPolicyTerms(cfg.PromotionActions)
 	cfg.WeakReportingMarkers = compactPolicyTerms(cfg.WeakReportingMarkers)
+	cfg.QuoteEndorsementMarkers = compactPolicyTerms(cfg.QuoteEndorsementMarkers)
 	cfg.InterrogativePrefixes = compactPolicyTerms(cfg.InterrogativePrefixes)
 	cfg.QuestionMarkers = compactPolicyTerms(cfg.QuestionMarkers)
 	cfg.FirstPersonMarkers = compactPolicyTerms(cfg.FirstPersonMarkers)
 	cfg.ContrastMarkers = compactPolicyTerms(cfg.ContrastMarkers)
 	cfg.ClauseBoundaryMarkers = compactPolicyTerms(cfg.ClauseBoundaryMarkers)
+	cfg.SequenceMarkers = compactPolicyTerms(cfg.SequenceMarkers)
+	cfg.GenericActionMarkers = compactPolicyTerms(cfg.GenericActionMarkers)
 	cfg.GovernanceMarkers = compactPolicyTerms(cfg.GovernanceMarkers)
 }
 
@@ -509,6 +535,21 @@ func compileRiskEvaluationPolicy(cfg *appconfig.CommentModerationRiskEvaluationC
 		cfg.Outcomes[index].Stance = strings.ToLower(strings.TrimSpace(cfg.Outcomes[index].Stance))
 		cfg.Outcomes[index].Roots = compactPolicyTerms(cfg.Outcomes[index].Roots)
 	}
+	for index := range cfg.AttributeOutcomes {
+		cfg.AttributeOutcomes[index].Stance = strings.ToLower(
+			strings.TrimSpace(cfg.AttributeOutcomes[index].Stance),
+		)
+		cfg.AttributeOutcomes[index].Attributes = compactPolicyTerms(
+			cfg.AttributeOutcomes[index].Attributes,
+		)
+		cfg.AttributeOutcomes[index].Modifiers = compactPolicyTerms(
+			cfg.AttributeOutcomes[index].Modifiers,
+		)
+		cfg.AttributeOutcomes[index].Descriptors = compactPolicyTerms(
+			cfg.AttributeOutcomes[index].Descriptors,
+		)
+	}
+	cfg.TopicSuffixes = compactPolicyTerms(cfg.TopicSuffixes)
 	cfg.OutcomeSuffixes = compactPolicyTerms(cfg.OutcomeSuffixes)
 	cfg.OutcomeNegations = compactPolicyTerms(cfg.OutcomeNegations)
 	cfg.JudgmentPredicates = compactPolicyTerms(cfg.JudgmentPredicates)

@@ -1,0 +1,54 @@
+id	text	expected	category	tags	note
+SEX001	私聊我领取福利	risk	sexual	private,benefit	福利诱饵与私聊引流
+SEX002	luoliao吗	risk	sexual	pinyin,solicitation	纯拼音裸聊邀约
+SEX003	luo聊吗	risk	sexual	mixed_script,solicitation	拼音与中文混写裸聊
+SEX004	liao骚吗	risk	sexual	mixed_script,solicitation	拼音与中文混写聊骚
+SEX005	想看看你的隐私部位	risk	sexual	body_privacy,solicitation	向明确对象索要隐私部位内容
+SEX006	luo liao可以吗	risk	sexual	pinyin,spaced	空格分隔的裸聊邀约
+SEX007	要不要luoliao	risk	sexual	pinyin,question	疑问式拼音裸聊邀约
+SEX008	裸l聊吗	risk	sexual	mixed_script,initial	单字母插入的裸聊邀约
+SEX009	今晚果聊吗	risk	sexual	homophone,solicitation	裸聊的同音替换
+SEX010	和我聊点sao的	risk	sexual	pinyin,euphemism	骚的拼音性暗示
+SEX011	liao sao不	risk	sexual	pinyin,spaced	空格分隔的聊骚邀约
+SEX012	聊sao吗	risk	sexual	mixed_script,solicitation	聊骚混写邀约
+SEX013	骚聊一下可以吗	risk	sexual	reordered,solicitation	词序倒置的性暗示邀约
+SEX014	给我看看你的私密部位	risk	sexual	body_privacy,request	索要私密部位内容
+SEX015	发张私密部位照片给我	risk	sexual	body_privacy,image	索要私密部位照片
+SEX016	脱掉衣服让我看看	risk	sexual	undress,request	要求对方脱衣展示
+SEX017	开视频看看你的身体	risk	sexual	video,body	视频展示身体邀约
+SEX018	福利图片私下发，想要的聊我	risk	sexual	benefit,private	福利图片私下引流
+SEX019	私信我看隐藏福利	risk	sexual	benefit,contact	隐藏福利私信引流
+SEX020	成年福利视频私发	risk	sexual	adult,video	成年福利视频传播
+SEX021	进群领取福利视频	risk	sexual	group,video	福利视频群聊引流
+SEX022	福利不公开，私聊后发你	risk	sexual	private,contrast	否定公开但继续私发
+SEX023	想看大尺度照片的找我	risk	sexual	explicitness,promotion	大尺度照片引流
+SEX024	擦边私密照可以单独发	risk	sexual	soft_porn,private	擦边私密照私发
+SEX025	深夜视频一对一，内容懂的都懂	risk	sexual	euphemism,video	隐晦一对一视频服务
+SEX026	“裸聊吗”是平台必须拦截的诱导话术	approved	sexual	quote,governance	引用风险话术并要求治理
+SEX027	安全测试验证 luoliao 能否被识别	approved	sexual	test,pinyin	拼音词的审核测试语境
+SEX028	裸聊诈骗常利用私密视频勒索，大家要警惕	approved	sexual	anti_fraud,warning	裸聊诈骗风险教育
+SEX029	不要和陌生人裸聊	approved	sexual	rejection,safety	明确拒绝裸聊
+SEX030	平台禁止用户索要隐私部位照片	approved	sexual	governance,privacy	平台治理索要私密照
+SEX031	性教育课程讲解如何保护隐私部位	approved	sexual	education,privacy	性教育与隐私保护
+SEX032	医生文章介绍隐私部位感染的就医建议	approved	sexual	medical,health	医学健康语境
+SEX033	不要给任何人看私密部位	approved	sexual	rejection,privacy	拒绝展示私密部位
+SEX034	发现有人索要私密照应立即举报	approved	sexual	governance,report	举报索要私密照行为
+SEX035	请勿私信领取所谓福利，这通常是骗局	approved	sexual	anti_fraud,benefit	反对福利私信骗局
+SEX036	私聊领取福利基本都是诈骗	approved	sexual	risk_evaluation,benefit	对私聊福利作诈骗评价
+SEX037	博客福利是公开的代码模板，不需要私聊	approved	sexual	benign_resource,public	公开代码福利且拒绝私聊
+SEX038	员工福利应通过公司系统领取	approved	sexual	employee_benefit	劳动福利正常语义
+SEX039	这篇文章讨论劳动法中的职工福利	approved	sexual	legal,employee_benefit	职工福利讨论
+SEX040	福利领取页面没有私聊入口	approved	sexual	product,negation	产品页面不存在私聊入口
+SEX041	平台应下架所谓成年福利视频	approved	sexual	governance,adult	治理成年福利视频
+SEX042	举报私聊传播成人内容的账号	approved	sexual	governance,report	举报私聊传播成人内容
+SEX043	不要向别人索要私密照片	approved	sexual	rejection,image	拒绝索要私密照片
+SEX044	这是“聊骚吗”的违规测试样例	approved	sexual	test,quote	引用聊骚话术的测试语境
+SEX045	审核规则需要识别 luo聊 这种混写	approved	sexual	moderation,mixed_script	审核规则讨论混写词
+SEX046	论文分析网络裸聊诈骗的治理方式	approved	sexual	academic,governance	学术分析裸聊诈骗
+SEX047	家长应提醒未成年人拒绝陌生视频邀请	approved	sexual	minor,safety	未成年人安全教育
+SEX048	摄像头权限默认关闭可以保护身体隐私	approved	sexual	privacy,security	隐私权限保护
+SEX049	这份医学教材使用了“生殖器官”这个术语	approved	sexual	medical,term	医学术语引用
+SEX050	请删除聊天记录里的私密照片并通知当事人	approved	sexual	privacy,response	隐私内容处置
+SEX051	不要在评论区加联系方式，然后进行luoliao	risk	sexual	negation_scope,sequence	否定只约束公开联系方式，后续裸聊仍是独立风险行为
+SEX052	禁止在评论区加联系方式，然后进行luoliao	risk	sexual	negation_scope,sequence	禁止公开联系方式不等于否定后续裸聊
+SEX053	我们可以在评论区加联系方式，然后luoliao	risk	sexual	promotion,sequence	同时推广联系方式和裸聊

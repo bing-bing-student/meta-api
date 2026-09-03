@@ -358,14 +358,12 @@ func contextBenignAppliesToCategory(assessment ContextAssessment, category strin
 	if len(assessment.Relations) == 0 {
 		return true
 	}
-	if assessment.Intent == "question" || assessment.Intent == "technical" ||
-		assessment.Intent == "reporting" || assessment.Intent == "rejection" ||
-		assessment.Intent == "risk_education" || assessment.Intent == "risk_evaluation" {
-		return true
-	}
 	if assessment.Intent == "content_criticism" && category == "abuse" {
 		return true
 	}
+	// 已经提取出关系时，良性意图只能抑制同分类的风险。例如
+	// “不要点别人的链接，我的入口是 ...”中，前半句的拒绝不应
+	// 抑制后半句新出现的 URL 风险。
 	for _, relation := range assessment.Relations {
 		if relation.Category == category && relationIsCounterEvidence(relation) {
 			return true

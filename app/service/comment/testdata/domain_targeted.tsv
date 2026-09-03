@@ -1,0 +1,191 @@
+id	text	expected	category	tags	note
+DAB001	这段代码像垃圾堆一样，建议拆分函数后再讨论。	approved	abuse	content_criticism,code	尖锐批评代码而非攻击人
+DAB002	文章引用“脑子有坑”作为违规评论样例，提醒大家不要模仿。	approved	abuse	quote,moderation	引用辱骂样例的治理语境
+DAB003	批评观点没问题，但不要对作者进行人身攻击。	approved	abuse	rejection,governance	明确反对人身攻击
+DAB004	你脑子是不是有坑，这种代码也敢发。	risk	abuse	targeted,severe	直接指向评论对象的严重辱骂
+DAB005	你妈没教过你先运行代码再提交吗？	risk	abuse	targeted,family	以代码评审包装的人身攻击
+DAB006	大家去他主页轮流嘲笑，让他不敢再发文章。	risk	abuse	harassment,mobilization	组织性网络骚扰
+DCO001	联系方式字段应该先脱敏再返回给前端。	approved	contact	technical,privacy	技术讨论中的联系方式字段
+DCO002	无需私信我，直接在评论区公开回复就行。	approved	contact	negation,public_reply	明确否定私下联系
+DCO003	这个微信号识别正则为什么没匹配到测试账号？	approved	contact	regex,test	联系方式检测的技术语境
+DCO004	需要完整源码的加我微信：wx_code888。	risk	contact	wechat,resource	联系方式引流
+DCO005	想要内部资料的私信我，评论区不方便发。	risk	contact	private_message,resource	私信领取资料
+DCO006	进群扫我主页的二维码，验证信息写博客。	risk	contact	group,qrcode	二维码群聊引流
+DDU001	Base64 示例 SGVsbG8sIFdvcmxkIQ== 解码后只是 Hello World。	approved	decoded_url	base64,non_url	非链接类 Base64 不应触发
+DDU002	安全文章用 aHR0cHM6Ly9ldmlsLmV4YW1wbGUvcHJvbW8= 演示编码链接绕过，请不要访问。	approved	decoded_url	security,warning	明确防御语境中的编码链接样例
+DDU003	解码器要先校验协议头，普通的 eyJ0ZXN0Ijp0cnVlfQ== 不是 URL。	approved	decoded_url	json,non_url	解码后不是链接
+DDU004	最新入口是 aHR0cHM6Ly9ldmlsLmV4YW1wbGUvcHJvbW8= ，复制后先解码再打开。	risk	decoded_url	encoded,diversion	编码链接引流
+DDU005	登录地址 aHR0cDovL3BoaXNoLmV4YW1wbGUvbG9naW4= ，不方便明文发。	risk	decoded_url	encoded,phishing	编码钓鱼登录链接
+DDU006	博彩注册地址解码这串：aHR0cHM6Ly9jYXNpbm8uZXhhbXBsZS9yZWdpc3Rlcg==。	risk	decoded_url	encoded,gambling	编码博彩链接
+DDR001	文章介绍毒品交易的危害，目的是帮助读者识别诱骗。	approved	drugs	education,harm	毒品危害科普
+DDR002	医院对麻醉药品的使用和保管都有严格规范。	approved	drugs	medical,governance	合法医疗与规范语境
+DDR003	发现有人私下出售违禁药品应当及时报警。	approved	drugs	rejection,report	反对违禁药品交易
+DDR004	特殊小药片还有一批，数量多可以优惠，私下问。	risk	drugs	trade,private	隐语药品交易
+DDR005	特殊植物种子有稳定来源，想试效果的联系我。	risk	drugs	seed,trade	特殊植物交易引流
+DDR006	检测不会显示的粉末，包装很隐蔽，需要的私聊。	risk	drugs	powder,evasion	违禁品规避检测交易
+DGA001	这篇文章在分析赌博平台的骗局机制，大家不要参与。	approved	gambling	anti_gambling,education	反赌博风险科普
+DGA002	参与赌博下注的人风险意识往往很薄弱。	approved	gambling	risk_evaluation,attribute	对赌博参与者的负面评价
+DGA003	公安通报提醒市民远离所谓的必中号码和投注群。	approved	gambling	reporting,warning	官方反赌博警示
+DGA004	新盘今晚开，跟着内部方向下注，连续三天不中就退。	risk	gambling	betting,promotion	博彩投注引导
+DGA005	博彩账号已经准备好，进群充值就能玩。	risk	gambling	account,group	博彩账号与入群引流
+DGA006	这期数字走势很稳，照着我的号码进场，体验额度先送。	risk	gambling	tip,deposit	隐式博彩推广
+DGO001	急救课程展示伤口图片前应当充分提示并打码。	approved	gore	medical,warning	医疗教育中的伤口图片
+DGO002	事故现场视频不应随意传播，这会对家属造成二次伤害。	approved	gore	rejection,ethics	反对传播血腥画面
+DGO003	审核文档使用“未打码遗体画面”作为血腥内容示例。	approved	gore	moderation,quote	血腥内容治理样例
+DGO004	事故现场未打码视频我有完整版，想看的私信。	risk	gore	video,private	血腥视频传播引流
+DGO005	重口味伤口合集可以付费下载，链接在主页。	risk	gore	paid,download	付费血腥内容传播
+DGO006	这段惨烈画面别打码，直播回放原片发我。	risk	gore	request,unblurred	索要未打码血腥内容
+DHV001	遇到自伤念头应尽快联系专业机构和信任的人寻求帮助。	approved	harmful_value	prevention,support	自伤预防与求助
+DHV002	今天老师科普法轮功的相关知识，重点是让我们了解其危害。	approved	harmful_value	education,critical	不良内容的批判性科普
+DHV003	网暴会造成长期心理伤害，平台应尽快制止。	approved	harmful_value	governance,harm	反对网络暴力
+DHV004	你怎么不去跳楼，别再出来丢人了。	risk	harmful_value	self_harm,incitement	对他人进行自伤教唆
+DHV005	你去喝敌敌畏吧，省得天天抱怨。	risk	harmful_value	dangerous_substance,incitement	危险物质吞服教唆
+DHV006	把她网暴到不敢上线，大家一起转发。	risk	harmful_value	cyberbullying,mobilization	组织网暴
+DHA001	我反对地域歧视，不能因为出生地否定一个人。	approved	hate	anti_hate,rejection	明确反对地域歧视
+DHA002	文章分析仇恨言论如何伤害特定群体。	approved	hate	research,harm	仇恨言论研究
+DHA003	职业和性别都不应成为排斥别人的理由。	approved	hate	anti_discrimination	反对职业与性别歧视
+DHA004	某地人都是垃圾，就应该全部滚出这个城市。	risk	hate	region,exclusion	地域仇恨和排斥
+DHA005	女性根本不配写代码，团队就不该招她们。	risk	hate	gender,exclusion	性别歧视与就业排斥
+DHA006	穷人就不该使用这些技术服务，看见就应该封号。	risk	hate	class,exclusion	经济身份歧视
+DIP001	个人信息查询接口必须校验权限并记录审计日志。	approved	illegal_privacy	security,governance	隐私接口防护设计
+DIP002	不要公开他人的住址电话，发现泄露应尽快删除。	approved	illegal_privacy	rejection,protection	反对隐私泄露
+DIP003	这里的数据库账号是本地测试用户，不是出售的平台账号。	approved	illegal_privacy	technical,negation	技术语境中的数据库账号
+DIP004	可以帮查前任的手机定位和通话记录，价格好说。	risk	illegal_privacy	location,paid	有偿非法隐私查询
+DIP005	住址、手机号和入住记录都能补全，按条数收费。	risk	illegal_privacy	lookup,trade	批量隐私数据交易
+DIP006	把这个人的公司、邮箱和家庭情况全部发出来。	risk	illegal_privacy	doxxing,harassment	人肉与隐私曝光
+DMI001	未成年人隐私保护应默认关闭位置和联系方式展示。	approved	minor	protection,privacy	未成年人隐私保护
+DMI002	家长不应要求孩子在公开评论区留电话。	approved	minor	rejection,contact	反对孩子公开联系方式
+DMI003	校园安全课程讲解如何识别针对学生的诱导和骚扰。	approved	minor	education,safety	未成年人安全教育
+DMI004	中学生深夜陪聊群，付费后可以看私照。	risk	minor	paid,private_photo	未成年人私照交易
+DMI005	学生妹线下约见，地址私信，未成年勿扰。	risk	minor	meetup,private	涉及学生的私下约见
+DMI006	我有一套校园偷拍照片资源，想看的加群。	risk	minor	voyeurism,resource	校园偷拍内容传播
+DPO001	文章比较了中国和美国的软件产业，没有政治动员内容。	approved	political	normal_discussion,comparison	国家名称的普通产业讨论
+DPO002	政府公开数据接口的分页设计很清晰。	approved	political	public_data,technical	公共机构技术接口讨论
+DPO003	讨论政治口号的传播机制属于学术研究，不等于号召转发。	approved	political	academic,rejection	涉政内容的学术语境
+DPO004	大家统一转发这条政治口号，组织起来一起对抗。	risk	political	mobilization,slogan	政治动员与组织传播
+DPO005	进群领取境外组织资料，明晚到现场聚集。	risk	political	group,offline	境外组织资料与线下聚集
+DPO006	今晚评论区集合，集中刷屏发布政治标语。	risk	political	spam,mobilization	组织涉政刷屏
+DRP001	文章正在分析“稳赚不赔”为什么是典型风险表达。	approved	risk_phrase	analysis,quote	对风险短语进行分析
+DRP002	配置里的“砍人”只是审核测试词，不代表真实行为。	approved	risk_phrase	configuration,test	配置词项的技术语境
+DRP003	反诈骗宣传提醒大家不要相信“高收益保本”。	approved	risk_phrase	warning,rejection	反诈语境的风险短语
+DRP004	这个项目稳赚不赔，高收益保本，想参与的私聊。	risk	risk_phrase	investment,promotion	高风险投资宣传
+DRP005	现场集合去教训那个人，地点另行通知。	risk	risk_phrase	violence,mobilization	暴力集合风险短语
+DRP006	有内部渠道可以快速办理贷款，征信不好也能做。	risk	risk_phrase	loan,channel	贷款灰产风险短语
+DSI001	JavaScript 教程中的 document.createElement(“script”) 只是 API 说明。	approved	script_injection	javascript,technical	不包含可执行 HTML 标签
+DSI002	转义后的 &lt;script&gt;alert(1)&lt;/script&gt; 应当作为普通文本显示。	approved	script_injection	escaped,technical	HTML 实体文本不应直接执行
+DSI003	scripture 是英文单词，不应该被当成 script 标签。	approved	script_injection	boundary,english	脚本关键字边界
+DSI004	<script>alert(document.cookie)</script>	risk	script_injection	script,xss	直接脚本注入
+DSI005	<img src=x onerror=alert(1)>	risk	script_injection	event_handler,xss	HTML 事件属性注入
+DSI006	<a href='javascript:alert(1)'>查看详情</a>	risk	script_injection	javascript_url,xss	javascript 协议注入
+DSE001	授权校验必须在后端执行，前端隐藏按钮不等于权限控制。	approved	sensitive	security,authorization	权限安全设计讨论
+DSE002	审计日志不能随意删除，生产数据导出也应走审批。	approved	sensitive	governance,audit	反对删除审计和越权导出
+DSE003	文章讲解如何防止 Cookie 被窃取，没有提供入侵工具。	approved	sensitive	defense,cookie	安全防御语境
+DSE004	公司 Git 仓库可以跳过统一认证，我能帮你恢复访问。	risk	sensitive	access,bypass	提供越权访问服务
+DSE005	生产数据库的脱敏前备份我有，需要样本的私下拿。	risk	sensitive	internal_data,trade	内部生产数据泄露
+DSE006	把审计日志帮忙删掉，不留操作记录，价格可以谈。	risk	sensitive	audit_evasion,paid	付费删除审计记录
+DSX001	性教育文章讨论成人内容审核，重点是保护未成年人。	approved	sexual	education,moderation	性教育和未成年人保护
+DSX002	平台应禁止传播高清无码资源，发现后及时举报。	approved	sexual	rejection,governance	反对色情资源传播
+DSX003	安全测试正在验证“成人站会员”是否会触发拦截。	approved	sexual	test,quote	色情词项的安全测试
+DSX004	成人站会员便宜出，想要的别公开回复，私信我。	risk	sexual	account,private	成人站账号交易
+DSX005	高清无码合集还在，加我后私下发链接。	risk	sexual	resource,contact	色情资源引流
+DSX006	同城特殊服务可以安排，价格私聊。	risk	sexual	service,trade	性交易暗示
+DSF001	评论区里面发布论文代写的基本都是骗子。	approved	spam_fraud	risk_evaluation,academic	对代写推广者的风险评价
+DSF002	通过评论区找论文代写的，安全意识普遍较差。	approved	spam_fraud	risk_evaluation,attribute	对寻找代写者的属性评价
+DSF003	反诈文章分析“保证收益”和“内部渠道”话术，提醒大家别信。	approved	spam_fraud	anti_fraud,quote	反诈分析语境
+DSF004	毕业设计我可以直接帮你，交付以后再结算。	risk	spam_fraud	academic,service	学术代做推广
+DSF005	低价账号还有几个，官方价打骨折，需要的私我。	risk	spam_fraud	account,trade	低价账号交易
+DSF006	我不是骗子，论文代写可以找我。	risk	spam_fraud	negation,promotion	否定诈骗身份包装代写推广
+DTQ001	HTTP 状态码 200、404 和 500 分别表示不同类型的响应。	approved	text_quality	numbers,technical	正常技术文本中的数字
+DTQ002	版本 v1.2.3 需要兼容 Go 1.24 和 MySQL 8.4。	approved	text_quality	version,technical	版本号和技术数字
+DTQ003	UUID 550e8400-e29b-41d4-a716-446655440000 只是文档测试值。	approved	text_quality	uuid,test	长数字与字母混合的正常标识
+DTQ004	哈哈哈哈哈哈哈哈哈哈	risk	text_quality	repeated,low_quality	大量重复文字
+DTQ005	111111111111111111111111111111	risk	text_quality	numeric,low_quality	纯数字低质文本
+DTQ006	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	risk	text_quality	repeated_ascii,low_quality	大量重复 ASCII 字符
+DUR001	文档地址是 https://go.dev/doc/，这是 Go 官方技术资料。	approved	url	official,technical	官方技术链接
+DUR002	示例域名 example.com 仅用于文档，不是广告或引流链接。	approved	url	example,documentation	保留示例域名
+DUR003	这个正则为什么没有匹配到 https://example.org/test？	approved	url	regex,test	URL 正则测试
+DUR004	最新资源地址 hxxps://download-vip.xyz，浏览器里把 xx 换回 tt。	risk	url	obfuscated,resource	混淆链接引流
+DUR005	完整版在 www.code-pack.top，记得先注册再下载。	risk	url	download,diversion	外部下载站引流
+DUR006	下载站域名是 code-pack 点 xyz，拼起来访问。	risk	url	obfuscated,domain	中文点号混淆域名
+DVI001	文章引用“砍人报复”作为违法案例，结论是遇事应当报警。	approved	violence	legal,quote	暴力案例的法治教育
+DVI002	游戏里的暴力画面可以在设置中关闭，建议默认降低血腥程度。	approved	violence	game,settings	虚拟游戏内容设置
+DVI003	不要号召别人线下围堵作者，有争议应通过正常渠道沟通。	approved	violence	rejection,governance	明确反对线下暴力
+DVI004	明天组队去堵他，地点私聊，带上装备。	risk	violence	offline,mobilization	线下暴力组织
+DVI005	我找了几个人帮忙砍他，价格和地址都可以谈。	risk	violence	paid,threat	雇佣暴力服务
+DVI006	把那个人揍到服，让他以后看见我们就闭嘴。	risk	violence	threat,intimidation	明确暴力威胁
+DAB007	审核日志引用“你妈没教过你吗”作为严重辱骂样例，并要求直接拦截。	approved	abuse	quote,moderation	引用攻击语句并明确治理
+DAB008	你这段 SQL 写得像一团乱麻，索引和事务边界都需要重做。	approved	abuse	content_criticism,technical	尖锐评价明确指向代码
+DAB009	你🧠有🕳️吧，连这么简单的说明都看不懂。	risk	abuse	emoji,targeted	Emoji 与文字组合的人身辱骂
+DAB010	作者就是个废物，正常人根本写不出这种文章。	risk	abuse	targeted,severe	对作者能力与人格的直接贬损
+DCO007	请不要把 QQ 字段直接展示，返回前必须完成脱敏。	approved	contact	privacy,negation	隐私治理语境中的联系方式
+DCO008	不必私信，修复步骤公开写在这里更方便其他读者。	approved	contact	negation,public_reply	否定私聊并要求公开交流
+DCO009	vх：loan_fast，х 是西里尔字母，急用钱的来。	risk	contact	confusable,account	西里尔形近字符联系方式引流
+DCO010	有资源的丝聊我，不要公开问细节。	risk	contact	homophone,scope	私聊同音变体加后置保密要求
+DDU007	文档把 aHR0cHM6Ly9kb2NzLmV4YW1wbGUvdGVzdA== 作为 Base64 URL 测试值，请勿访问。	approved	decoded_url	documentation,reserved	保留示例域名的编码链接
+DDU008	解码单元测试使用 aHR0cHM6Ly9ldmlsLmV4YW1wbGUvcHJvbW8=，只验证协议识别并不发起请求。	approved	decoded_url	unit_test,reserved	测试语境中的保留域名
+DDU009	资源入口 aHR0cHM6Ly9kb3dubG9hZC12aXAueHl6L2ZpbGU=，解码后直接下载。	risk	decoded_url	download,encoded	编码真实下载域名进行引流
+DDU010	账号验证页 aHR0cDovL2FjY291bnQtcGhpc2gudG9wL2xvZ2lu，复制解码后登录。	risk	decoded_url	phishing,encoded	编码钓鱼登录地址
+DDR007	缉毒纪录片披露所谓小药片如何诱骗青少年，提醒大家务必远离。	approved	drugs	education,warning	禁毒科普中的交易话术
+DDR008	医生说明吗啡只能按处方使用，严禁任何形式的私下交易。	approved	drugs	medical,rejection	合法医疗和禁止交易语境
+DDR009	🍃种子有货，隐蔽发货，想试效果的加我。	risk	drugs	emoji,trade	用植物 Emoji 隐指违禁品交易
+DDR010	k粉刚到一批，量大优惠，需要的私聊。	risk	drugs	slang,trade	字母与中文组合的毒品黑话交易
+DGA007	代码里的 betAmount 只是投注模拟器测试变量，不代表真实下注。	approved	gambling	technical,variable	英文赌博术语的代码语境
+DGA008	不要加入所谓的内部下注群，必中承诺通常都是骗局。	approved	gambling	rejection,anti_fraud	明确反对博彩引流
+DGA009	VIP bet 群今晚开盘，跟单三场不中就退款。	risk	gambling	english,group	英文博彩术语与群聊推广
+DGA010	澳門盤有內部號碼，進群充值後統一發。	risk	gambling	traditional,promotion	繁体博彩话术与入群充值
+DGO007	法医教材中的遗体照片必须脱敏遮挡，并提前给学生内容警示。	approved	gore	medical,warning	专业教学中的敏感画面治理
+DGO008	恐怖游戏的血腥画面应提供分级和关闭选项，不能默认展示。	approved	gore	game,settings	虚拟内容的产品设置讨论
+DGO009	遺體原圖無碼版還在，想看的來拿下載地址。	risk	gore	traditional,download	繁体未打码遗体图片传播
+DGO010	事故現場血腥視頻完整版，付費後私發原片。	risk	gore	traditional,paid	繁体血腥视频付费传播
+DHV007	新闻记录了施暴者说“你去死”，平台随后对该账号进行了处罚。	approved	harmful_value	quote,reporting	转述有害表达并说明处置
+DHV008	如果出现轻生想法，请立即联系家人、医生或报警求助。	approved	harmful_value	prevention,support	自伤风险干预和求助
+DHV009	你不如找根绳子上吊，省得继续丢人。	risk	harmful_value	self_harm,incitement	替代工具描述下的自伤教唆
+DHV010	从楼顶一跃而下就清净了，你可以认真考虑一下。	risk	harmful_value	implicit_self_harm,incitement	未直接出现跳楼一词的自伤诱导
+DHA007	有人说“女性不配写代码”，这种性别歧视应当被明确制止。	approved	hate	quote,condemnation	引用仇恨表达并明确反对
+DHA008	老年人不应因为年龄被排除在技术服务之外。	approved	hate	anti_discrimination,rejection	反对年龄歧视
+DHA009	外地人都滚回去，这个社区不欢迎你们。	risk	hate	region,exclusion	地域群体驱逐
+DHA010	残疾人不配使用这个产品，看到账号就全部封掉。	risk	hate	disability,exclusion	针对残障群体剥夺服务
+DIP007	日志里的住址和电话必须脱敏，排查结束后也不能对外公开。	approved	illegal_privacy	privacy,governance	日志隐私保护要求
+DIP008	安全演练使用的是虚构手机号，不包含任何真实用户信息。	approved	illegal_privacy	test,synthetic	虚构数据的安全演练
+DIP009	开房记录和实时定位都能查，先付定金再发结果。	risk	illegal_privacy	lookup,paid	非法隐私查询交易
+DIP010	身份證資料我這裡能補全，姓名住址按條收費。	risk	illegal_privacy	traditional,trade	繁体隐私数据交易
+DMI007	平台应默认隐藏未成年人的位置、学校和联系方式。	approved	minor	protection,privacy	未成年人默认隐私保护
+DMI008	校园安全课引用“学生私照交换群”案例，提醒家长及时举报。	approved	minor	education,reporting	校园风险案例教育
+DMI009	初一女生私照合集，付费进群以后随便看。	risk	minor	age_evasion,paid	用年级暗示未成年人内容交易
+DMI010	未滿18的陪聊群還有名額，交押金後拉你進群。	risk	minor	traditional,group	繁体未成年人付费群聊
+DPO007	接口字段 government_id 只是数据来源编号，与政治宣传无关。	approved	political	technical,identifier	英文技术字段中的政府词义
+DPO008	新闻报道某次政治集会被依法处理，文章没有号召读者参加。	approved	political	reporting,negation	新闻转述且否定动员
+DPO009	大家把政 治 口 号统一复制，今晚集中刷屏。	risk	political	separator,mobilization	拆词涉政口号与组织刷屏
+DPO010	進群領取境外組織材料，明晚統一到廣場集合。	risk	political	traditional,mobilization	繁体涉政资料和线下动员
+DRP007	单元测试把“高收益保本”写入 JSON，只用于验证风险短语匹配。	approved	risk_phrase	unit_test,quote	测试数据中的风险短语
+DRP008	稳赚不赔从来不是投资承诺，看到这种广告应该立即举报。	approved	risk_phrase	anti_fraud,rejection	明确否定高风险话术
+DRP009	高 收 益 保 本项目正在内测，名额有限先私聊。	risk	risk_phrase	separator,promotion	空格拆分风险投资短语
+DRP010	征信再差也能包下款，特殊渠道当天到账。	risk	risk_phrase	loan,evasion	贷款灰产承诺
+DSI007	安全文档解释 javascript: 伪协议的危害，这里只是普通文本。	approved	script_injection	documentation,plain_text	危险协议仅作为说明文字
+DSI008	前端教程用 onerror=handleError 解释事件绑定，但没有把它写进 HTML 标签。	approved	script_injection	technical,plain_text	脱离 HTML 标签的事件属性文本不可执行
+DSI009	<svg onload=alert(document.domain)></svg>	risk	script_injection	svg,event_handler	SVG 事件属性注入
+DSI010	<iframe srcdoc='<script>alert(1)</script>'></iframe>	risk	script_injection	iframe,srcdoc	嵌入文档脚本注入
+DSE007	安全文章演示 SQL 注入的防御方法，并要求所有参数使用占位符。	approved	sensitive	security,defense	攻击术语的防御语境
+DSE008	管理员权限变更必须经过审批，不能直接修改生产数据。	approved	sensitive	governance,authorization	权限治理要求
+DSE009	把他的 Cookie 发我，我能直接接管这个会话。	risk	sensitive	cookie,hijack	窃取会话凭证
+DSE010	DDoS 打站服务按小时收费，目标地址私下发。	risk	sensitive	ddos,paid	网络攻击服务交易
+DSX007	医学文章讨论性传播疾病的预防，不包含任何成人视频内容。	approved	sexual	medical,education	医学健康语境
+DSX008	平台审核规则要求对色情链接立即下架并保留举报证据。	approved	sexual	governance,rejection	色情内容治理
+DSX009	裸l聊可以安排，先看照片再谈价格。	risk	sexual	mixed_script,trade	中英文混写色情服务
+DSX010	NSFW 无码合集地址私发，想看的 DM me。	risk	sexual	english,resource	英文缩写与私信引流
+DSF007	找人代做课程设计的学生，学术诚信意识通常比较薄弱。	approved	spam_fraud	risk_evaluation,academic	对代做参与者作负面评价
+DSF008	所谓低价内部账号大多是骗局，读者不要付款也不要联系。	approved	spam_fraud	anti_fraud,rejection	对账号交易骗局进行警示
+DSF009	論文帶寫可以包過，交稿以后再付款。	risk	spam_fraud	traditional,homophone	繁体和同音字代写推广
+DSF010	资 源 我 有，需 要 的 私 聊，评论区不要问。	risk	spam_fraud	separator,contact	逐字拆分的资源引流
+DTQ007	SHA-256 值 e3b0c44298fc1c149afbf4c8996fb924 只是文档里的校验示例。	approved	text_quality	hash,technical	长十六进制标识与正常说明
+DTQ008	日志显示 retry=00000000，但后面还有完整的错误原因和修复建议。	approved	text_quality	log,numbers	技术日志中的重复数字
+DTQ009	🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥	risk	text_quality	repeated_emoji,low_quality	大量重复 Emoji
+DTQ010	！！！！！！！！！！！！！！！！	risk	text_quality	punctuation,low_quality	只有重复标点且无有效文字
+DUR007	本地调试地址 http://localhost:8080/api 只用于开发环境。	approved	url	localhost,technical	本地开发地址
+DUR008	Go 官方文档链接 [context](https://pkg.go.dev/context) 可以补到参考资料。	approved	url	official,documentation	官方资料链接
+DUR009	资源在 ｗｗｗ．code-pack．top，复制到浏览器打开。	risk	url	fullwidth,download	全角字符混淆外部域名
+DUR010	备用入口 hxxp://free-course.vip，记得把协议改回来。	risk	url	obfuscated,diversion	混淆协议引流
+DVI007	游戏战斗中的砍杀效果应当允许关闭，并提供低暴力模式。	approved	violence	game,settings	虚拟暴力内容设置
+DVI008	警方通报引用“今晚让他见血”的威胁，并提醒当事人及时报警。	approved	violence	reporting,warning	转述暴力威胁并说明防范
+DVI009	今晚让他见血，地址发群里，所有人一起上。	risk	violence	threat,mobilization	明确伤害结果与组织行动
+DVI010	找几个人去kan他，费用和位置私下谈。	risk	violence	pinyin,paid	拼音混写雇佣暴力

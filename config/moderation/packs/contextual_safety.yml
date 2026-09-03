@@ -1,6 +1,33 @@
 # 隐式安全表达：规避式色情、赌博、暴力、骚扰、联系方式和违禁品交易。
 comment_moderation:
   combination_rules:
+    # 性暗示互动必须同时出现互动概念和邀约语气。只配置规范中文概念，
+    # luoliao、luo聊、聊sao 等变体由本地拼音候选算法自动生成。
+    - id: sexual_interaction_solicitation
+      category: sexual
+      level: review
+      subject_refs: [sexual_interaction_objects]
+      predicates: [吗, 可以吗, 要不要, 不, 一下, 一起, 来不来, 聊点]
+    # “福利”单独出现可以是员工福利；只有与私聊、私发、进群等私域动作
+    # 形成关系时才产生风险证据，避免把普通福利讨论当成色情内容。
+    - id: sexual_benefit_diversion
+      category: sexual
+      level: review
+      subjects: [福利, 福利图片, 福利视频, 隐藏福利, 成年福利]
+      predicates: [私聊, 私信, 聊我, 私下发, 私发, 进群, 找我, 单独发]
+    # 身体和私密照片是对象，想看、索要、脱衣或开视频是动作；两者同句
+    # 成立才表示色情索要，医学、性教育和明确拒绝仍会由反证处理。
+    - id: sexual_body_solicitation
+      category: sexual
+      level: review
+      subjects: [隐私部位, 私密部位, 私密照, 私密照片, 大尺度照片, 身体, 衣服]
+      predicates: [想看, 看看, 给我看, 发张, 发给我, 脱掉, 开视频, 让我看, 索要, 单独发]
+    # 一对一本身并非色情，只与深夜/私密视频及隐晦服务描述组合。
+    - id: implicit_sexual_video_service
+      category: sexual
+      level: review
+      subjects: [深夜视频, 私密视频, 一对一视频]
+      predicates: [一对一, 懂的都懂, 单独, 私下, 付费, 价格]
     - id: implicit_sexual_promotion
       category: sexual
       level: review
@@ -9,8 +36,8 @@ comment_moderation:
     - id: implicit_gambling_tip
       category: gambling
       level: review
-      subjects: [胜负, 盘口, 内部方向, 跟着下, 数字走势, 新盘, 筹码, 号码, 上岸, casino, bonus]
-      predicates: [吃到, 提前知道, 签名, 一起做, 连续几天, 不中就退, 体验额度, 进场, 照着, 代充, 服务费, link in bio, available]
+      subjects: [胜负, 下注, 盘口, 澳门盘, 内部方向, 跟着下, 数字走势, 新盘, 筹码, 号码, 上岸, bet, casino, bonus]
+      predicates: [吃到, 提前知道, 开盘, 跟单, 群, 签名, 一起做, 连续几天, 不中就退, 退款, 体验额度, 进场, 照着, 代充, 服务费, link in bio, available]
     - id: implicit_violent_mobilization
       category: violence
       level: review
@@ -35,4 +62,4 @@ comment_moderation:
       category: drugs
       level: review
       subjects: [粉末, 小药片, 特殊植物, 种子, 检测不会显示, 那种]
-      predicates: [来源, 还有, 想试, 效果, 包装, 拿到, 数量多, 优惠, 私下问]
+      predicates: [来源, 还有, 想试, 想买, 效果, 包装, 拿到, 数量多, 优惠, 私聊, 交易, 私下问]

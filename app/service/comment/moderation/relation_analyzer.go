@@ -48,6 +48,11 @@ func analyzeSemanticRelations(text NormalizedComment, candidates []RewriteCandid
 			relation.Inferred = true
 			relation.Confidence = minProbability(relation.Confidence, 0.72)
 		}
+		if relation.Quoted && relationQuoteIsEndorsed(clauses[relation.Clause-1].Raw,
+			vocabulary.QuoteEndorsementMarkers) {
+			relation.Quoted = false
+			relation.Reported = false
+		}
 		if relation.Stance == "" {
 			switch {
 			case relation.Subtype == relationSubtypeSelfHarmExpression:
@@ -83,7 +88,7 @@ func analyzeSemanticRelations(text NormalizedComment, candidates []RewriteCandid
 			}
 			for _, object := range containedRelationTerms(clause.Compact, rule.Subjects) {
 				for _, action := range containedRelationTerms(clause.Compact, rule.Predicates) {
-					if object == action || !relationTermsCanRelate(clause.Normalized, object, action, cfg) {
+					if object == action || !relationPredicateCanApply(clause.Normalized, object, action, cfg) {
 						continue
 					}
 					relation := buildClauseRelation(clauseID, clause, inferRelationActor(clause.Normalized, action, cfg),
@@ -159,6 +164,11 @@ func analyzeSemanticRelations(text NormalizedComment, candidates []RewriteCandid
 				object = candidate.Text
 			}
 		}
+		// 模糊改写候选本身不是语义关系。未找到动作时不把偶然跨词
+		// 同音片段（例如“删除生产”中的“除生”）构造成否定或拒绝关系。
+		if action == "" {
+			continue
+		}
 		relation := buildClauseRelation(clauseID, clause, subject, action, object, candidate.Category,
 			candidate.Observed+"→"+candidate.Text, cfg, candidate.Confidence)
 		if compactText(normalizeText(observedLiteral)) == "" {
@@ -226,6 +236,10 @@ func appendCandidateCombinationRelations(clauseID int, clause NormalizedComment,
 		}
 		objects := directCandidateRelationTerms(clause.Compact, rule.Subjects)
 		actions := directCandidateRelationTerms(clause.Compact, rule.Predicates)
+		// “进行/开始/尝试”等通用动作不属于某个风险领域，但可把已经由
+		// 本地候选还原出的领域对象变成可执行关系，避免每个规则重复配置。
+		actions = append(actions, directCandidateRelationTerms(clause.Compact,
+			cfg.SemanticRules.RelationVocabulary.GenericActionMarkers)...)
 		for _, candidate := range candidates {
 			if candidate.Clause != clauseID || !strings.EqualFold(candidate.Category, category) {
 				continue
@@ -253,7 +267,7 @@ func appendCandidateCombinationRelations(clauseID int, clause NormalizedComment,
 		for _, object := range objects {
 			for _, action := range actions {
 				if !object.Candidate && !action.Candidate || object.Observed == action.Observed ||
-					!relationTermsCanRelate(clause.Normalized, object.Observed, action.Observed, cfg) {
+					!relationPredicateCanApply(clause.Normalized, object.Observed, action.Observed, cfg) {
 					continue
 				}
 				confidence := 0.9
@@ -279,6 +293,28 @@ func appendCandidateCombinationRelations(clauseID int, clause NormalizedComment,
 					Reported: isBenignSemanticClause(clause, cfg) ||
 						relationReportedNear(clause.Normalized, action.Observed, cfg),
 					Confidence: confidence,
+				}
+				appendRelation(relation)
+			}
+		}
+		// “然后裸聊”省略了显式动词。顺序连接词位于候选对象之前时，
+		// 可以安全推断后续仍有一个待实施动作；若本句已有直接动作，保留
+		// 直接关系即可，避免对同一事实重复加权。
+		if len(actions) == 0 {
+			for _, object := range objects {
+				if !object.Candidate {
+					continue
+				}
+				marker := relationSequenceMarkerBefore(clause.Normalized, object.Observed,
+					cfg.SemanticRules.RelationVocabulary.SequenceMarkers, 4)
+				if marker == "" {
+					continue
+				}
+				relation := buildClauseRelation(clauseID, clause, "", "后续实施", object.Canonical,
+					category, marker+"+"+formatCandidateRelationTerm(object), cfg, object.Confidence)
+				relation.Inferred = true
+				if isBenignSemanticClause(clause, cfg) {
+					relation.Reported = true
 				}
 				appendRelation(relation)
 			}
@@ -311,13 +347,16 @@ func relationRuleContainsTerm(terms []string, canonical string) bool {
 // candidateRelationEvidence 格式化 object 与 action 组成的关系证据。
 // 对发生还原的候选保留“观测→规范”形式；返回两部分以加号连接的字符串。
 func candidateRelationEvidence(object, action candidateRelationTerm) string {
-	format := func(term candidateRelationTerm) string {
-		if term.Candidate && term.Observed != term.Canonical {
-			return term.Observed + "→" + term.Canonical
-		}
-		return term.Canonical
+	return formatCandidateRelationTerm(object) + "+" + formatCandidateRelationTerm(action)
+}
+
+// formatCandidateRelationTerm 格式化单个关系词项。
+// 输入 term 包含规范词和实际观测形式；返回值在发生候选还原时保留“观测→规范”链路。
+func formatCandidateRelationTerm(term candidateRelationTerm) string {
+	if term.Candidate && term.Observed != term.Canonical {
+		return term.Observed + "→" + term.Canonical
 	}
-	return format(object) + "+" + format(action)
+	return term.Canonical
 }
 
 // buildClauseRelation 根据分句、主体、动作、对象及分类创建基础语义关系。
@@ -554,6 +593,36 @@ func relationMarkerAfter(value, focus string, markers []string, maxDistance int)
 	return false
 }
 
+// relationSequenceMarkerBefore 查找 focus 前最近的顺序连接词。
+// 输入 value 是当前分句，focus 是风险对象，markers 是配置化连接词，maxDistance
+// 是连接词与对象间允许的最大字符数；返回空串表示不存在可承接的顺序动作。
+func relationSequenceMarkerBefore(value, focus string, markers []string, maxDistance int) string {
+	scope := relationTextScope(value, focus)
+	focus = compactText(normalizeText(focus))
+	focusIndex := strings.Index(scope, focus)
+	if focus == "" || focusIndex < 0 {
+		return ""
+	}
+	best := ""
+	bestIndex := -1
+	for _, marker := range markers {
+		marker = compactText(normalizeText(marker))
+		if marker == "" {
+			continue
+		}
+		index := strings.LastIndex(scope[:focusIndex], marker)
+		if index < 0 {
+			continue
+		}
+		distance := len([]rune(scope[index+len(marker) : focusIndex]))
+		if distance <= maxDistance && index > bestIndex {
+			best = marker
+			bestIndex = index
+		}
+	}
+	return best
+}
+
 // relationNegatedNear 判断 focus 是否受附近否定词或拒绝语境支配。
 // 输入 value 是分句、cfg 提供否定及疑问词；返回 true 表示该关系应标记为否定。
 func relationNegatedNear(value, focus string, cfg appconfig.CommentModerationConfig) bool {
@@ -667,6 +736,11 @@ func relationGovernanceContext(value, focus string, cfg appconfig.CommentModerat
 	if containsAnyNormalized(scope, vocabulary.FirstPersonMarkers) {
 		return false
 	}
+	// “举报私聊传播成人内容的账号”中，治理动作在风险关系之前。
+	// 这类前置命令应作为同分句反证，但出现第一人称或转折时不生效。
+	if relationMarkerBefore(value, focus, cfg.SemanticRules.RiskEvaluation.GovernanceActions, 12) {
+		return true
+	}
 	if matchesAnySemanticPattern(full, vocabulary.GovernancePatterns) {
 		return true
 	}
@@ -744,6 +818,39 @@ func relationTermsCanRelate(value, object, action string, cfg appconfig.CommentM
 		!containsAnyNormalized(actionScope, benignMarkers)
 }
 
+// relationPredicateCanApply 判断动作词是否真正作用于对象。
+// value 是分句，object 和 action 是候选关系两端；cfg 提供立即否定词。
+// 单字“不”作为口语邀约后缀时必须紧跟对象，避免把“不要裸聊”
+// 的前置否定误解为“裸聊不”的邀约动作。
+func relationPredicateCanApply(value, object, action string, cfg appconfig.CommentModerationConfig) bool {
+	if !relationTermsCanRelate(value, object, action, cfg) {
+		return false
+	}
+	return relationPredicateDirectionValid(value, object, action, cfg)
+}
+
+// relationPredicateDirectionValid 校验具有方向性的单字口语谓词。
+// 输入 value、object、action 和 cfg 分别是分句、对象、动作与语法配置；
+// 普通谓词直接返回 true，单字立即否定词则必须位于对象之后。
+func relationPredicateDirectionValid(value, object, action string,
+	cfg appconfig.CommentModerationConfig,
+) bool {
+	action = compactText(normalizeText(action))
+	if len([]rune(action)) != 1 ||
+		!containsAnyNormalized(action, cfg.SemanticRules.RelationVocabulary.ImmediateNegationMarkers) {
+		return true
+	}
+	value = compactText(normalizeText(value))
+	object = compactText(normalizeText(object))
+	objectIndex := relationTermIndex(value, object)
+	if objectIndex < 0 {
+		return false
+	}
+	afterObject := value[objectIndex+len(object):]
+	actionIndex := strings.Index(afterObject, action)
+	return actionIndex >= 0 && len([]rune(afterObject[:actionIndex])) <= 1
+}
+
 // analyzeDiscourseCarryRelations 分析相邻分句中“前句对象、后句第一人称动作”的承接关系。
 // 输入 clauses 和 cfg 提供分句及组合规则；推断关系通过 appendRelation 回调输出。
 func analyzeDiscourseCarryRelations(clauses []NormalizedComment, cfg appconfig.CommentModerationConfig,
@@ -814,6 +921,33 @@ func quotedRelationSegments(value string) []string {
 	return segments
 }
 
+// relationQuoteIsEndorsed 判断引号之外是否出现明确赞同、采纳或执行标记。
+// 输入 raw 是原始分句、markers 是配置化立场词；返回 true 表示引用不再是反证，
+// 评论者正在认同或采用被引用的风险表达。
+func relationQuoteIsEndorsed(raw string, markers []string) bool {
+	return containsAnyNormalized(compactText(normalizeText(unquotedRelationText(raw))), markers)
+}
+
+// unquotedRelationText 移除成对引号内部内容，仅保留评论者在引号外表达的立场。
+// 输入 value 是原始分句；返回值用于区分“引用并批评”和“引用后赞同”。
+func unquotedRelationText(value string) string {
+	closing := map[rune]rune{
+		'“': '”', '‘': '’', '「': '」', '『': '』', '《': '》', '`': '`', '"': '"', '\'': '\'',
+	}
+	runes := []rune(value)
+	var builder strings.Builder
+	for index := 0; index < len(runes); index++ {
+		closeRune, quoted := closing[runes[index]]
+		if !quoted {
+			builder.WriteRune(runes[index])
+			continue
+		}
+		for index++; index < len(runes) && runes[index] != closeRune; index++ {
+		}
+	}
+	return builder.String()
+}
+
 // extractRelationResult 在 value 中查找配置的结果连接词，并返回连接词及其后最多 24 个字符。
 // 未命中连接词时返回空串。
 func extractRelationResult(value string, cfg appconfig.CommentModerationConfig) string {
@@ -839,14 +973,32 @@ func relationIsCounterEvidence(relation SemanticRelation) bool {
 }
 
 // relationEvidence 将 relations 转换为可融合的正向风险证据或反向语境证据。
-// 返回值会避免在同分类存在可执行关系时生成会与之冲突的全局反证。
-func relationEvidence(relations []SemanticRelation) []Evidence {
+// 输入 cfg 用于把引用、转述的领域词与通用 risk_phrase 结构信号对齐；
+// 返回值会避免在同分类存在可执行关系时生成冲突反证。
+func relationEvidence(relations []SemanticRelation, cfg appconfig.CommentModerationConfig) []Evidence {
 	result := make([]Evidence, 0, len(relations))
 	activeCategories := make(map[string]struct{})
+	activeRiskPhrase := false
 	for _, relation := range relations {
 		if relationIsActionableRisk(relation) {
 			activeCategories[relation.Category] = struct{}{}
+			if matchesRiskPhrase(Normalize(relation.Evidence), cfg) {
+				activeRiskPhrase = true
+			}
 		}
+	}
+	appendCounterEvidence := func(relation SemanticRelation, category string) {
+		result = append(result, Evidence{
+			ID:               "relation-" + relation.ID + "-" + category,
+			Source:           SourceSemantic,
+			Category:         category,
+			Polarity:         "negative",
+			Confidence:       relation.Confidence,
+			CorrelationGroup: fmt.Sprintf("clause:%d:%s:relation-scope", relation.Clause, category),
+			Value:            relation.Evidence,
+			RuleID:           relationCounterRuleID(relation),
+			Clause:           relation.Clause,
+		})
 	}
 	for _, relation := range relations {
 		if relationIsActionableRisk(relation) && (relation.Inferred || relation.Subtype != "" ||
@@ -879,17 +1031,14 @@ func relationEvidence(relations []SemanticRelation) []Evidence {
 		if _, hasActiveRelation := activeCategories[relation.Category]; hasActiveRelation {
 			continue
 		}
-		result = append(result, Evidence{
-			ID:               "relation-" + relation.ID,
-			Source:           SourceSemantic,
-			Category:         relation.Category,
-			Polarity:         "negative",
-			Confidence:       relation.Confidence,
-			CorrelationGroup: fmt.Sprintf("clause:%d:%s:relation-scope", relation.Clause, relation.Category),
-			Value:            relation.Evidence,
-			RuleID:           relationCounterRuleID(relation),
-			Clause:           relation.Clause,
-		})
+		appendCounterEvidence(relation, relation.Category)
+		// risk_phrase 是结构检测器的通用分类，而关系分析会给出更具体的
+		// gambling/spam_fraud 等分类。只当反向关系的证据本身确实命中
+		// risk_phrase，且整条评论没有对应可执行关系时，才桥接这个反证。
+		if relation.Category != "risk_phrase" && !activeRiskPhrase &&
+			matchesRiskPhrase(Normalize(relation.Evidence), cfg) {
+			appendCounterEvidence(relation, "risk_phrase")
+		}
 	}
 	return result
 }

@@ -1,6 +1,7 @@
 package moderation
 
 import (
+	"net/url"
 	"regexp"
 	"strings"
 	"unicode"
@@ -9,8 +10,9 @@ import (
 )
 
 var (
-	scriptRegexp = regexp.MustCompile(`(?i)(<\s*script\b|javascript\s*:)`)
+	scriptRegexp = regexp.MustCompile(`(?i)(<\s*script\b|<\s*(iframe|object|embed)\b|<[^>]{0,512}\b(on[a-z]{3,}|srcdoc)\s*=|<[^>]{0,512}\b(href|src|action|formaction)\s*=\s*['"]?\s*javascript\s*:)`)
 	phoneRegexp  = regexp.MustCompile(`\b1[3-9]\d{9}\b`)
+	uuidRegexp   = regexp.MustCompile(`(?i)\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b`)
 )
 
 // structureSignals 从脚本、URL、联系方式、风险短语、编码内容和文本质量中提取结构信号。
@@ -30,6 +32,11 @@ func structureSignals(text NormalizedComment, cfg appconfig.CommentModerationCon
 		signals = append(signals, newStructureSignal("risk_phrase", "risk_phrase", cfg))
 	}
 	for _, decoded := range text.DecodedTexts {
+		// 保留示例域名无法指向真实公网服务，且原评论明确处于说明、
+		// 防范或技术语境时，不把编码后的示例 URL 当成引流。
+		if isReservedExampleURL(decoded) && allSemanticClausesBenign(text, cfg) {
+			continue
+		}
 		signals = append(signals, newStructureSignal("decoded_url", decoded, cfg))
 	}
 	if signal, ok := textQualitySignal(text, cfg); ok {
@@ -45,11 +52,16 @@ func matchesRiskPhrase(text NormalizedComment, cfg appconfig.CommentModerationCo
 		matchesAnySemanticPattern(text.Normalized, cfg.StructurePatterns.RiskPatterns)
 }
 
-// hasRiskyScriptClause 判断 text 是否存在不处于良性语境的脚本注入分句。
-// 输入 cfg 用于分句和语境判断；返回 true 表示存在风险脚本结构。
+// hasRiskyScriptClause 判断 text 是否存在可执行脚本、事件属性或危险嵌入标签。
+// 输入 cfg 仅用于分句；返回 true 表示原始文本中存在必须拦截的脚本结构。
+// 这里不接受通用“技术语境”抑制：真实标签即使出现在教程中，直接持久化也可能执行；
+// HTML 实体形式的 &lt;script&gt; 因为不含真实尖括号，不会命中。
 func hasRiskyScriptClause(text NormalizedComment, cfg appconfig.CommentModerationConfig) bool {
+	if scriptRegexp.MatchString(normalizeText(text.Raw)) {
+		return true
+	}
 	for _, clause := range semanticClauses(text, cfg) {
-		if scriptRegexp.MatchString(clause.Normalized) && !isBenignSemanticClause(clause, cfg) {
+		if scriptRegexp.MatchString(normalizeText(clause.Raw)) {
 			return true
 		}
 	}
@@ -77,12 +89,6 @@ func hasRiskyURLClause(text NormalizedComment, cfg appconfig.CommentModerationCo
 // hasRiskyContactClause 判断 text 中的电话、账号或配置联系方式是否处于风险语境。
 // 返回 true 表示至少一个分句满足联系方式形态且未被否定或良性上下文抑制。
 func hasRiskyContactClause(text NormalizedComment, cfg appconfig.CommentModerationConfig) bool {
-	fullMatch := phoneRegexp.MatchString(text.Normalized) ||
-		matchesConfiguredContact(text.Normalized, cfg) ||
-		len(matchContactShapes(text.Normalized, accountTokenMinimum(cfg))) > 0
-	if fullMatch && !allSemanticClausesBenign(text, cfg) {
-		return true
-	}
 	for _, clause := range semanticClauses(text, cfg) {
 		value := clause.Normalized
 		matched := phoneRegexp.MatchString(value) ||
@@ -95,6 +101,26 @@ func hasRiskyContactClause(text NormalizedComment, cfg appconfig.CommentModerati
 		}
 	}
 	return false
+}
+
+// isReservedExampleURL 判断 decoded 是否指向互联网标准保留的文档示例域名。
+// 输入 decoded 是已解码的 URL；返回 true 仅表示该主机不可作为真实公网引流地址，
+// 是否抑制仍必须由调用方结合原评论的良性语境共同判断。
+func isReservedExampleURL(decoded string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(decoded))
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(strings.TrimSuffix(parsed.Hostname(), "."))
+	if host == "" {
+		return false
+	}
+	if host == "example.com" || host == "example.net" || host == "example.org" ||
+		host == "example" || host == "invalid" || host == "test" || host == "localhost" {
+		return true
+	}
+	return strings.HasSuffix(host, ".example") || strings.HasSuffix(host, ".invalid") ||
+		strings.HasSuffix(host, ".test") || strings.HasSuffix(host, ".localhost")
 }
 
 // matchesConfiguredURL 使用 cfg 中的 URL 正则匹配 value；返回 true 表示至少命中一个模式。
@@ -125,8 +151,23 @@ func allSemanticClausesBenign(text NormalizedComment, cfg appconfig.CommentModer
 // isNegatedContactMention 判断 value 是否同时包含联系方式及配置的否定联系方式标记。
 // 返回 true 表示联系方式更可能是拒绝或禁止语境。
 func isNegatedContactMention(value string, cfg appconfig.CommentModerationConfig) bool {
-	return containsAnyNormalized(compactText(normalizeText(value)), cfg.StructurePatterns.NegatedContactMarkers) &&
-		matchesConfiguredContact(value, cfg)
+	normalized := normalizeText(value)
+	matches := semanticPatternMatches(normalized, cfg.StructurePatterns.ContactPatterns)
+	matches = append(matches, phoneRegexp.FindAllString(normalized, -1)...)
+	for _, focus := range matches {
+		if relationMarkerBefore(normalized, focus, cfg.StructurePatterns.NegatedContactMarkers, 3) {
+			return true
+		}
+		compactFocus := compactText(normalizeText(focus))
+		for _, marker := range cfg.StructurePatterns.NegatedContactMarkers {
+			compactMarker := compactText(normalizeText(marker))
+			if compactMarker != "" && strings.Contains(compactMarker, compactFocus) &&
+				strings.Contains(compactText(normalized), compactMarker) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // isBenignContactMention 判断 value 是否命中配置的良性联系方式模式；返回 true 表示可作为抑制证据。
@@ -168,7 +209,7 @@ func structureRuleLevel(ruleID string, cfg appconfig.CommentModerationConfig) st
 // textQualitySignal 根据空文本、纯数字、数字占比和重复字符判断文本质量。
 // 输入 text 是归一化评论、cfg 提供阈值；返回信号及是否成立，正常文本返回零值和 false。
 func textQualitySignal(text NormalizedComment, cfg appconfig.CommentModerationConfig) (Signal, bool) {
-	runes := []rune(text.Compact)
+	runes := textQualityRunes(text)
 	minNumeric, minRepeated, numberRatio, repeatedRatio := textQualityThresholds(cfg)
 	evidence := ""
 	switch {
@@ -193,6 +234,18 @@ func textQualitySignal(text NormalizedComment, cfg appconfig.CommentModerationCo
 		Evidence: evidence,
 		RuleID:   "text_quality",
 	}, true
+}
+
+// textQualityRunes 返回用于文本质量比例计算的字符序列。
+// 当评论同时包含标准 UUID 和有意义的说明文字时，UUID 作为结构化标识被剔除，
+// 防止其中 32 个十六进制数字把正常技术评论误判成纯数字灌水；仅有 UUID 时仍按低质文本处理。
+func textQualityRunes(text NormalizedComment) []rune {
+	withoutUUID := uuidRegexp.ReplaceAllString(text.Normalized, "")
+	remaining := []rune(compactText(withoutUUID))
+	if len(remaining) >= 4 {
+		return remaining
+	}
+	return []rune(text.Compact)
 }
 
 // textQualityThresholds 从 cfg 读取文本质量阈值并补齐安全默认值。

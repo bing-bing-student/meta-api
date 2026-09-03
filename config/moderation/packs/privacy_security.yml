@@ -85,7 +85,7 @@ comment_moderation:
       category: sensitive
       level: review
       subjects: [授权校验, 目标地址, 大量节点, 竞争对手网站, 钓鱼页面, 远控程序, 免杀, Cookie, 别人会话, 打站服务]
-      predicates: [去掉, 发二进制, 打流量, 打不开, 收费, 自动回传, 私下拿, 拿到, 教程收费, 提供]
+      predicates: [去掉, 发二进制, 发我, 接管, 打流量, 打不开, 收费, 自动回传, 私下拿, 拿到, 教程收费, 提供]
     - id: enterprise_access_and_data_abuse
       category: sensitive
       level: review

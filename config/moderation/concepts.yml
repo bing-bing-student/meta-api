@@ -5,7 +5,8 @@
 #   predicate 只能用于 combination_rules.predicate_refs；
 #   common    两侧都可使用，但应谨慎，避免一个词同时承担冲突角色。
 #
-# fuzzy=true 表示该集合适合进入受限模糊候选索引；当前编译器只记录标记，后续可由离线词库工具生成索引。
+# fuzzy=true 表示该集合允许生成受限模糊候选。对两字词，运行时还要求
+# 同分句存在紧邻的关系对端，避免把正常连续文本跨词还原成风险词。
 comment_moderation:
   concept_sets:
     academic_core_objects:
@@ -25,3 +26,21 @@ comment_moderation:
       role: predicate
       fuzzy: true
       terms: [私信]
+
+    sexual_interaction_objects:
+      description: 需与邀约语气组合的性暗示互动概念；允许在关系紧邻时生成两字近音候选
+      role: subject
+      fuzzy: true
+      terms: [裸聊, 聊骚, 骚聊, 骚的]
+
+    group_identity_targets:
+      description: 仇恨与排斥关系中的群体身份对象；只列稳定身份概念，不收录具体攻击句
+      role: subject
+      fuzzy: false
+      terms: [某地人, 外地人, 本地人, 女性, 男性, 穷人, 富人, 农村人, 城里人, 残疾人, 老年人]
+
+    group_exclusion_actions:
+      description: 针对群体实施贬损、驱逐或剥夺机会的动作；必须与群体对象在同一分句形成关系
+      role: predicate
+      fuzzy: false
+      terms: [都是垃圾, 全是垃圾, 不配, 滚出, 滚回, 赶走, 不该招, 不应该招, 不该使用, 不应该使用, 应该封号, 全部封号, 不准进入]

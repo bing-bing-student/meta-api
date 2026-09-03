@@ -26,7 +26,7 @@ func appendRiskEvaluationRelations(clauseID int, clause NormalizedComment, evide
 	cfg appconfig.CommentModerationConfig, appendRelation func(SemanticRelation),
 ) {
 	match, ok := matchStanceEvaluation(clause, cfg)
-	if !ok {
+	if !ok || !stanceEvaluationHasConfiguredRiskObject(clause.Compact, match.Boundary, cfg) {
 		return
 	}
 	bestObjectByCategory := make(map[string]string)
@@ -42,6 +42,7 @@ func appendRiskEvaluationRelations(clauseID int, clause NormalizedComment, evide
 	}
 	for _, item := range evidence {
 		if item.Polarity != "positive" || item.Category == "" || item.Category == "benign_context" ||
+			item.Category == "abuse" ||
 			item.Clause > 0 && item.Clause != clauseID {
 			continue
 		}
@@ -57,6 +58,9 @@ func appendRiskEvaluationRelations(clauseID int, clause NormalizedComment, evide
 		category := strings.TrimSpace(rule.Category)
 		if category == "" {
 			category = strings.TrimSpace(rule.ID)
+		}
+		if category == "abuse" {
+			continue
 		}
 		for _, object := range containedRelationTerms(clause.Compact, rule.Subjects) {
 			for _, action := range containedRelationTerms(clause.Compact, rule.Predicates) {
@@ -81,8 +85,66 @@ func appendRiskEvaluationRelations(clauseID int, clause NormalizedComment, evide
 
 // isRiskEvaluationSemanticClause 判断 clause 是否满足风险行为立场评价语法；返回对应结果。
 func isRiskEvaluationSemanticClause(clause NormalizedComment, cfg appconfig.CommentModerationConfig) bool {
-	_, ok := matchStanceEvaluation(clause, cfg)
-	return ok
+	match, ok := matchStanceEvaluation(clause, cfg)
+	return ok && stanceEvaluationHasConfiguredRiskObject(clause.Compact, match.Boundary, cfg)
+}
+
+// stanceEvaluationHasConfiguredRiskObject 检查评价边界前是否存在已配置的非辱骂风险对象。
+// 输入 value 是紧凑分句，boundary 是评价开始的字节下标，cfg 提供词库和组合规则；
+// 返回 true 表示可以把评价视为风险话题的反向证据，避免将“你就是骗子”误当成反诈评论。
+func stanceEvaluationHasConfiguredRiskObject(value string, boundary int,
+	cfg appconfig.CommentModerationConfig,
+) bool {
+	if boundary <= 0 || boundary > len(value) {
+		return false
+	}
+	prefix := value[:boundary]
+	if topicSuffix := longestSuffix(prefix, cfg.SemanticRules.RiskEvaluation.TopicSuffixes); topicSuffix != "" {
+		prefix = prefix[:len(prefix)-len(topicSuffix)]
+	}
+	if prefix == "" {
+		return false
+	}
+	containsRiskTerm := func(values map[string][]string) bool {
+		for category, terms := range values {
+			category = strings.ToLower(strings.TrimSpace(category))
+			if category == "" || category == "abuse" || category == "benign_context" {
+				continue
+			}
+			for _, term := range terms {
+				term = compactText(normalizeText(term))
+				if term != "" && strings.HasSuffix(prefix, term) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	if containsRiskTerm(cfg.Lexicon.CustomWords.Block) ||
+		containsRiskTerm(cfg.Lexicon.CustomWords.Review) ||
+		containsRiskTerm(cfg.Lexicon.Fuzzy.CandidateWords) ||
+		containsRiskTerm(cfg.DecisionEngine.ContextAnalysis.RiskConcepts) {
+		return true
+	}
+
+	for _, rule := range cfg.CombinationRules {
+		category := strings.ToLower(strings.TrimSpace(rule.Category))
+		if category == "" {
+			category = strings.ToLower(strings.TrimSpace(rule.ID))
+		}
+		if category == "" || category == "abuse" || category == "benign_context" {
+			continue
+		}
+		for _, object := range containedRelationTerms(prefix, rule.Subjects) {
+			for _, action := range containedRelationTerms(prefix, rule.Predicates) {
+				if object != action && (strings.HasSuffix(prefix, object) || strings.HasSuffix(prefix, action)) &&
+					relationTermsCanRelate(prefix, object, action, cfg) {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // matchStanceEvaluation 在 clause 中查找完整的判断结果或治理动作结构。
@@ -134,6 +196,9 @@ func matchStanceEvaluation(clause NormalizedComment,
 	if best.Outcome != "" {
 		return best, true
 	}
+	if attributeMatch, ok := matchAttributeStanceEvaluation(value, policy, cfg); ok {
+		return attributeMatch, true
+	}
 
 	for _, action := range policy.GovernanceActions {
 		action = compactText(normalizeText(action))
@@ -156,6 +221,78 @@ func matchStanceEvaluation(clause NormalizedComment,
 		}, true
 	}
 	return stanceEvaluationMatch{}, false
+}
+
+// matchAttributeStanceEvaluation 识别“风险行为 + 话题后缀 + 属性 + 可选副词 + 负面描述”。
+// 输入 value 是紧凑分句，policy 提供语义角色，cfg 用于排除同句推广冲突；
+// 返回完整的属性评价匹配和成功标记，不完整、否定或推广语境均返回 false。
+func matchAttributeStanceEvaluation(value string,
+	policy appconfig.CommentModerationRiskEvaluationConfig,
+	cfg appconfig.CommentModerationConfig,
+) (stanceEvaluationMatch, bool) {
+	best := stanceEvaluationMatch{}
+	for _, class := range policy.AttributeOutcomes {
+		for _, attribute := range class.Attributes {
+			attribute = compactText(normalizeText(attribute))
+			if attribute == "" {
+				continue
+			}
+			for offset := 0; offset < len(value); {
+				relativeStart := strings.Index(value[offset:], attribute)
+				if relativeStart < 0 {
+					break
+				}
+				start := offset + relativeStart
+				offset = start + len(attribute)
+
+				topicSuffix := longestSuffix(value[:start], policy.TopicSuffixes)
+				if topicSuffix == "" {
+					continue
+				}
+				remainder := value[start+len(attribute):]
+				modifier, descriptorRemainder := consumeStanceModifiers(remainder, class.Modifiers)
+				descriptor := longestPrefix(descriptorRemainder, class.Descriptors)
+				if descriptor == "" {
+					continue
+				}
+				outcome := attribute + modifier + descriptor
+				if criticalOutcomeNegated(value, outcome, policy.OutcomeNegations) ||
+					stanceEvaluationHasPromotionalConflict(value, outcome, cfg) {
+					continue
+				}
+				candidate := stanceEvaluationMatch{
+					Predicate:  topicSuffix,
+					Outcome:    outcome,
+					Stance:     class.Stance,
+					Boundary:   start - len(topicSuffix),
+					Confidence: 0.96,
+				}
+				if candidate.Boundary < 0 {
+					candidate.Boundary = start
+				}
+				if len([]rune(candidate.Outcome)) > len([]rune(best.Outcome)) {
+					best = candidate
+				}
+			}
+		}
+	}
+	return best, best.Outcome != ""
+}
+
+// consumeStanceModifiers 从 value 开头连续消费 modifiers 中的最长词项。
+// 输入 value 是属性后的剩余文本，modifiers 是允许的程度或范围副词；
+// 返回值依次为已消费的完整修饰片段和未消费文本，例如“往往很薄弱”返回“往往很”与“薄弱”。
+func consumeStanceModifiers(value string, modifiers []string) (string, string) {
+	consumed := ""
+	remainder := value
+	for {
+		modifier := longestPrefix(remainder, modifiers)
+		if modifier == "" {
+			return consumed, remainder
+		}
+		consumed += modifier
+		remainder = remainder[len(modifier):]
+	}
 }
 
 // expandStanceOutcome 从 root 起点向后拼接 suffixes 中最长的结果后缀。

@@ -1,6 +1,7 @@
 package moderation
 
 import (
+	"sort"
 	"strings"
 
 	appconfig "meta-api/config"
@@ -24,26 +25,39 @@ func adjustSignalsBySemanticsWithTrace(text NormalizedComment, signals []Signal,
 
 	adjusted := make([]Signal, 0, len(signals))
 	suppressedSignals := make([]Signal, 0)
-	suppressed := make([]string, 0)
+	suppressedByCategory := make(map[string][]string)
 	for _, signal := range signals {
 		if shouldSuppressSignalLocally(text, signal, cfg) {
 			suppressedSignals = append(suppressedSignals, signal)
-			suppressed = append(suppressed, signal.Evidence)
+			category := strings.ToLower(strings.TrimSpace(signal.Category))
+			if category == "" {
+				category = "benign_context"
+			}
+			suppressedByCategory[category] = append(suppressedByCategory[category], signal.Evidence)
 			continue
 		}
 		adjusted = append(adjusted, signal)
 	}
-	if len(suppressed) == 0 {
+	if len(suppressedByCategory) == 0 {
 		return signals, nil
 	}
 
-	adjusted = append(adjusted, Signal{
-		Source:   SourceSemantic,
-		Category: "benign_context",
-		Level:    LevelAllow,
-		Evidence: strings.Join(compactSemanticEvidence(suppressed), ","),
-		RuleID:   "benign_context",
-	})
+	// 反证只能抑制自己所属的风险分类。如果把“骗子”的 abuse 反证生成为
+	// 全局 benign_context，它会错误抵消同句的 spam_fraud 推广证据。
+	categories := make([]string, 0, len(suppressedByCategory))
+	for category := range suppressedByCategory {
+		categories = append(categories, category)
+	}
+	sort.Strings(categories)
+	for _, category := range categories {
+		adjusted = append(adjusted, Signal{
+			Source:   SourceSemantic,
+			Category: category,
+			Level:    LevelAllow,
+			Evidence: strings.Join(compactSemanticEvidence(suppressedByCategory[category]), ","),
+			RuleID:   "benign_context",
+		})
+	}
 	return adjusted, suppressedSignals
 }
 

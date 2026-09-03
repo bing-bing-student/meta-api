@@ -35,7 +35,8 @@ func combinationSignals(text NormalizedComment, cfg appconfig.CommentModerationC
 			views := []string{clause.Compact}
 			for _, subject := range containsAnyCompact(views, rule.Subjects) {
 				for _, predicate := range containsAnyCompact(views, rule.Predicates) {
-					if subject == predicate {
+					if subject == predicate ||
+						!relationPredicateDirectionValid(clause.Normalized, subject, predicate, cfg) {
 						continue
 					}
 					evidence := subject + "+" + predicate

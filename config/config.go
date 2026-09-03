@@ -266,11 +266,14 @@ type CommentModerationRelationVocabularyConfig struct {
 	ResultConnectors         []string `mapstructure:"result_connectors"`
 	PromotionActions         []string `mapstructure:"promotion_actions"`
 	WeakReportingMarkers     []string `mapstructure:"weak_reporting_markers"`
+	QuoteEndorsementMarkers  []string `mapstructure:"quote_endorsement_markers"`
 	InterrogativePrefixes    []string `mapstructure:"interrogative_prefixes"`
 	QuestionMarkers          []string `mapstructure:"question_markers"`
 	FirstPersonMarkers       []string `mapstructure:"first_person_markers"`
 	ContrastMarkers          []string `mapstructure:"contrast_markers"`
 	ClauseBoundaryMarkers    []string `mapstructure:"clause_boundary_markers"`
+	SequenceMarkers          []string `mapstructure:"sequence_markers"`
+	GenericActionMarkers     []string `mapstructure:"generic_action_markers"`
 	GovernanceMarkers        []string `mapstructure:"governance_markers"`
 	GovernancePatterns       []string `mapstructure:"governance_patterns"`
 }
@@ -281,22 +284,33 @@ type CommentModerationStanceOutcomeConfig struct {
 	Roots  []string `mapstructure:"roots"`
 }
 
+// CommentModerationAttributeOutcomeConfig 描述“安全意识普遍较差”一类属性评价。
+// Attributes 是被评价属性，Modifiers 是可选程度或范围副词，Descriptors 是负面描述。
+type CommentModerationAttributeOutcomeConfig struct {
+	Stance      string   `mapstructure:"stance"`
+	Attributes  []string `mapstructure:"attributes"`
+	Modifiers   []string `mapstructure:"modifiers"`
+	Descriptors []string `mapstructure:"descriptors"`
+}
+
 // CommentModerationRiskEvaluationConfig 描述“某行为属于诈骗/违法”等评价语句的语言策略。
 // 这里只提供词汇和语义角色；边界、作用域和关系推理仍由代码实现。
 type CommentModerationRiskEvaluationConfig struct {
-	Outcomes                 []CommentModerationStanceOutcomeConfig `mapstructure:"outcomes"`
-	OutcomeSuffixes          []string                               `mapstructure:"outcome_suffixes"`
-	OutcomeNegations         []string                               `mapstructure:"outcome_negations"`
-	JudgmentPredicates       []string                               `mapstructure:"judgment_predicates"`
-	DemonstrativePredicates  []string                               `mapstructure:"demonstrative_predicates"`
-	PostOutcomeRejections    []string                               `mapstructure:"post_outcome_rejections"`
-	WarningPredicates        []string                               `mapstructure:"warning_predicates"`
-	GovernanceActions        []string                               `mapstructure:"governance_actions"`
-	GovernanceModals         []string                               `mapstructure:"governance_modals"`
-	PromotionMarkers         []string                               `mapstructure:"promotion_markers"`
-	QuestionMarkers          []string                               `mapstructure:"question_markers"`
-	PromotionContrastMarkers []string                               `mapstructure:"promotion_contrast_markers"`
-	PromotionActionMarkers   []string                               `mapstructure:"promotion_action_markers"`
+	Outcomes                 []CommentModerationStanceOutcomeConfig    `mapstructure:"outcomes"`
+	AttributeOutcomes        []CommentModerationAttributeOutcomeConfig `mapstructure:"attribute_outcomes"`
+	TopicSuffixes            []string                                  `mapstructure:"topic_suffixes"`
+	OutcomeSuffixes          []string                                  `mapstructure:"outcome_suffixes"`
+	OutcomeNegations         []string                                  `mapstructure:"outcome_negations"`
+	JudgmentPredicates       []string                                  `mapstructure:"judgment_predicates"`
+	DemonstrativePredicates  []string                                  `mapstructure:"demonstrative_predicates"`
+	PostOutcomeRejections    []string                                  `mapstructure:"post_outcome_rejections"`
+	WarningPredicates        []string                                  `mapstructure:"warning_predicates"`
+	GovernanceActions        []string                                  `mapstructure:"governance_actions"`
+	GovernanceModals         []string                                  `mapstructure:"governance_modals"`
+	PromotionMarkers         []string                                  `mapstructure:"promotion_markers"`
+	QuestionMarkers          []string                                  `mapstructure:"question_markers"`
+	PromotionContrastMarkers []string                                  `mapstructure:"promotion_contrast_markers"`
+	PromotionActionMarkers   []string                                  `mapstructure:"promotion_action_markers"`
 }
 
 // CommentModerationSemanticContextConfig 描述片段语义分类词族。
@@ -329,6 +343,7 @@ type CommentModerationHarmfulValuePolicyConfig struct {
 	IncitementSuffixes  []string `mapstructure:"incitement_suffixes"`
 	IdeationMarkers     []string `mapstructure:"ideation_markers"`
 	PreventionMarkers   []string `mapstructure:"prevention_markers"`
+	PostventionMarkers  []string `mapstructure:"postvention_markers"`
 	EducationActors     []string `mapstructure:"education_actors"`
 	EducationActions    []string `mapstructure:"education_actions"`
 	CriticalOutcomes    []string `mapstructure:"critical_outcomes"`
@@ -604,6 +619,7 @@ func (c *Config) CommentModerationSnapshot() CommentModerationConfig {
 	harmfulPolicy.IncitementSuffixes = cloneStringSlice(harmfulPolicy.IncitementSuffixes)
 	harmfulPolicy.IdeationMarkers = cloneStringSlice(harmfulPolicy.IdeationMarkers)
 	harmfulPolicy.PreventionMarkers = cloneStringSlice(harmfulPolicy.PreventionMarkers)
+	harmfulPolicy.PostventionMarkers = cloneStringSlice(harmfulPolicy.PostventionMarkers)
 	harmfulPolicy.EducationActors = cloneStringSlice(harmfulPolicy.EducationActors)
 	harmfulPolicy.EducationActions = cloneStringSlice(harmfulPolicy.EducationActions)
 	harmfulPolicy.CriticalOutcomes = cloneStringSlice(harmfulPolicy.CriticalOutcomes)
@@ -660,11 +676,14 @@ func cloneCommentModerationRelationVocabularyConfig(
 	cfg.ResultConnectors = cloneStringSlice(cfg.ResultConnectors)
 	cfg.PromotionActions = cloneStringSlice(cfg.PromotionActions)
 	cfg.WeakReportingMarkers = cloneStringSlice(cfg.WeakReportingMarkers)
+	cfg.QuoteEndorsementMarkers = cloneStringSlice(cfg.QuoteEndorsementMarkers)
 	cfg.InterrogativePrefixes = cloneStringSlice(cfg.InterrogativePrefixes)
 	cfg.QuestionMarkers = cloneStringSlice(cfg.QuestionMarkers)
 	cfg.FirstPersonMarkers = cloneStringSlice(cfg.FirstPersonMarkers)
 	cfg.ContrastMarkers = cloneStringSlice(cfg.ContrastMarkers)
 	cfg.ClauseBoundaryMarkers = cloneStringSlice(cfg.ClauseBoundaryMarkers)
+	cfg.SequenceMarkers = cloneStringSlice(cfg.SequenceMarkers)
+	cfg.GenericActionMarkers = cloneStringSlice(cfg.GenericActionMarkers)
 	cfg.GovernanceMarkers = cloneStringSlice(cfg.GovernanceMarkers)
 	cfg.GovernancePatterns = cloneStringSlice(cfg.GovernancePatterns)
 }
@@ -681,6 +700,17 @@ func cloneCommentModerationRiskEvaluationConfig(cfg *CommentModerationRiskEvalua
 		}
 		cfg.Outcomes = outcomes
 	}
+	if len(cfg.AttributeOutcomes) > 0 {
+		outcomes := make([]CommentModerationAttributeOutcomeConfig, len(cfg.AttributeOutcomes))
+		for index, outcome := range cfg.AttributeOutcomes {
+			outcome.Attributes = cloneStringSlice(outcome.Attributes)
+			outcome.Modifiers = cloneStringSlice(outcome.Modifiers)
+			outcome.Descriptors = cloneStringSlice(outcome.Descriptors)
+			outcomes[index] = outcome
+		}
+		cfg.AttributeOutcomes = outcomes
+	}
+	cfg.TopicSuffixes = cloneStringSlice(cfg.TopicSuffixes)
 	cfg.OutcomeSuffixes = cloneStringSlice(cfg.OutcomeSuffixes)
 	cfg.OutcomeNegations = cloneStringSlice(cfg.OutcomeNegations)
 	cfg.JudgmentPredicates = cloneStringSlice(cfg.JudgmentPredicates)

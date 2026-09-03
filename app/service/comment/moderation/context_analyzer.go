@@ -21,6 +21,7 @@ import (
 var (
 	localASCIIWordRegexp = regexp.MustCompile(`[a-z]{2,20}`)
 	localHanRunRegexp    = regexp.MustCompile(`\p{Han}{2,}`)
+	htmlEntityRegexp     = regexp.MustCompile(`(?i)&(?:#[0-9]+|#x[0-9a-f]+|[a-z][a-z0-9]+);`)
 )
 
 // ContextInput 汇总一次本地上下文分析所需的业务请求、文本视图、改写候选和规则证据。
@@ -113,7 +114,7 @@ func (a *LocalContextAnalyzer) Analyze(ctx context.Context, input ContextInput,
 	applySurroundingContext(variantCandidates, input.Request)
 	relations := analyzeSemanticRelations(input.Text, variantCandidates, input.Evidence, cfg)
 	profile := relationIntentProfile(relations, input.Text, cfg)
-	localEvidence := append(candidateEvidence(variantCandidates, relations, cfg), relationEvidence(relations)...)
+	localEvidence := append(candidateEvidence(variantCandidates, relations, cfg), relationEvidence(relations, cfg)...)
 
 	probabilities := make(map[string]float64)
 	for _, item := range append(append([]Evidence(nil), input.Evidence...), localEvidence...) {
@@ -400,7 +401,11 @@ func localVariantCandidates(ctx context.Context, text NormalizedComment, index r
 			seen[key] = struct{}{}
 			candidates = append(candidates, candidate)
 		}
-		for _, token := range localASCIIWordRegexp.FindAllString(clause.Compact, -1) {
+		// HTML 实体名是编码语法而不是评论词汇。例如 &lt; 紧凑化后会变成
+		// “lt”，不能再按拼音首字母解释为“露臀”。实体以外的文本仍正常分析。
+		candidateText := localCandidateText(clause)
+		shortNearTerms := relatedShortNearTerms(candidateText, cfg)
+		for _, token := range localASCIIWordRegexp.FindAllString(candidateText, -1) {
 			appendMatches(token, "pinyin_initials", initialsCandidateConfidence(token), clauseIndex+1,
 				index.byInitials[token])
 			appendMatches(token, "pinyin_full", 0.9, clauseIndex+1, index.byASCIIPinyin[token])
@@ -410,13 +415,13 @@ func localVariantCandidates(ctx context.Context, text NormalizedComment, index r
 				break
 			}
 			if term.PinyinPattern != nil {
-				observed := term.PinyinPattern.FindString(clause.Compact)
+				observed := term.PinyinPattern.FindString(candidateText)
 				if observed != "" {
 					appendMatches(observed, "pinyin_full", 0.9, clauseIndex+1, []riskTerm{term})
 				}
 			}
 			if term.InitialsPattern != nil {
-				observed := term.InitialsPattern.FindString(clause.Compact)
+				observed := term.InitialsPattern.FindString(candidateText)
 				// 纯 ASCII 首字母已由上面的精确索引处理；这里要求至少包含一个汉字，
 				// 防止短首字母在较长英文单词中产生任意子串误报。
 				if observed != "" && containsHan(observed) {
@@ -424,7 +429,7 @@ func localVariantCandidates(ctx context.Context, text NormalizedComment, index r
 				}
 			}
 		}
-		for _, run := range localHanRunRegexp.FindAllString(clause.Compact, -1) {
+		for _, run := range localHanRunRegexp.FindAllString(candidateText, -1) {
 			runes := []rune(run)
 			for _, length := range index.lengths {
 				if length > len(runes) || len(candidates) >= maxCandidates {
@@ -435,11 +440,13 @@ func localVariantCandidates(ctx context.Context, text NormalizedComment, index r
 					signature := phoneticSignature(observed, pinyin.Normal)
 					appendMatches(observed, "pinyin_homophone", 0.92, clauseIndex+1,
 						index.byPinyin[signature])
+					terms := index.byLength[length]
 					if length < 3 {
-						continue
+						terms = shortNearTerms
 					}
-					for _, term := range index.byLength[length] {
-						if weightedEditDistance([]rune(signature), []rune(term.Pinyin)) == 2 {
+					for _, term := range terms {
+						if weightedEditDistance([]rune(signature), []rune(term.Pinyin)) == 2 &&
+							(length >= 3 || shortNearCandidateHasCloseCounterpart(candidateText, observed, term, cfg)) {
 							appendMatches(observed, "pinyin_near", 0.78, clauseIndex+1, []riskTerm{term})
 						}
 					}
@@ -451,6 +458,117 @@ func localVariantCandidates(ctx context.Context, text NormalizedComment, index r
 		return candidates[i].Confidence > candidates[j].Confidence
 	})
 	return candidates, nil
+}
+
+// relatedShortNearTerms 从当前分句已出现的关系对端，反向推导需要比较的两字近音词。
+// value 是分句候选文本，cfg 提供组合规则和概念集；返回值只包含
+// fuzzy=true 概念集中、且同分句已有相对语义角色的词。
+func relatedShortNearTerms(value string, cfg appconfig.CommentModerationConfig) []riskTerm {
+	result := make([]riskTerm, 0, 4)
+	seen := make(map[string]struct{})
+	appendRefs := func(refs []string, category, role string) {
+		for _, ref := range refs {
+			concept, exists := cfg.ConceptSets[strings.TrimSpace(ref)]
+			if !exists || !concept.Fuzzy {
+				continue
+			}
+			for _, value := range concept.Terms {
+				term, ok := newRiskTermWithRole(value, category, role)
+				if !ok || term.RuneCount != 2 {
+					continue
+				}
+				key := term.Category + "\x00" + term.Role + "\x00" + term.Compact
+				if _, exists := seen[key]; exists {
+					continue
+				}
+				seen[key] = struct{}{}
+				result = append(result, term)
+			}
+		}
+	}
+	for _, rule := range cfg.CombinationRules {
+		category := strings.TrimSpace(rule.Category)
+		if category == "" {
+			category = strings.TrimSpace(rule.ID)
+		}
+		if firstContainedRelationTerm(value, rule.Predicates) != "" {
+			appendRefs(rule.SubjectRefs, category, CandidateRoleSubject)
+		}
+		if firstContainedRelationTerm(value, rule.Subjects) != "" {
+			appendRefs(rule.PredicateRefs, category, CandidateRolePredicate)
+		}
+	}
+	return result
+}
+
+// shortNearCandidateHasCloseCounterpart 检查两字近音观测值旁边是否紧邻另一个关系角色。
+// value 是分句，observed 是实际片段，term 是规范词，cfg 提供规则；
+// 返回 true 时两端间最多间隔两个字符，用于阻止“公司系统”跨词还原为“私信”。
+func shortNearCandidateHasCloseCounterpart(value, observed string, term riskTerm,
+	cfg appconfig.CommentModerationConfig,
+) bool {
+	for _, rule := range cfg.CombinationRules {
+		category := strings.TrimSpace(rule.Category)
+		if category == "" {
+			category = strings.TrimSpace(rule.ID)
+		}
+		if !strings.EqualFold(category, term.Category) {
+			continue
+		}
+		counterparts := []string(nil)
+		switch term.Role {
+		case CandidateRoleSubject:
+			if relationRuleContainsTerm(rule.Subjects, term.Compact) {
+				counterparts = rule.Predicates
+			}
+		case CandidateRolePredicate:
+			if relationRuleContainsTerm(rule.Predicates, term.Compact) {
+				counterparts = rule.Subjects
+			}
+		}
+		for _, counterpart := range containedRelationTerms(value, counterparts) {
+			if relationTermsWithinDistance(value, observed, counterpart, 2) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// relationTermsWithinDistance 判断 value 中两个词项的字符间隔是否不超过 maxDistance。
+// 返回 true 表示两词紧邻、重叠或仅被少量语气词分隔。
+func relationTermsWithinDistance(value, left, right string, maxDistance int) bool {
+	value = compactText(normalizeText(value))
+	left = compactText(normalizeText(left))
+	right = compactText(normalizeText(right))
+	leftIndex := relationTermIndex(value, left)
+	rightIndex := relationTermIndex(value, right)
+	if leftIndex < 0 || rightIndex < 0 {
+		return false
+	}
+	leftEnd := leftIndex + len(left)
+	rightEnd := rightIndex + len(right)
+	if byteRangesOverlap(leftIndex, leftEnd, rightIndex, rightEnd) {
+		return true
+	}
+	if leftEnd <= rightIndex {
+		return len([]rune(value[leftEnd:rightIndex])) <= maxDistance
+	}
+	return len([]rune(value[rightEnd:leftIndex])) <= maxDistance
+}
+
+// localCandidateText 生成只供拼音、首字母和近音候选使用的紧凑文本。
+// HTML 实体名和可成功解码的 Base64 块属于编码语法，不是自然语言；先屏蔽它们，
+// 避免 &lt; 被解释成“露臀”，或随机 Base64 字母被解释成风险缩写。
+func localCandidateText(clause NormalizedComment) string {
+	value := clause.Raw
+	for _, candidate := range extractBase64Candidates(value) {
+		if _, ok := decodeBase64Candidate(candidate); ok {
+			value = strings.ReplaceAll(value, candidate, " ")
+		}
+	}
+	value = htmlEntityRegexp.ReplaceAllString(normalizeText(value), " ")
+	return compactText(value)
 }
 
 // applySurroundingContext 使用文章标题、分类及回复上下文印证 candidates 中的规范词。
@@ -506,10 +624,13 @@ func candidateEvidence(candidates []RewriteCandidate, relations []SemanticRelati
 			!strings.Contains(candidate.Rationale, "上下文中的规范词印证") {
 			continue
 		}
-		if candidate.Method == "pinyin_homophone" && hasRelation && relation.Action != "辱骂" &&
-			relationActionIsOnlyGeneric(relation.Action, cfg) &&
+		if candidate.Method == "pinyin_homophone" &&
 			!strings.Contains(candidate.Rationale, "上下文中的规范词印证") {
-			continue
+			// 中文连续文本没有显式词边界，单凭同音索引会把“特殊药片”中的
+			// “殊药”还原为“鼠药”。同音候选必须获得同分句动作关系或周边正文印证。
+			if !hasRelation || relation.Action != "辱骂" && relationActionIsOnlyGeneric(relation.Action, cfg) {
+				continue
+			}
 		}
 		if candidate.Method == "pinyin_initials" && containsHan(candidate.Observed) &&
 			(!hasRelation || relation.Action == "") &&

@@ -4,3 +4,4 @@ G002	这家店宣传和实际体验差距比较大，不太推荐。	approved	co
 G003	这个资料整理得比较完整，建议作者后续放到文章附件里。	approved	normal	resource	benign resource mention
 G004	能不能加一个评论区举报的案例分析？	approved	normal	report_discussion	benign feature discussion
 G005	如果有人在评论区暗示去主页拿资源，应该怎么处理？	approved	moderation_design	resource,profile	benign moderation discussion
+G006	论文代写是不是骗局？	pending	fraud_question	risk_evaluation,academic,question	疑问句不能当作已确定的风险结论

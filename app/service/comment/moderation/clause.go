@@ -41,7 +41,7 @@ func splitSemanticText(value string, cfg appconfig.CommentModerationConfig) []st
 	start := 0
 	for index, r := range runes {
 		if (!isSemanticSeparator(r) && !isScopedCommaSeparator(runes, index, cfg)) || isURLColon(runes, index) ||
-			isContactColon(runes, index, cfg) || isDomainDot(runes, index) {
+			isContactColon(runes, index, cfg) || isDomainDot(runes, index) || isHTMLEntitySemicolon(runes, index) {
 			continue
 		}
 		if part := strings.TrimSpace(string(runes[start:index])); part != "" {
@@ -53,6 +53,27 @@ func splitSemanticText(value string, cfg appconfig.CommentModerationConfig) []st
 		parts = append(parts, part)
 	}
 	return parts
+}
+
+// isHTMLEntitySemicolon 判断 index 处的分号是否是 HTML 实体的结束符。
+// 输入 runes 是原始评论；返回 true 时分号属于 &lt;、&#60; 等编码语法，不能切断分句，
+// 否则实体名会在紧凑化后变成普通 ASCII 缩写并触发错误的拼音候选。
+func isHTMLEntitySemicolon(runes []rune, index int) bool {
+	if index <= 1 || index >= len(runes) || runes[index] != ';' {
+		return false
+	}
+	start := index - 1
+	for start >= 0 && index-start <= 32 {
+		r := runes[start]
+		if r == '&' {
+			return htmlEntityRegexp.MatchString(string(runes[start : index+1]))
+		}
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '#' {
+			return false
+		}
+		start--
+	}
+	return false
 }
 
 // isScopedCommaSeparator 判断指定逗号后是否紧跟配置的分句边界词。
@@ -71,6 +92,13 @@ func isScopedCommaSeparator(runes []rune, index int, cfg appconfig.CommentModera
 			return true
 		}
 	}
+	// 顺序连接词会开启新的动作作用域。例如“禁止公开联系方式，然后裸聊”中，
+	// “禁止”只约束前一动作，不能把后续裸聊一并当成治理语境。
+	for _, marker := range cfg.SemanticRules.RelationVocabulary.SequenceMarkers {
+		if strings.HasPrefix(suffix, marker) {
+			return true
+		}
+	}
 	return false
 }
 
@@ -80,11 +108,11 @@ func isContactColon(runes []rune, index int, cfg appconfig.CommentModerationConf
 	if index < 1 || runes[index] != ':' && runes[index] != '：' {
 		return false
 	}
-	start := index - 8
+	start := index - 12
 	if start < 0 {
 		start = 0
 	}
-	prefix := compactText(strings.ToLower(string(runes[start:index])))
+	prefix := compactText(normalizeText(string(runes[start:index])))
 	for _, marker := range cfg.StructurePatterns.ContactLabels {
 		if strings.HasSuffix(prefix, marker) {
 			return true
@@ -123,7 +151,7 @@ func isURLColon(runes []rune, index int) bool {
 	if index < 1 || runes[index] != ':' {
 		return false
 	}
-	start := index - 8
+	start := index - 12
 	if start < 0 {
 		start = 0
 	}
@@ -154,6 +182,12 @@ func isBenignSemanticClause(clause NormalizedComment, cfg appconfig.CommentModer
 	}
 	if containsAnyNormalized(value, contexts.ActionableMarkers) {
 		return false
+	}
+	// 审批、授权等合规流程使用可配置语法模式表达，避免为
+	// “应走审批”“必须经过授权”等同类变体逐条堆叠完整短语。
+	if matchesAnySemanticPattern(clause.Normalized,
+		cfg.SemanticRules.RelationVocabulary.GovernancePatterns) {
+		return true
 	}
 	return containsAnyNormalized(value, contexts.ReportingMarkers) ||
 		containsAnyNormalized(value, contexts.RejectionMarkers) ||

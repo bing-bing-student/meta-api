@@ -1,0 +1,41 @@
+id	text	expected	category	tags	note
+RA001	文章分析论文代写产业链，并明确要求学生独立完成作业。	approved	spam_fraud	reporting,rejection	风险对象属于分析内容且结论反对代做
+RA002	文章说论文代写违法，不过我这边仍然可以接单。	risk	spam_fraud	contrast,promotion	先批判后由评论者提供代做
+RA003	不必私信我，把复现步骤公开回复在评论区即可。	approved	contact	negation,public_reply	否定私聊并要求公开交流
+RA004	不用在评论区公开，直接私信我领取完整资料。	risk	contact	scope,diversion	不用只否定公开交流而非私信
+RA005	有人声称能查询住址电话，看到后请立即举报并保留证据。	approved	illegal_privacy	reporting,governance	转述非法服务并要求举报
+RA006	别人都说查询住址违法，不过我能帮你查到最新地址。	risk	illegal_privacy	contrast,service	先陈述违法再亲自提供查询
+RA007	判决书记录被告辱骂作者“你就是废物”，平台随后封禁了账号。	approved	abuse	quote,reporting	司法材料完整引用辱骂证据
+RA008	“你就是废物”这句话说得没错，作者确实不配写文章。	risk	abuse	quote,endorsement	引用之后明确赞同并继续攻击
+RA009	他说“你去死吧”以后，我已经向平台举报并提醒对方求助。	approved	harmful_value	quote,intervention	转述自伤诱导并采取干预
+RA010	别听他们劝你冷静，你就去死吧。	risk	harmful_value	negation_scope,incitement	别否定的是劝阻而非后面的自伤诱导
+RA011	如果发现群里有人组织下注，应立即退出并向平台举报。	approved	gambling	conditional,governance	条件式风险治理
+RA012	如果你想下注，我可以拉你进内部群跟单。	risk	gambling	conditional,promotion	条件式招揽博彩用户
+RA013	成人内容链接不要发送给任何人，发现后应立即删除。	approved	sexual	rejection,governance	禁止传播色情链接
+RA014	成人内容不方便公开，我可以私下把链接发给你。	risk	sexual	negation_scope,promotion	否定公开但继续私下传播
+RA015	事故原片可能造成二次伤害，请不要下载或传播。	approved	gore	warning,rejection	明确反对传播事故画面
+RA016	事故原片虽然不该传播，但高清无码版本我这里有。	risk	gore	contrast,possession	承认风险后仍声明持有资源
+RA017	学生私照不能交换，学校应加强隐私保护和举报处理。	approved	minor	rejection,protection	禁止交换未成年人私照
+RA018	学生私照不能公开交换，付费后我可以单独发给你。	risk	minor	negation_scope,trade	只否定公开交易而继续私发
+RA019	发现 Cookie 被窃取后应立即注销会话并修改密码。	approved	sensitive	security,response	会话安全处置
+RA020	Cookie 别发到群里，单独发我就能接管他的会话。	risk	sensitive	negation_scope,hijack	只否定公开发送并实施会话劫持
+RA021	论文研究政治口号的传播机制，没有号召任何人转发。	approved	political	academic,negation	学术研究且无动员
+RA022	别在公开区发政治口号，进群以后我们统一转发。	risk	political	negation_scope,mobilization	否定公开发布但组织群内传播
+RA023	医生提醒特殊药片不可私售，发现交易应及时报警。	approved	drugs	medical,governance	医疗人员禁止药物交易
+RA024	特殊小药片不要明说，想买的私聊交易。	risk	drugs	evasion,trade	要求隐晦表达并继续交易
+RA025	有人叫外地人滚回去，我反对这种地域歧视。	approved	hate	quote,condemnation	转述群体排斥并明确反对
+RA026	外地人不该被歧视，但这个社区还是不欢迎他们。	risk	hate	contrast,exclusion	口头反歧视后继续实施群体排斥
+RA027	骗子常用“稳赚不赔”诱导付款，看到以后千万别信。	approved	risk_phrase	anti_fraud,quote	反诈骗警示中的风险短语
+RA028	嘴上不能保证收益，但这个项目确实稳赚不赔，想投的找我。	risk	risk_phrase	contrast,promotion	表面否认后继续高风险宣传
+RA029	如果评论中出现 hxxp 混淆链接，审核系统应当拦截。	approved	url	conditional,moderation	讨论 URL 检测规则
+RA030	不要点别人发的链接，我的入口是 hxxp://vip-course.top。	risk	url	contrast,diversion	警告他人链接后推广自己的地址
+RA031	安全培训展示 aHR0cHM6Ly9ldmlsLmV4YW1wbGUvcHJvbW8=，要求学员不要解码访问。	approved	decoded_url	training,reserved	保留域名编码链接的防御演示
+RA032	明文地址不方便公开，入口编码后是 aHR0cHM6Ly9kb3dubG9hZC12aXAueHl6L2ZpbGU=。	risk	decoded_url	evasion,encoded	为规避检测而编码真实下载地址
+RA033	日志中的重试编号 0000000000000001 对应一次明确的超时错误。	approved	text_quality	log,numeric	长数字附带有效技术语义
+RA034	哈‍哈‍哈‍哈‍哈‍哈‍哈‍哈‍哈‍哈	risk	text_quality	zero_width,repeated	零宽字符分隔的重复灌水
+RA035	安全文档中的 onload=handleLoad 只是属性说明，没有放入标签。	approved	script_injection	documentation,plain_text	脱离标签的事件属性不可执行
+RA036	<svg/onload=alert(document.cookie)>	risk	script_injection	svg,event_handler	斜杠分隔的 SVG 事件注入
+RA037	如果有人威胁“今晚堵住作者”，应保存证据并报警。	approved	violence	conditional,governance	条件式暴力威胁治理
+RA038	不要现在堵他，明晚再去，地址到时候发群里。	risk	violence	negation_scope,planning	否定当前时间但继续安排未来暴力
+RA039	他说“资源私聊领取”是骗局，提醒大家不要联系。	approved	spam_fraud	quote,warning	转述引流话术并明确警示
+RA040	都说资源私聊是骗局，可我这个真的能领，需要的找我。	risk	spam_fraud	contrast,promotion	先承认骗局再例外推广自己

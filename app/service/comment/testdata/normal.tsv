@@ -324,3 +324,11 @@ N322	评论区那种私聊领取资源的基本都是诈骗	approved	fraud_warni
 N323	有人让你私聊领资料，多半是骗局，别信	approved	fraud_warning	risk_evaluation,resource,warning	提醒不要相信资料骗局
 N324	凡是要求私下领取所谓资源的，大概率是诈骗	approved	fraud_warning	risk_evaluation,resource,contact	概括诈骗套路
 N325	私聊发资源这种套路不可信，建议直接举报	approved	fraud_warning	risk_evaluation,resource,report	风险评价并建议举报
+N326	评论区里面发布论文代写的基本都是骗子	approved	fraud_warning	risk_evaluation,academic,group_evaluation	对论文代写发布者作出诈骗警示
+N327	通过评论区找论文代写的，安全意识普遍较差	approved	fraud_warning	risk_evaluation,academic,attribute_evaluation	对寻找代写者的安全意识作负面评价
+N328	找论文代写的人风险意识很薄弱	approved	fraud_warning	risk_evaluation,academic,attribute_evaluation	风险行为人群的属性评价
+N329	通过评论区找代写者，可信度通常较低	approved	fraud_warning	risk_evaluation,academic,attribute_evaluation	代写者可信度评价
+N330	评论区发布毕业设计代做的基本都是骗子	approved	fraud_warning	risk_evaluation,academic,group_evaluation	对毕业设计代做推广者作风险评价
+N331	通过私聊找破解软件的人风险意识通常较低	approved	fraud_warning	risk_evaluation,piracy,attribute_evaluation	对破解软件寻求者作风险评价
+N332	低价账号的卖家大多是骗子	approved	fraud_warning	risk_evaluation,account_trade,group_evaluation	对低价账号卖家作诈骗警示
+N333	参与赌博下注的人安全意识往往很薄弱	approved	fraud_warning	risk_evaluation,gambling,attribute_evaluation	对赌博参与者的风险属性评价

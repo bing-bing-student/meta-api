@@ -93,6 +93,7 @@ comment_moderation:
         - 揍
         - 砸
         - 砍
+        - 砍他
         - 堵
         - 围堵
         - 围殴
@@ -255,3 +256,10 @@ comment_moderation:
         - 恶意
         - 羞辱
         - 煽动
+    # 群体身份和排斥动作分别复用概念集合。只有二者在同一分句形成关系才触发，
+    # “反对地域歧视”或单独讨论“女性开发者”不会因一个词直接进入审核。
+    - id: group_hate_exclusion
+      category: hate
+      level: review
+      subject_refs: [group_identity_targets]
+      predicate_refs: [group_exclusion_actions]

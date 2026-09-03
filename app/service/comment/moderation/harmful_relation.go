@@ -37,7 +37,7 @@ func appendHarmfulValueRelations(clauseID int, clause NormalizedComment,
 	appendRiskEducationRelations(clauseID, clause, evidence, policy, cfg, appendRelation)
 
 	for _, match := range harmfulRelationMatches(clauseID, clause, candidates, policy) {
-		prevention := harmfulPreventionNear(clause.Compact, match.Observed, policy.PreventionMarkers)
+		prevention := harmfulPreventionNear(clause.Compact, match.Observed, policy)
 		if prevention != "" {
 			appendRelation(SemanticRelation{
 				Clause: clauseID, Subject: "评论者", Action: "劝阻危险行为", Object: "相关人员",
@@ -238,13 +238,22 @@ func harmfulIngestionNear(value, focus string, actions []string) string {
 	return best
 }
 
-// harmfulPreventionNear 在 focus 前后窗口中查找劝阻或防范标记。
-// 输入 markers 是防范词；返回首个命中标记，未命中时返回空串。
-func harmfulPreventionNear(value, focus string, markers []string) string {
-	prefix, suffix := relationWindows(value, focus, 12, 10)
-	for _, marker := range markers {
+// harmfulPreventionNear 在 focus 前查找劝阻动作，在 focus 后只查找救助结果。
+// 输入 policy 分别提供前置防范词和后置处置词；返回首个命中标记，未命中时返回空串。
+// 两个方向不能混用，否则“你去跳楼，别再出现”中的“别”会被错误理解为阻止跳楼。
+func harmfulPreventionNear(value, focus string,
+	policy appconfig.CommentModerationHarmfulValuePolicyConfig,
+) string {
+	_, suffix := relationWindows(value, focus, 12, 10)
+	for _, marker := range policy.PreventionMarkers {
 		marker = compactText(normalizeText(marker))
-		if marker != "" && (strings.Contains(prefix, marker) || strings.Contains(suffix, marker)) {
+		if marker != "" && relationMarkerBefore(value, focus, []string{marker}, 6) {
+			return marker
+		}
+	}
+	for _, marker := range policy.PostventionMarkers {
+		marker = compactText(normalizeText(marker))
+		if marker != "" && strings.Contains(suffix, marker) {
 			return marker
 		}
 	}
@@ -256,7 +265,7 @@ func harmfulPreventionNear(value, focus string, markers []string) string {
 func harmfulIncitementNear(value, focus string,
 	policy appconfig.CommentModerationHarmfulValuePolicyConfig,
 ) string {
-	prefix, suffix := relationWindows(value, focus, 12, 6)
+	prefix, suffix := relationWindows(value, focus, 12, 18)
 	for _, marker := range policy.IncitementMarkers {
 		marker = compactText(normalizeText(marker))
 		if marker != "" && strings.Contains(prefix, marker) {
@@ -329,15 +338,46 @@ func nearestRelationPerson(value string, policy appconfig.CommentModerationHarmf
 	return role
 }
 
-// harmfulRelationTarget 从 focus 之前的窗口中寻找受有害动作影响的对象。
-// 输入 policy 和 cfg 提供附加及通用人物目标；返回首个目标词，未命中时返回空串。
+// harmfulRelationTarget 从 focus 前后窗口中寻找受有害动作影响的最近对象。
+// 输入 policy 和 cfg 提供附加及通用人物目标；返回与动作字符距离最短的对象，
+// 同距离时优先较长词项，避免“他们…你…去死”被配置顺序误导。
 func harmfulRelationTarget(value, focus string, policy appconfig.CommentModerationHarmfulValuePolicyConfig,
 	cfg appconfig.CommentModerationConfig,
 ) string {
-	prefix, _ := relationWindows(value, focus, 18, 0)
+	prefix, suffix := relationWindows(value, focus, 18, 18)
 	targets := append([]string(nil), cfg.SemanticRules.RelationVocabulary.PersonTargets...)
 	targets = append(targets, policy.AdditionalTargets...)
-	return firstContainedRelationTerm(prefix, targets)
+	return nearestHarmfulRelationTarget(prefix, suffix, targets)
+}
+
+// nearestHarmfulRelationTarget 比较 focus 前后的人物词项距离。
+// prefix 和 suffix 分别是动作前后文本，targets 是可选对象；返回最近对象，未命中返回空串。
+func nearestHarmfulRelationTarget(prefix, suffix string, targets []string) string {
+	bestTarget := ""
+	bestDistance := int(^uint(0) >> 1)
+	for _, target := range targets {
+		target = compactText(normalizeText(target))
+		if target == "" {
+			continue
+		}
+		if index := strings.LastIndex(prefix, target); index >= 0 {
+			distance := len([]rune(prefix[index+len(target):]))
+			if distance < bestDistance ||
+				(distance == bestDistance && len([]rune(target)) > len([]rune(bestTarget))) {
+				bestTarget = target
+				bestDistance = distance
+			}
+		}
+		if index := strings.Index(suffix, target); index >= 0 {
+			distance := len([]rune(suffix[:index]))
+			if distance < bestDistance ||
+				(distance == bestDistance && len([]rune(target)) > len([]rune(bestTarget))) {
+				bestTarget = target
+				bestDistance = distance
+			}
+		}
+	}
+	return bestTarget
 }
 
 // harmfulTargetIsAddressed 判断 target 是否被评论直接称呼或置于明确指令结构中。
